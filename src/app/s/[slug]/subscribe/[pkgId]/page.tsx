@@ -46,7 +46,7 @@ export default async function SubscribePage({ params }: Props) {
   return (
     <main className="mx-auto max-w-xl px-6 py-16 rise-in">
       <Wordmark variant="inline" name={firstName} />
-      <h1 className="mt-12 font-display text-4xl">Reserve this block.</h1>
+      <h1 className="mt-12 text-4xl">Reserve this block.</h1>
       <p className="mt-3 text-[color:var(--color-ink)]/75">
         You&rsquo;re about to start training with {trainer.display_name}. Confirm your block and
         we&rsquo;ll let them know you&rsquo;re ready.

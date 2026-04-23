@@ -16,18 +16,18 @@ export default function RootPage() {
           <Link href="#approach" className="hover:text-[color:var(--color-moss-deep)]">
             approach
           </Link>
-          <Link href="#for-trainers" className="hover:text-[color:var(--color-moss-deep)]">
-            for trainers
+          <Link href="/join" className="hover:text-[color:var(--color-moss-deep)]">
+            for clients
           </Link>
           <Link
             href="/sign-in"
-            className="rounded-md border border-[color:var(--color-stone-soft)] px-3 py-1.5 hover:border-[color:var(--color-moss)] hover:text-[color:var(--color-moss-deep)]"
+            className="rounded-md border border-[color:var(--color-ink)] px-3 py-1.5 text-[color:var(--color-ink)] hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
           >
             sign in
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-md bg-[color:var(--color-moss)] px-3 py-1.5 text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
+            className="rounded-md bg-[color:var(--color-ink)] px-3 py-1.5 font-semibold text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
           >
             start your studio
           </Link>

@@ -34,7 +34,7 @@ export default async function ClientLogsPage() {
     <div className="rise-in-stagger space-y-10">
       <section>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">logs</p>
-        <h1 className="mt-2 font-display text-4xl">What you&rsquo;re tracking.</h1>
+        <h1 className="mt-2 text-4xl">What you&rsquo;re tracking.</h1>
       </section>
 
       {!anyEnabled ? (

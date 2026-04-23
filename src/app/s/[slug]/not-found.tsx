@@ -7,7 +7,7 @@ export default function TrainerNotFound() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col items-start justify-center px-6 py-16">
       <Wordmark variant="inline-platform" />
-      <h1 className="mt-12 font-display text-4xl">This studio isn&rsquo;t here.</h1>
+      <h1 className="mt-12 text-4xl">This studio isn&rsquo;t here.</h1>
       <p className="mt-4 text-[color:var(--color-ink)]/75">
         The address you followed doesn&rsquo;t match a trainer on Form Studio. The link may be
         outdated, or the studio may have moved.

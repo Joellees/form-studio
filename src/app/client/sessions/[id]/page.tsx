@@ -40,7 +40,7 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
-          <h1 className="mt-2 font-display text-4xl">{session.name ?? session.session_type.replace("_", " ")}</h1>
+          <h1 className="mt-2 text-4xl">{session.name ?? session.session_type.replace("_", " ")}</h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(new Date(session.scheduled_at), tz, "EEE, MMM d, yyyy · HH:mm")} · {session.duration_minutes} min
           </p>

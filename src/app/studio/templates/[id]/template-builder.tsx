@@ -82,7 +82,7 @@ export function TemplateBuilder({ template, blocks, exercises }: Props) {
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">template</p>
-          <h1 className="mt-2 font-display text-4xl">{template.name}</h1>
+          <h1 className="mt-2 text-4xl">{template.name}</h1>
           {template.description ? (
             <p className="mt-2 max-w-2xl text-[color:var(--color-ink)]/75">{template.description}</p>
           ) : null}

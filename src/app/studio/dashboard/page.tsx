@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     <div className="rise-in-stagger space-y-10">
       <section>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">overview</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight">Welcome to your studio.</h1>
+        <h1 className="mt-2 text-4xl leading-tight">Welcome to your studio.</h1>
         <p className="mt-2 max-w-xl text-[color:var(--color-ink)]/75">
           Start by inviting your first client and setting up the exercises you rely on most.
         </p>
@@ -102,7 +102,7 @@ function Stat({ label, value, suffix }: { label: string; value: string; suffix: 
   return (
     <div className="rounded-lg border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 px-6 py-5">
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">{label}</p>
-      <p className="mt-3 font-display text-4xl tabular-nums">
+      <p className="mt-3 text-4xl tabular-nums">
         {value}
         {suffix ? <span className="ml-2 text-sm text-[color:var(--color-stone)]">{suffix}</span> : null}
       </p>

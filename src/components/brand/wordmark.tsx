@@ -2,12 +2,15 @@ import { cn } from "@/lib/utils";
 
 type WordmarkProps = {
   /**
-   * - `stacked`: Trainer possessive on top ("Joelle&rsquo;s"), "Form Studio" suffix below
-   * - `inline`: One-line with "Form Studio" in moss accent — used in nav bars
-   * - `inline-platform`: For the marketing site, where no trainer name exists
+   * - `stacked`: Trainer name on top (sans-serif uppercase), "Form Studio" suffix below in Fraunces moss
+   * - `inline`: One-line — trainer name sans-serif + "Form Studio" Fraunces moss
+   * - `inline-platform`: "Form Studio" only (marketing site)
+   *
+   * Typographic rule: "Form Studio" is the only remaining Fraunces usage
+   * (except very major headlines). Everything else — trainer names,
+   * titles, body — is General Sans.
    */
   variant?: "stacked" | "inline" | "inline-platform";
-  /** The trainer&rsquo;s first name. Not needed for `inline-platform`. */
   name?: string;
   className?: string;
 };
@@ -25,28 +28,22 @@ export function Wordmark({ variant = "inline-platform", name, className }: Wordm
 
   if (variant === "inline") {
     return (
-      <span className={cn("font-display text-[22px] leading-none", className)}>
-        <span
-          className="text-[color:var(--color-ink)]"
-          style={{ fontVariationSettings: '"SOFT" 40, "opsz" 144, "wght" 400', letterSpacing: "-0.028em" }}
-        >
+      <span className={cn("inline-flex items-baseline gap-2 leading-none", className)}>
+        <span className="text-[15px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-ink)]">
           {name ? `${name}\u2019s` : "Your"}
-        </span>{" "}
-        <span className="text-[color:var(--color-moss)]">Form Studio</span>
+        </span>
+        <span className="font-display text-[22px] text-[color:var(--color-moss)]">Form Studio</span>
       </span>
     );
   }
 
   // Stacked — used on the public studio page hero
   return (
-    <div className={cn("flex flex-col", className)}>
-      <span
-        className="font-display text-[clamp(2.75rem,5.5vw,3.5rem)] leading-[0.95] text-[color:var(--color-ink)]"
-        style={{ fontVariationSettings: '"SOFT" 40, "opsz" 144, "wght" 400', letterSpacing: "-0.028em" }}
-      >
+    <div className={cn("flex flex-col gap-2", className)}>
+      <span className="text-[clamp(2rem,4.5vw,2.75rem)] font-bold uppercase tracking-[0.04em] leading-[1.05] text-[color:var(--color-ink)]">
         {name ? `${name}\u2019s` : "Your"}
       </span>
-      <span className="mt-2 text-[11px] font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+      <span className="font-display text-[clamp(1.5rem,3vw,2rem)] leading-none text-[color:var(--color-moss)]">
         Form Studio
       </span>
     </div>

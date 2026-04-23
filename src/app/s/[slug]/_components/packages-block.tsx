@@ -45,7 +45,7 @@ export function PackagesBlock({ packages, trainerName }: { packages: Pkg[]; trai
                 cancellation · {pkg.cancellation_policy === "credited" ? "credited back" : "forfeits session"}
               </p>
             </div>
-            <p className="mt-6 font-display text-3xl tabular-nums">
+            <p className="mt-6 text-3xl tabular-nums">
               ${pkg.price_usd.toLocaleString()}
               <span className="ml-1 text-sm text-[color:var(--color-stone)]">usd</span>
             </p>

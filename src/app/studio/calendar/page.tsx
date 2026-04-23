@@ -38,7 +38,7 @@ export default async function CalendarPage({ searchParams }: Props) {
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">calendar</p>
-          <h1 className="mt-2 font-display text-4xl">This week.</h1>
+          <h1 className="mt-2 text-4xl">This week.</h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(start, trainer.timezone, "MMM d")} — {formatInTz(end, trainer.timezone, "MMM d, yyyy")}
             {" · "}
@@ -60,7 +60,7 @@ export default async function CalendarPage({ searchParams }: Props) {
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
                   {formatInTz(d, trainer.timezone, "EEE")}
                 </p>
-                <p className="font-display text-2xl tabular-nums">{formatInTz(d, trainer.timezone, "d")}</p>
+                <p className="text-2xl tabular-nums">{formatInTz(d, trainer.timezone, "d")}</p>
                 <div className="mt-3 space-y-2">
                   {daysSessions.length === 0 ? (
                     <p className="text-xs text-[color:var(--color-stone)]">—</p>

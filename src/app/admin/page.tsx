@@ -30,7 +30,7 @@ export default async function AdminPage() {
 
       <section className="mt-16">
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">trainers</p>
-        <h1 className="mt-2 font-display text-4xl">Every studio on the platform.</h1>
+        <h1 className="mt-2 text-4xl">Every studio on the platform.</h1>
       </section>
 
       <Card className="mt-10">

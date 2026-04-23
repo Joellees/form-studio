@@ -17,7 +17,7 @@ export function EmptyState({ title, body, action, className }: EmptyStateProps) 
         className,
       )}
     >
-      <h3 className="font-display text-xl text-[color:var(--color-ink)]">{title}</h3>
+      <h3 className="text-lg font-semibold tracking-tight text-[color:var(--color-ink)]">{title}</h3>
       {body ? <p className="max-w-lg text-sm text-[color:var(--color-ink)]/75">{body}</p> : null}
       {action}
     </div>

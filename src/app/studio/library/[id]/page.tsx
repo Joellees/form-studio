@@ -14,7 +14,7 @@ export default async function EditExercisePage({ params }: { params: Promise<{ i
   return (
     <div className="mx-auto max-w-2xl rise-in">
       <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">exercise</p>
-      <h1 className="mt-2 font-display text-4xl">{exercise.name}</h1>
+      <h1 className="mt-2 text-4xl">{exercise.name}</h1>
       <ExerciseForm mode="edit" initial={exercise} />
     </div>
   );

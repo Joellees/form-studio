@@ -41,7 +41,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
-          <h1 className="mt-2 font-display text-4xl">
+          <h1 className="mt-2 text-4xl">
             {/* @ts-expect-error — nested typings */}
             {session.clients?.display_name} · {session.name ?? session.session_type.replace("_", " ")}
           </h1>

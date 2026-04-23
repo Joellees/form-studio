@@ -66,7 +66,7 @@ export function SessionLogger({ sessionId: _sessionId, blocks }: { sessionId: st
           return (
             <div key={be.id} className="space-y-3">
               <div className="flex items-baseline justify-between">
-                <h3 className="font-display text-xl">{exercise?.name ?? "Exercise"}</h3>
+                <h3 className="text-xl">{exercise?.name ?? "Exercise"}</h3>
                 {exercise?.video_url ? (
                   <a
                     href={exercise.video_url}

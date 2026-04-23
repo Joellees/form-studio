@@ -18,7 +18,7 @@ export default async function ClientDashboard({ searchParams }: { searchParams: 
     <div className="rise-in-stagger space-y-10">
       <section>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">overview</p>
-        <h1 className="mt-2 font-display text-4xl">
+        <h1 className="mt-2 text-4xl">
           {sp.welcome ? "You&rsquo;re in." : "Welcome back."}
         </h1>
         <p className="mt-2 max-w-xl text-[color:var(--color-ink)]/75">

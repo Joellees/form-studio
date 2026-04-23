@@ -21,7 +21,7 @@ export default async function TemplatesPage() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">templates</p>
-          <h1 className="mt-2 font-display text-4xl">Sessions, ready to deploy.</h1>
+          <h1 className="mt-2 text-4xl">Sessions, ready to deploy.</h1>
         </div>
         <Button asChild>
           <Link href="/studio/templates/new">new template</Link>

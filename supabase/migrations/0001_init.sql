@@ -534,6 +534,27 @@ create policy payments_client_read on public.payments
     or session_id in (select id from public.sessions where client_id = public.current_client_id())
   );
 
+-- ─── pending_clients — client signs up before they have a trainer ───────
+-- Flow: client creates a Clerk account, we mint a 6-char code and store it
+-- here; they share the code with a trainer, who claims it from their
+-- dashboard to create the real `clients` row.
+
+create table public.pending_clients (
+  code text primary key,
+  clerk_id text unique not null,
+  email text,
+  display_name text,
+  claimed_by uuid references public.trainers(id) on delete set null,
+  claimed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.pending_clients enable row level security;
+create policy pending_self on public.pending_clients
+  for all to authenticated
+  using (clerk_id = public.current_clerk_id())
+  with check (clerk_id = public.current_clerk_id());
+
 -- ─── platform_subscriptions (Phase 2) ────────────────────────────────────
 
 create table public.platform_subscriptions (

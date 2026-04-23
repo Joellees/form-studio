@@ -39,7 +39,7 @@ export default async function LibraryPage({ searchParams }: Props) {
       <div className="flex items-center justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">library</p>
-          <h1 className="mt-2 font-display text-4xl">The movements you coach.</h1>
+          <h1 className="mt-2 text-4xl">The movements you coach.</h1>
         </div>
         <Button asChild>
           <Link href="/studio/library/new">add exercise</Link>
@@ -68,7 +68,7 @@ export default async function LibraryPage({ searchParams }: Props) {
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={ex.thumbnail_url} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-5xl font-display text-[color:var(--color-stone)]">
+                    <div className="flex h-full w-full items-center justify-center text-5xl text-[color:var(--color-stone)]">
                       {ex.name.charAt(0).toUpperCase()}
                     </div>
                   )}

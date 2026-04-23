@@ -49,7 +49,9 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Display type defaults */
+  /* Fraunces reserved for the "Form Studio" wordmark and very major
+     marketing headlines. Reach for .font-display explicitly — headings
+     default to General Sans medium. */
   .font-display {
     font-family: var(--font-display);
     font-optical-sizing: auto;
@@ -63,17 +65,15 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-display);
-    font-optical-sizing: auto;
-    letter-spacing: -0.015em;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: -0.01em;
     color: var(--color-ink);
   }
 
   h1 {
-    font-variation-settings:
-      "SOFT" 40,
-      "opsz" 144;
-    letter-spacing: -0.028em;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 
   /* Focus styling — thin moss ring with offset, never removed */

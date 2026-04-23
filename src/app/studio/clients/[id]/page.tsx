@@ -29,7 +29,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">client</p>
-          <h1 className="mt-2 font-display text-4xl">{client.display_name}</h1>
+          <h1 className="mt-2 text-4xl">{client.display_name}</h1>
           <p className="mt-1 text-[color:var(--color-ink)]/70">{client.email ?? "No email on file"}</p>
         </div>
         <Badge tone={client.active ? "moss" : "stone"}>{client.active ? "active" : "paused"}</Badge>

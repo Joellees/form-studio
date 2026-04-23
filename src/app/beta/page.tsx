@@ -19,7 +19,7 @@ export default async function BetaGatePage({ searchParams }: Props) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-start justify-center px-6 py-16 rise-in">
       <Wordmark variant="inline-platform" />
-      <h1 className="mt-12 font-display text-4xl leading-tight">Private beta.</h1>
+      <h1 className="mt-12 text-4xl leading-tight">Private beta.</h1>
       <p className="mt-3 text-[color:var(--color-ink)]/75">
         Enter your access code to continue. If you don&rsquo;t have one, Joelle can send you one.
       </p>

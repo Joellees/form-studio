@@ -20,7 +20,7 @@ export default async function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">clients</p>
-          <h1 className="mt-2 font-display text-4xl">Everyone you train.</h1>
+          <h1 className="mt-2 text-4xl">Everyone you train.</h1>
         </div>
         <Button asChild>
           <Link href="/studio/clients/new">invite a client</Link>

@@ -44,7 +44,7 @@ export default async function OnboardingPage() {
         <p className="mb-4 text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
           welcome
         </p>
-        <h1 className="font-display text-4xl leading-tight">Name your studio.</h1>
+        <h1 className="text-4xl leading-tight">Name your studio.</h1>
         <p className="mt-3 text-[color:var(--color-ink)]/75">
           This is the address your clients will know you by. You can change the
           rest later — the subdomain is permanent for now.

@@ -33,11 +33,11 @@ export default async function ClientCalendarPage() {
     <div className="rise-in-stagger space-y-10">
       <section>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">calendar</p>
-        <h1 className="mt-2 font-display text-4xl">Your sessions.</h1>
+        <h1 className="mt-2 text-4xl">Your sessions.</h1>
       </section>
 
       <section>
-        <h2 className="font-display text-2xl">Upcoming</h2>
+        <h2 className="text-2xl">Upcoming</h2>
         <Card className="mt-4">
           <CardContent className="p-0">
             {upcoming.length === 0 ? (
@@ -60,7 +60,7 @@ export default async function ClientCalendarPage() {
 
       {past.length > 0 ? (
         <section>
-          <h2 className="font-display text-2xl">Past</h2>
+          <h2 className="text-2xl">Past</h2>
           <Card className="mt-4">
             <CardContent className="p-0">
               <ul className="divide-y divide-[color:var(--color-stone-soft)]">
