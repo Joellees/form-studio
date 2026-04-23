@@ -1,25 +1,28 @@
 import { notFound } from "next/navigation";
 
-import { SessionLogger } from "@/app/studio/sessions/[id]/session-logger";
+import { SessionBuilder } from "@/app/studio/sessions/[id]/session-builder";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Card, CardContent } from "@/components/ui/card";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatInTz } from "@/lib/schedule";
+import { requireClient } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientSessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createSupabaseServerClient();
+  const client = await requireClient();
+  const admin = createSupabaseAdminClient();
 
-  const [{ data: me }, { data: session }, { data: blocks }] = await Promise.all([
-    supabase.from("clients").select("timezone, trainers(timezone)").maybeSingle(),
-    supabase
+  const [{ data: me }, { data: session }, { data: blocksRaw }] = await Promise.all([
+    admin.from("clients").select("timezone, trainers(timezone)").eq("id", client.id).maybeSingle(),
+    admin
       .from("sessions")
       .select("id, scheduled_at, duration_minutes, session_type, status, name, notes, zoom_url")
       .eq("id", id)
+      .eq("client_id", client.id)
       .maybeSingle(),
-    supabase
+    admin
       .from("session_blocks")
       .select(
         `id, order_index,
@@ -33,7 +36,27 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
   ]);
 
   if (!session) notFound();
-  const tz = me?.timezone ?? (me?.trainers as { timezone?: string } | null)?.timezone ?? "UTC";
+
+  const trainersRel = me?.trainers as { timezone?: string } | { timezone?: string }[] | null;
+  const trainer = Array.isArray(trainersRel) ? trainersRel[0] ?? null : trainersRel;
+  const tz = me?.timezone ?? trainer?.timezone ?? "UTC";
+
+  const blocks = (blocksRaw ?? []).map((b) => {
+    const bes = (b.session_block_exercises ?? []) as Array<{
+      id: string;
+      order_index: number;
+      setup_override: string | null;
+      exercises: Array<Record<string, unknown>> | Record<string, unknown> | null;
+      session_set_groups: Array<Record<string, unknown>>;
+    }>;
+    return {
+      ...b,
+      session_block_exercises: bes.map((be) => ({
+        ...be,
+        exercises: Array.isArray(be.exercises) ? be.exercises[0] ?? null : be.exercises,
+      })),
+    };
+  });
 
   return (
     <div className="rise-in-stagger space-y-8">
@@ -56,7 +79,7 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
               href={session.zoom_url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl bg-[color:var(--color-moss)] px-4 py-2 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
+              className="inline-flex h-10 items-center rounded-full bg-[color:var(--color-ink)] px-5 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
             >
               join zoom
             </a>
@@ -64,16 +87,14 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {session.session_type === "in_app" ? "Your workout" : "What we did"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SessionLogger sessionId={session.id} blocks={(blocks ?? []) as unknown as never} />
-        </CardContent>
-      </Card>
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <SessionBuilder
+        sessionId={session.id}
+        sessionNotes={session.notes}
+        canEdit={false}
+        blocks={blocks as any}
+        library={[]}
+      />
     </div>
   );
 }
