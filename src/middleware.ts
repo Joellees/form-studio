@@ -19,7 +19,7 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 /** Paths that are exempt from the beta gate (otherwise the gate can&rsquo;t render). */
-const BETA_EXEMPT_PREFIXES = ["/beta", "/_next", "/icons", "/fonts", "/manifest.webmanifest", "/robots.txt", "/favicon.ico"];
+const BETA_EXEMPT_PREFIXES = ["/beta", "/_next", "/icons", "/fonts", "/manifest.webmanifest", "/robots.txt", "/favicon.ico", "/sw.js"];
 
 function isBetaExempt(pathname: string): boolean {
   return BETA_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
@@ -83,7 +83,8 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|.*\\.(?:png|jpg|jpeg|svg|webp|gif|ico|ttf|woff|woff2)).*)",
+    // Skip Next.js internals, static files, and the service worker.
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/|.*\\.(?:png|jpg|jpeg|svg|webp|gif|ico|ttf|woff|woff2)).*)",
     "/(api|trpc)(.*)",
   ],
 };
