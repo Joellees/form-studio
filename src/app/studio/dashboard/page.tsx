@@ -67,7 +67,6 @@ export default async function DashboardPage() {
           body="Generate a link, send it over, they sign up and land in your studio."
           cta="invite a client"
           href="/studio/clients/new"
-          tone="primary"
         />
         <NextStepCard
           eyebrow="your library"
@@ -75,7 +74,6 @@ export default async function DashboardPage() {
           body="Every session you build will draw from here — name, cue, video, default sets."
           cta="add an exercise"
           href="/studio/library/new"
-          tone="secondary"
         />
       </section>
     </div>
@@ -100,14 +98,12 @@ function NextStepCard({
   body,
   cta,
   href,
-  tone,
 }: {
   eyebrow: string;
   headline: string;
   body: string;
   cta: string;
   href: string;
-  tone: "primary" | "secondary";
 }) {
   return (
     <div className="flex flex-col justify-between rounded-3xl bg-[color:var(--color-parchment)]/60 p-6">
@@ -119,7 +115,7 @@ function NextStepCard({
         <p className="mt-2 max-w-md text-sm text-[color:var(--color-ink)]/70">{body}</p>
       </div>
       <div className="mt-6">
-        <Button asChild variant={tone === "primary" ? "primary" : "secondary"}>
+        <Button asChild>
           <Link href={href}>{cta}</Link>
         </Button>
       </div>

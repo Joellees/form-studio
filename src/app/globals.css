@@ -76,11 +76,18 @@
     letter-spacing: -0.02em;
   }
 
-  /* Focus styling — thin moss ring with offset, never removed */
-  :where(a, button, [role="button"], input, select, textarea):focus-visible {
-    outline: 2px solid var(--color-moss);
-    outline-offset: 2px;
-    border-radius: 2px;
+  /* Focus styling — soft, never the harsh default. Uses box-shadow so it
+     follows the element&rsquo;s own border-radius instead of drawing a square
+     outline around rounded buttons. Keeps keyboard navigation accessible. */
+  :where(a, button, [role="button"]):focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-canvas),
+      0 0 0 4px color-mix(in srgb, var(--color-ink) 35%, transparent);
+  }
+  :where(input, select, textarea):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-ink) 35%, transparent);
+    outline-offset: 1px;
   }
 
   ::selection {

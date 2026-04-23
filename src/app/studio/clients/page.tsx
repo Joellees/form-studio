@@ -1,12 +1,10 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +49,7 @@ function stateFor(subs: SubLite[]): ClientState {
 
 function fmtDate(d: string | null): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default async function ClientsPage({
@@ -86,12 +84,12 @@ export default async function ClientsPage({
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">clients</p>
           <h1 className="mt-2 text-4xl">Everyone you train.</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
           <Link
             href={showArchived ? "/studio/clients" : "/studio/clients?archived=1"}
-            className="text-sm text-[color:var(--color-ink)]/70 underline underline-offset-4 hover:text-[color:var(--color-ink)]"
+            className="text-sm text-[color:var(--color-ink)]/60 hover:text-[color:var(--color-ink)]"
           >
-            {showArchived ? "show active" : "show archived"}
+            {showArchived ? "active" : "archived"}
           </Link>
           <Button asChild>
             <Link href="/studio/clients/new">invite a client</Link>
@@ -99,84 +97,75 @@ export default async function ClientsPage({
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {rows.length === 0 ? (
-            <div className="p-8">
-              <EmptyState
-                title={showArchived ? "No archived clients" : "No one yet"}
-                body={showArchived ? "Archived clients will show up here." : "Send an invite and your first client will show up here."}
-              />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>name</TableHead>
-                  <TableHead>block</TableHead>
-                  <TableHead className="text-right">sessions left</TableHead>
-                  <TableHead>ends</TableHead>
-                  <TableHead>status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((c) => (
-                  <TableRow
-                    key={c.id}
-                    className="cursor-pointer hover:bg-[color:var(--color-parchment)]/60"
-                    onClick={undefined}
-                  >
-                    <TableCell>
-                      <Link href={`/studio/clients/${c.id}`} className="block">
-                        <span className="font-medium">{c.display_name}</span>
-                        <span className="block text-xs text-[color:var(--color-stone)]">
-                          {c.email ?? c.phone ?? "—"}
-                        </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/studio/clients/${c.id}`} className="block text-[color:var(--color-ink)]/80">
-                        {c.state.kind === "none" ? "—" :
-                          "package" in c.state ? c.state.package : "—"}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <Link href={`/studio/clients/${c.id}`} className="block">
-                        {c.state.kind === "active" ? c.state.sessionsLeft : "—"}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="tabular-nums text-[color:var(--color-ink)]/70">
-                      <Link href={`/studio/clients/${c.id}`} className="block">
-                        {c.state.kind === "active" || c.state.kind === "expired"
-                          ? fmtDate(c.state.endDate)
-                          : "—"}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/studio/clients/${c.id}`} className="block">
-                        <StateBadge state={c.state} />
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {rows.length === 0 ? (
+        <EmptyState
+          bordered
+          title={showArchived ? "No archived clients" : "No one yet"}
+          body={
+            showArchived
+              ? "Archived clients will show up here."
+              : "Send an invite and your first client will show up here."
+          }
+        />
+      ) : (
+        <div>
+          {/* Header row */}
+          <div className="grid grid-cols-[2fr_2fr_6rem_5rem_5rem] items-center gap-6 border-b border-[color:var(--color-ink)]/10 pb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            <span>name</span>
+            <span>block</span>
+            <span className="text-right">sessions</span>
+            <span>ends</span>
+            <span></span>
+          </div>
+          {/* Rows */}
+          <ul>
+            {rows.map((c) => (
+              <li key={c.id} className="border-b border-[color:var(--color-ink)]/5">
+                <Link
+                  href={`/studio/clients/${c.id}`}
+                  className="grid grid-cols-[2fr_2fr_6rem_5rem_5rem] items-center gap-6 py-4 focus-visible:outline-none focus-visible:shadow-none transition-colors hover:bg-[color:var(--color-parchment)]/50 rounded-xl px-2 -mx-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[color:var(--color-ink)]">{c.display_name}</p>
+                    <p className="mt-0.5 truncate text-xs text-[color:var(--color-ink)]/55">
+                      {c.email ?? c.phone ?? "—"}
+                    </p>
+                  </div>
+                  <p className="truncate text-sm text-[color:var(--color-ink)]/80">
+                    {"package" in c.state ? c.state.package : "—"}
+                  </p>
+                  <p className="text-right text-sm tabular-nums text-[color:var(--color-ink)]">
+                    {c.state.kind === "active" ? c.state.sessionsLeft : "—"}
+                  </p>
+                  <p className="text-sm tabular-nums text-[color:var(--color-ink)]/60">
+                    {c.state.kind === "active" || c.state.kind === "expired" ? fmtDate(c.state.endDate) : "—"}
+                  </p>
+                  <div className="flex justify-end">
+                    <StatusPill state={c.state} />
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
-function StateBadge({ state }: { state: ClientState }) {
-  switch (state.kind) {
-    case "active":
-      return <Badge tone="moss">active</Badge>;
-    case "pending":
-      return <Badge tone="signal">awaiting payment</Badge>;
-    case "expired":
-      return <Badge tone="stone">expired</Badge>;
-    case "none":
-      return <Badge tone="stone">no block</Badge>;
-  }
+function StatusPill({ state }: { state: ClientState }) {
+  const label =
+    state.kind === "active" ? "active" :
+    state.kind === "pending" ? "pending" :
+    state.kind === "expired" ? "expired" : "—";
+  const color =
+    state.kind === "active" ? "bg-[color:var(--color-moss)]" :
+    state.kind === "pending" ? "bg-[color:var(--color-sienna)]" :
+    "bg-[color:var(--color-stone)]";
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-[color:var(--color-ink)]/70">
+      <span className={cn("size-1.5 rounded-full", color)} aria-hidden />
+      {label}
+    </span>
+  );
 }
