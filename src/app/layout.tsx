@@ -40,6 +40,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
+      // Pin clerk-js to a specific version. Without this, Clerk serves
+      // the script from a URL that 307s to the pinned build, and modern
+      // browsers refuse to load cross-origin scripts behind redirects
+      // when `crossorigin="anonymous"` is set — which breaks hydration
+      // on sign-in / sign-up.
+      clerkJSVersion="5.125.10"
       appearance={{
         variables: {
           colorPrimary: "#4A5540",
