@@ -12,31 +12,19 @@ export default function RootPage() {
     <main className="mx-auto flex min-h-screen max-w-[1180px] flex-col px-6 py-10">
       <header className="flex items-center justify-between">
         <Wordmark variant="inline-platform" />
-        <nav className="flex items-center gap-8 text-sm text-[color:var(--color-ink)]">
+        <nav className="hidden items-center gap-8 text-sm text-[color:var(--color-ink)] md:flex">
           <Link href="#approach" className="hover:text-[color:var(--color-moss-deep)]">
             approach
           </Link>
-          <Link href="/join" className="hover:text-[color:var(--color-moss-deep)]">
-            for clients
-          </Link>
-          <Link
-            href="/sign-in"
-            className="rounded-xl border border-[color:var(--color-ink)] px-3 py-1.5 text-[color:var(--color-ink)] hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
-          >
-            sign in
-          </Link>
-          <Link
-            href="/sign-up"
-            className="rounded-xl bg-[color:var(--color-ink)] px-3 py-1.5 font-semibold text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
-          >
-            start your studio
+          <Link href="#get-started" className="hover:text-[color:var(--color-moss-deep)]">
+            get started
           </Link>
         </nav>
       </header>
 
       <section className="mt-28 max-w-3xl rise-in">
         <p className="mb-8 text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-          form studio · for independent trainers
+          form studio · training, by hand
         </p>
         <h1 className="font-display text-[clamp(3rem,8vw,5.75rem)] leading-[0.95]">
           The studio software for trainers who think like <em className="italic" style={{ fontVariationSettings: '"WONK" 1, "SOFT" 40, "opsz" 144' }}>craftspeople</em>.
@@ -46,23 +34,59 @@ export default function RootPage() {
           templates, your clients&rsquo; calendar — all in a space that looks and reads like
           yours.
         </p>
-        <div className="mt-10 flex flex-wrap gap-4">
-          <Link
-            href="/sign-up"
-            className="rounded-xl bg-[color:var(--color-moss)] px-5 py-3 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
-          >
-            start your studio
-          </Link>
-          <Link
-            href="#approach"
-            className="rounded-xl border border-[color:var(--color-stone-soft)] px-5 py-3 text-sm font-medium hover:border-[color:var(--color-moss)]"
-          >
-            see how it works
-          </Link>
+      </section>
+
+      <section id="get-started" className="mt-24 grid gap-6 md:grid-cols-2 rise-in">
+        <div className="flex flex-col justify-between rounded-3xl border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 p-8">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+              for trainers
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Create your studio.</h2>
+            <p className="mt-3 text-[color:var(--color-ink)]/75">
+              Pick a subdomain, upload your exercise library, build your first session.
+              Ten minutes from zero.
+            </p>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link
+              href="/sign-up"
+              className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-6 text-sm font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
+            >
+              create your studio
+            </Link>
+            <Link
+              href="/sign-in"
+              className="text-sm text-[color:var(--color-ink)]/70 underline underline-offset-4 hover:text-[color:var(--color-ink)]"
+            >
+              already have one? sign in
+            </Link>
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-between rounded-3xl border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 p-8">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+              for clients
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Sign in to your studio.</h2>
+            <p className="mt-3 text-[color:var(--color-ink)]/75">
+              Your trainer sends you an invite link. Click it, create your account, and
+              you&rsquo;re training. Already set up? Sign in.
+            </p>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link
+              href="/sign-in"
+              className="inline-flex h-11 items-center rounded-full border border-[color:var(--color-ink)] px-6 text-sm font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
+            >
+              client sign in
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section id="approach" className="mt-40 grid gap-16 border-t border-[color:var(--color-stone-soft)] pt-16 md:grid-cols-3">
+      <section id="approach" className="mt-32 grid gap-16 border-t border-[color:var(--color-stone-soft)] pt-16 md:grid-cols-3">
         <Pillar
           index="01"
           title="your repertoire, reusable"
@@ -94,7 +118,7 @@ function Pillar({ index, title, body }: { index: string; title: string; body: st
   return (
     <div>
       <span className="text-xs font-medium tracking-widest text-[color:var(--color-stone)]">{index}</span>
-      <h3 className="mt-4 font-display text-2xl leading-tight">{title}</h3>
+      <h3 className="mt-4 text-xl font-semibold tracking-tight">{title}</h3>
       <p className="mt-3 text-sm text-[color:var(--color-ink)]/75">{body}</p>
     </div>
   );

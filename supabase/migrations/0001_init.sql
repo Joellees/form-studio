@@ -534,26 +534,31 @@ create policy payments_client_read on public.payments
     or session_id in (select id from public.sessions where client_id = public.current_client_id())
   );
 
--- ─── pending_clients — client signs up before they have a trainer ───────
--- Flow: client creates a Clerk account, we mint a 6-char code and store it
--- here; they share the code with a trainer, who claims it from their
--- dashboard to create the real `clients` row.
+-- ─── client_invites — trainer-generated invitation links ───────────────
+-- Flow: trainer clicks "invite a client" in their dashboard; a row is
+-- created here with a random 6-char code. The trainer shares
+-- /invite/{code} with their client; the client clicks, signs up or
+-- signs in, and the server action claims the invite — creating the
+-- real clients row with tenant_id = invite.tenant_id.
 
-create table public.pending_clients (
+create table public.client_invites (
   code text primary key,
-  clerk_id text unique not null,
-  email text,
+  tenant_id uuid not null references public.trainers(id) on delete cascade,
   display_name text,
-  claimed_by uuid references public.trainers(id) on delete set null,
+  email text,
+  phone text,
+  notes text,
+  claimed_by_clerk_id text,
   claimed_at timestamptz,
   created_at timestamptz not null default now()
 );
 
-alter table public.pending_clients enable row level security;
-create policy pending_self on public.pending_clients
-  for all to authenticated
-  using (clerk_id = public.current_clerk_id())
-  with check (clerk_id = public.current_clerk_id());
+create index client_invites_tenant_idx on public.client_invites (tenant_id);
+
+alter table public.client_invites enable row level security;
+create policy invites_trainer_access on public.client_invites
+  for all using (tenant_id = public.current_trainer_id())
+  with check (tenant_id = public.current_trainer_id());
 
 -- ─── platform_subscriptions (Phase 2) ────────────────────────────────────
 

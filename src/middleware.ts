@@ -7,7 +7,7 @@ import { parseHost, TENANT_KIND_HEADER, TENANT_SLUG_HEADER } from "@/lib/tenancy
 const isPublicRoute = createRouteMatcher([
   "/",
   "/beta(.*)",
-  "/join(.*)",
+  "/invite/(.*)",
   "/me",
   "/sign-in(.*)",
   "/sign-up(.*)",
@@ -60,7 +60,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   // Trainer subdomain rewrite.
   if (kind === "trainer" && slug) {
-    const appPrefixes = ["/studio", "/client", "/sign-in", "/sign-up", "/onboarding", "/api", "/s/", "/beta", "/join", "/me"];
+    const appPrefixes = ["/studio", "/client", "/sign-in", "/sign-up", "/onboarding", "/api", "/s/", "/beta", "/invite", "/me"];
     const isAppPath = appPrefixes.some((p) => url.pathname === p || url.pathname.startsWith(`${p}/`));
     if (!isAppPath) {
       url.pathname = `/s/${slug}${url.pathname === "/" ? "" : url.pathname}`;
