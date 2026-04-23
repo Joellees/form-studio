@@ -3,30 +3,14 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
-import localFont from "next/font/local";
+
+import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-display-loader",
   display: "swap",
   axes: ["opsz", "SOFT", "WONK"],
-});
-
-/**
- * General Sans is loaded from Fontshare at deploy-time. We keep a local
- * fallback so builds don't fail without network; the real face is served
- * from /public/fonts once added (see README, §Fonts).
- */
-const generalSans = localFont({
-  variable: "--font-sans-loader",
-  display: "swap",
-  src: [
-    {
-      path: "../../public/fonts/GeneralSans-Variable.woff2",
-      weight: "200 700",
-      style: "normal",
-    },
-  ],
 });
 
 export const metadata: Metadata = {
@@ -38,7 +22,6 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icons/favicon.svg",
-    apple: "/icons/apple-touch-icon.png",
   },
   openGraph: {
     title: "Form Studio",
@@ -68,8 +51,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         },
       }}
     >
-      <html lang="en" className={`${fraunces.variable} ${generalSans.variable}`}>
-        <body>{children}</body>
+      <html lang="en" className={fraunces.variable}>
+        <head>
+          {/*
+            General Sans — served from Fontshare. We hotlink rather than
+            bundle via next/font/local so the build doesn't require a woff2
+            on disk; swap this for a self-hosted face before going to prod.
+          */}
+          <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
+          <link
+            rel="stylesheet"
+            href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap"
+          />
+        </head>
+        <body>
+          {children}
+          <RegisterServiceWorker />
+        </body>
       </html>
     </ClerkProvider>
   );

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import type { z } from "zod";
 
 /**
  * Typed result envelope for every Server Action. Lets call sites handle

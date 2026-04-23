@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { sendEmail, subscriptionPaidEmail } from "@/lib/email";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -50,6 +51,16 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
       method: "manual",
       status: "paid",
     });
+
+    const { data: client } = await supabase
+      .from("clients")
+      .select("email, display_name")
+      .eq("id", (await supabase.from("subscriptions").select("client_id").eq("id", subscriptionId).single()).data?.client_id ?? "")
+      .maybeSingle();
+    if (client?.email) {
+      const email = subscriptionPaidEmail({ trainerName: trainer.displayName, sessionsCount: sessionCount });
+      await sendEmail({ to: client.email, ...email });
+    }
 
     revalidatePath("/studio/dashboard");
     revalidatePath("/studio/clients");

@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientLogsPage() {
   const supabase = await createSupabaseServerClient();
-  const [{ data: me }, { data: fields }, { data: logs }] = await Promise.all([
-    supabase.from("clients").select("id, tenant_id").maybeSingle(),
+  const [, { data: fields }, { data: logs }] = await Promise.all([
+    supabase.from("clients").select("id").maybeSingle(),
     supabase.from("client_profile_fields").select("*").maybeSingle(),
     supabase
       .from("client_logs")

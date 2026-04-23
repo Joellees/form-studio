@@ -186,7 +186,7 @@ function BlockCard({
 
 function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const repVal = setGroup.rep_value as RepValue;
   const weightVal = setGroup.weight_value as WeightValue;
