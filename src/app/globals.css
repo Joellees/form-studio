@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────
+ * Form Studio — design tokens
+ * All surface, text, and signal color is derived from these variables.
+ * Keep this file small. Reach for new tokens before introducing new CSS.
+ * ───────────────────────────────────────────── */
+@theme {
+  --color-canvas: #f6f2eb;
+  --color-parchment: #e9e4d4;
+  --color-ink: #1f1e1b;
+  --color-moss: #4a5540;
+  --color-moss-deep: #2d3528;
+  --color-stone: #a8a095;
+  --color-stone-soft: #cec7b8;
+  --color-sienna: #a8461f;
+
+  --font-sans: "General Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --shadow-card: 0 1px 0 rgba(31, 30, 27, 0.04), 0 8px 24px -12px rgba(31, 30, 27, 0.08);
+  --shadow-ring: 0 0 0 1px rgba(31, 30, 27, 0.08);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Tabular numbers in tables, data cells, and anything with [data-tnum] */
+  table,
+  [data-tnum],
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Display type defaults */
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variation-settings:
+      "SOFT" 40,
+      "opsz" 144,
+      "WONK" 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+    color: var(--color-ink);
+  }
+
+  h1 {
+    font-variation-settings:
+      "SOFT" 40,
+      "opsz" 144;
+    letter-spacing: -0.028em;
+  }
+
+  /* Focus styling — thin moss ring with offset, never removed */
+  :where(a, button, [role="button"], input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-moss);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-moss);
+    color: var(--color-canvas);
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--color-stone-soft);
+  }
+}
+
+/* A single page-load orchestration: fade + rise, staggered children. */
+@layer utilities {
+  .rise-in {
+    animation: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .rise-in-stagger > * {
+    animation: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .rise-in-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .rise-in-stagger > *:nth-child(2) { animation-delay: 80ms; }
+  .rise-in-stagger > *:nth-child(3) { animation-delay: 160ms; }
+  .rise-in-stagger > *:nth-child(4) { animation-delay: 240ms; }
+  .rise-in-stagger > *:nth-child(5) { animation-delay: 320ms; }
+  .rise-in-stagger > *:nth-child(6) { animation-delay: 400ms; }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rise-in,
+    .rise-in-stagger > * {
+      animation: none !important;
+    }
+  }
+}

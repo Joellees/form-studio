@@ -1,0 +1,16 @@
+/**
+ * Placeholder types. Regenerate after running migrations:
+ *   npm run db:types
+ *
+ * The real file is produced by `supabase gen types typescript`.
+ */
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export interface Database {
+  public: {
+    Tables: Record<string, { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown> }>;
+    Views: Record<string, { Row: Record<string, unknown> }>;
+    Functions: Record<string, unknown>;
+    Enums: Record<string, unknown>;
+  };
+}
