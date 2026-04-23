@@ -1,10 +1,37 @@
 import Link from "next/link";
 
+import { PendingSubscriptions, type PendingRow } from "./pending-subscriptions";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Button } from "@/components/ui/button";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const supabase = await createSupabaseServerClient();
+  const [{ count: clientCount }, { data: pendingRaw }] = await Promise.all([
+    supabase.from("clients").select("*", { count: "exact", head: true }).eq("active", true),
+    supabase
+      .from("subscriptions")
+      .select("id, created_at, clients(display_name), packages(name, price_usd)")
+      .eq("payment_status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  const pending: PendingRow[] = (pendingRaw ?? []).map((row) => {
+    const client = row.clients as { display_name?: string } | null;
+    const pkg = row.packages as { name?: string; price_usd?: number } | null;
+    return {
+      id: row.id,
+      createdAt: row.created_at,
+      clientName: client?.display_name ?? "Client",
+      packageName: pkg?.name ?? "Package",
+      priceUsd: pkg?.price_usd ?? 0,
+    };
+  });
+
   return (
     <div className="rise-in-stagger space-y-10">
       <section>
@@ -18,8 +45,19 @@ export default function DashboardPage() {
       <section className="grid gap-6 md:grid-cols-3">
         <Stat label="today" value="0" suffix="sessions" />
         <Stat label="this week" value="0" suffix="sessions" />
-        <Stat label="active clients" value="0" suffix="" />
+        <Stat label="active clients" value={String(clientCount ?? 0)} suffix="" />
       </section>
+
+      {pending.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Awaiting payment</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <PendingSubscriptions rows={pending} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <section className="grid gap-6 md:grid-cols-2">
         <Card>

@@ -35,11 +35,13 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   requestHeaders.set(TENANT_KIND_HEADER, kind);
   if (slug) requestHeaders.set(TENANT_SLUG_HEADER, slug);
 
-  // Trainer subdomain → rewrite to /s/{slug}/...
+  // Trainer subdomain — rewrite only the public marketing surface into
+  // /s/[slug]/...; leave the app surface (/studio, /client, auth, api)
+  // alone so each can scope itself via the x-tenant-slug header.
   if (kind === "trainer" && slug) {
-    // Preserve dashboard & studio app under the subdomain; only the bare root
-    // and /studio/* are rewritten into the public marketing surface.
-    if (!url.pathname.startsWith("/s/")) {
+    const appPrefixes = ["/studio", "/client", "/sign-in", "/sign-up", "/onboarding", "/api", "/s/"];
+    const isAppPath = appPrefixes.some((p) => url.pathname === p || url.pathname.startsWith(`${p}/`));
+    if (!isAppPath) {
       url.pathname = `/s/${slug}${url.pathname === "/" ? "" : url.pathname}`;
       const res = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
       res.headers.set(TENANT_KIND_HEADER, kind);
