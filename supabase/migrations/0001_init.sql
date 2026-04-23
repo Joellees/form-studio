@@ -34,7 +34,7 @@ create extension if not exists "citext"   with schema public;
 -- ─── zero-dependency helpers ─────────────────────────────────────────────
 
 create or replace function public.current_clerk_id() returns text
-language sql stable as $$
+language sql stable security definer as $$
   select nullif(coalesce(
     current_setting('request.jwt.claims', true)::json ->> 'sub',
     (auth.jwt() ->> 'sub')
@@ -61,7 +61,7 @@ create policy super_admins_read_self on public.super_admins
   for select using (clerk_id = public.current_clerk_id());
 
 create or replace function public.is_super_admin() returns boolean
-language sql stable as $$
+language sql stable security definer as $$
   select exists (select 1 from public.super_admins where clerk_id = public.current_clerk_id())
 $$;
 
@@ -94,7 +94,7 @@ create trigger trainers_touch before update on public.trainers
 alter table public.trainers enable row level security;
 
 create or replace function public.current_trainer_id() returns uuid
-language sql stable as $$
+language sql stable security definer as $$
   select id from public.trainers where clerk_id = public.current_clerk_id() limit 1
 $$;
 
@@ -132,12 +132,12 @@ create trigger clients_touch before update on public.clients
 alter table public.clients enable row level security;
 
 create or replace function public.current_client_id() returns uuid
-language sql stable as $$
+language sql stable security definer as $$
   select id from public.clients where clerk_id = public.current_clerk_id() limit 1
 $$;
 
 create or replace function public.current_client_tenant() returns uuid
-language sql stable as $$
+language sql stable security definer as $$
   select tenant_id from public.clients where clerk_id = public.current_clerk_id() limit 1
 $$;
 
