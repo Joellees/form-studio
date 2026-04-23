@@ -55,7 +55,11 @@ export default async function ClientCalendarPage() {
             <CardContent className="p-0">
               <ul className="divide-y divide-[color:var(--color-stone-soft)]">
                 {upcoming.map((s) => (
-                  <ClientSessionRow key={s.id} session={s} timezone={tz} formatInTz={formatInTz} />
+                  <ClientSessionRow
+                    key={s.id}
+                    session={s}
+                    formattedWhen={formatInTz(new Date(s.scheduled_at), tz, "EEE, MMM d · HH:mm")}
+                  />
                 ))}
               </ul>
             </CardContent>

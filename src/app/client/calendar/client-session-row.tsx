@@ -18,14 +18,16 @@ type Session = {
   zoom_url: string | null;
 };
 
+/**
+ * Takes a pre-formatted date string from the server component — we can&rsquo;t
+ * serialize the formatInTz function across the server/client boundary.
+ */
 export function ClientSessionRow({
   session,
-  timezone,
-  formatInTz,
+  formattedWhen,
 }: {
   session: Session;
-  timezone: string;
-  formatInTz: (d: Date, tz: string, pattern: string) => string;
+  formattedWhen: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -43,7 +45,7 @@ export function ClientSessionRow({
     <li className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
       <div>
         <p className="text-xs tabular-nums text-[color:var(--color-stone)]">
-          {formatInTz(new Date(session.scheduled_at), timezone, "EEE, MMM d · HH:mm")} · {session.duration_minutes} min
+          {formattedWhen} · {session.duration_minutes} min
         </p>
         <p className="font-medium">
           <Link href={`/client/sessions/${session.id}`} className="hover:text-[color:var(--color-moss-deep)]">
