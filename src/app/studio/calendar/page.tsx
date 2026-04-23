@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 import { formatInTz, weekRange } from "@/lib/schedule";
 
@@ -18,10 +18,11 @@ export default async function CalendarPage({ searchParams }: Props) {
   const reference = sp.week ? new Date(sp.week) : new Date();
   const { start, end, days } = weekRange(reference, trainer.timezone);
 
-  const supabase = await createSupabaseServerClient();
-  const { data: sessions } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { data: sessions } = await admin
     .from("sessions")
     .select("id, scheduled_at, duration_minutes, session_type, status, name, day_label, clients(display_name)")
+    .eq("tenant_id", trainer.id)
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString())
     .order("scheduled_at");

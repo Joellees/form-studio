@@ -4,30 +4,34 @@ import { ClientSessionRow } from "./client-session-row";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireClient } from "@/lib/trainer";
 import { formatInTz } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientCalendarPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: me } = await supabase
+  const client = await requireClient();
+  const admin = createSupabaseAdminClient();
+
+  const { data: me } = await admin
     .from("clients")
     .select("timezone, trainers(timezone)")
+    .eq("id", client.id)
     .maybeSingle();
-  const tz =
-    me?.timezone ??
-    // @ts-expect-error — nested typings
-    me?.trainers?.timezone ??
-    "UTC";
+  const trainersRel = me?.trainers as { timezone?: string } | { timezone?: string }[] | null;
+  const trainer = Array.isArray(trainersRel) ? trainersRel[0] ?? null : trainersRel;
+  const tz = me?.timezone ?? trainer?.timezone ?? "UTC";
 
-  const { data: sessions } = await supabase
+  const { data: sessions } = await admin
     .from("sessions")
     .select("id, scheduled_at, duration_minutes, session_type, status, name, zoom_url")
+    .eq("client_id", client.id)
     .order("scheduled_at");
 
-  const upcoming = (sessions ?? []).filter((s) => new Date(s.scheduled_at) > new Date() && s.status !== "cancelled");
-  const past = (sessions ?? []).filter((s) => new Date(s.scheduled_at) <= new Date() || s.status === "cancelled");
+  const now = new Date();
+  const upcoming = (sessions ?? []).filter((s) => new Date(s.scheduled_at) > now && s.status !== "cancelled");
+  const past = (sessions ?? []).filter((s) => new Date(s.scheduled_at) <= now || s.status === "cancelled");
 
   return (
     <div className="rise-in-stagger space-y-10">
@@ -37,31 +41,32 @@ export default async function ClientCalendarPage() {
       </section>
 
       <section>
-        <h2 className="text-2xl">Upcoming</h2>
-        <Card className="mt-4">
-          <CardContent className="p-0">
-            {upcoming.length === 0 ? (
-              <div className="p-6">
-                <EmptyState
-                  title="Nothing scheduled"
-                  body="Your trainer will schedule your sessions. You can also request one when you&rsquo;re ready."
-                />
-              </div>
-            ) : (
+        <h2 className="text-lg font-semibold tracking-tight">Upcoming</h2>
+        {upcoming.length === 0 ? (
+          <div className="mt-3">
+            <EmptyState
+              bordered
+              title="Nothing scheduled"
+              body="Your trainer will schedule your sessions. You can also request one when you&rsquo;re ready."
+            />
+          </div>
+        ) : (
+          <Card className="mt-3">
+            <CardContent className="p-0">
               <ul className="divide-y divide-[color:var(--color-stone-soft)]">
                 {upcoming.map((s) => (
                   <ClientSessionRow key={s.id} session={s} timezone={tz} formatInTz={formatInTz} />
                 ))}
               </ul>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {past.length > 0 ? (
         <section>
-          <h2 className="text-2xl">Past</h2>
-          <Card className="mt-4">
+          <h2 className="text-lg font-semibold tracking-tight">Past</h2>
+          <Card className="mt-3">
             <CardContent className="p-0">
               <ul className="divide-y divide-[color:var(--color-stone-soft)]">
                 {past.slice(0, 10).map((s) => (
