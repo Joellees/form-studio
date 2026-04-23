@@ -15,9 +15,10 @@ type WordmarkProps = {
 export function Wordmark({ variant = "inline-platform", name, className }: WordmarkProps) {
   if (variant === "inline-platform") {
     return (
-      <span className={cn("font-display text-[22px] leading-none", className)}>
-        <span className="text-[color:var(--color-ink)]">Form</span>{" "}
-        <span className="text-[color:var(--color-moss)]">Studio</span>
+      <span
+        className={cn("font-display text-[22px] leading-none text-[color:var(--color-moss)]", className)}
+      >
+        Form Studio
       </span>
     );
   }
