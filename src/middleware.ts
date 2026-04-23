@@ -6,6 +6,7 @@ import { parseHost, TENANT_KIND_HEADER, TENANT_SLUG_HEADER } from "@/lib/tenancy
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/beta(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/s/(.*)", // public trainer pages are rewritten under /s/{slug}
