@@ -8,8 +8,7 @@ import { Wordmark } from "@/components/brand/wordmark";
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    // TODO: route to Sentry / Axiom / Logtail once wired
-    console.error(error);
+    console.error("[error.tsx]", error);
   }, [error]);
 
   return (
@@ -20,6 +19,14 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         This isn&rsquo;t how it should go. We&rsquo;ve captured what happened — try again, and if it
         keeps failing, let us know.
       </p>
+      {error.digest ? (
+        <p className="mt-2 font-mono text-xs text-[color:var(--color-stone)]">ref: {error.digest}</p>
+      ) : null}
+      {process.env.NODE_ENV !== "production" ? (
+        <pre className="mt-4 max-w-full overflow-auto rounded-md bg-[color:var(--color-parchment)] p-3 text-xs text-[color:var(--color-ink)]">
+          {error.message}
+        </pre>
+      ) : null}
       <div className="mt-8 flex gap-3">
         <Button onClick={reset}>try again</Button>
         <Button asChild variant="outline">
