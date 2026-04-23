@@ -4,24 +4,29 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Wordmark } from "@/components/brand/wordmark";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 /**
- * Client-facing surface. Expects the user to have a `clients` row; if not,
- * bounce to the marketing site.
+ * Client-facing surface. Expects the user to have a `clients` row. If
+ * they're a trainer, bounce them to their own studio. If neither,
+ * send them to /me which will work out where they should go.
  */
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const supabase = await createSupabaseServerClient();
-  const { data: client } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { data: client } = await admin
     .from("clients")
     .select("id, display_name, tenant_id, trainers(display_name, subdomain_slug)")
     .eq("clerk_id", userId)
     .maybeSingle();
 
-  if (!client) redirect("/");
+  if (!client) {
+    const { data: trainer } = await admin.from("trainers").select("id").eq("clerk_id", userId).maybeSingle();
+    if (trainer) redirect("/studio/dashboard");
+    redirect("/me");
+  }
 
   // @ts-expect-error — nested select typings
   const trainerName: string = client.trainers?.display_name ?? "Studio";

@@ -28,7 +28,18 @@ export default async function StudioLayout({ children }: { children: React.React
     .eq("clerk_id", userId)
     .maybeSingle();
 
-  if (!trainer) redirect("/onboarding");
+  if (!trainer) {
+    // This user is signed in but isn't a trainer. If they're a client,
+    // bounce to their dashboard instead of pushing them into trainer
+    // onboarding.
+    const { data: client } = await admin
+      .from("clients")
+      .select("id")
+      .eq("clerk_id", userId)
+      .maybeSingle();
+    if (client) redirect("/client/dashboard");
+    redirect("/onboarding");
+  }
 
   const kind = await getTenantKind();
   const slug = await getTenantSlug();

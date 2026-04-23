@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/beta(.*)",
   "/join(.*)",
+  "/me",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/s/(.*)", // public trainer pages are rewritten under /s/{slug}
@@ -59,7 +60,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   // Trainer subdomain rewrite.
   if (kind === "trainer" && slug) {
-    const appPrefixes = ["/studio", "/client", "/sign-in", "/sign-up", "/onboarding", "/api", "/s/", "/beta", "/join"];
+    const appPrefixes = ["/studio", "/client", "/sign-in", "/sign-up", "/onboarding", "/api", "/s/", "/beta", "/join", "/me"];
     const isAppPath = appPrefixes.some((p) => url.pathname === p || url.pathname.startsWith(`${p}/`));
     if (!isAppPath) {
       url.pathname = `/s/${slug}${url.pathname === "/" ? "" : url.pathname}`;

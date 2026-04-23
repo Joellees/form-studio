@@ -13,7 +13,7 @@ export default function SignUpPage() {
         <Wordmark variant="inline-platform" />
       </div>
       <SignUp
-        fallbackRedirectUrl="/onboarding"
+        fallbackRedirectUrl="/me"
         signInUrl="/sign-in"
         appearance={{ elements: { card: "shadow-none bg-transparent" } }}
       />
