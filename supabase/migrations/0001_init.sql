@@ -22,24 +22,43 @@ language sql stable as $$
   ), '')
 $$;
 
+-- These helpers read from tables defined below. plpgsql defers name
+-- resolution until call time, so we can create them before the tables.
 create or replace function public.is_super_admin() returns boolean
-language sql stable as $$
-  select exists (select 1 from public.super_admins where clerk_id = public.current_clerk_id())
+language plpgsql stable as $$
+begin
+  return exists (select 1 from public.super_admins where clerk_id = public.current_clerk_id());
+end;
 $$;
 
 create or replace function public.current_trainer_id() returns uuid
-language sql stable as $$
-  select id from public.trainers where clerk_id = public.current_clerk_id() limit 1
+language plpgsql stable as $$
+declare
+  result uuid;
+begin
+  select id into result from public.trainers where clerk_id = public.current_clerk_id() limit 1;
+  return result;
+end;
 $$;
 
 create or replace function public.current_client_id() returns uuid
-language sql stable as $$
-  select id from public.clients where clerk_id = public.current_clerk_id() limit 1
+language plpgsql stable as $$
+declare
+  result uuid;
+begin
+  select id into result from public.clients where clerk_id = public.current_clerk_id() limit 1;
+  return result;
+end;
 $$;
 
 create or replace function public.current_client_tenant() returns uuid
-language sql stable as $$
-  select tenant_id from public.clients where clerk_id = public.current_clerk_id() limit 1
+language plpgsql stable as $$
+declare
+  result uuid;
+begin
+  select tenant_id into result from public.clients where clerk_id = public.current_clerk_id() limit 1;
+  return result;
+end;
 $$;
 
 -- Touch-updated_at trigger

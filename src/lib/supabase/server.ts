@@ -8,16 +8,15 @@ import { env } from "@/lib/env";
 /**
  * Supabase client for Server Components / Server Actions / Route Handlers.
  *
- * It attaches the Clerk-signed JWT so Postgres RLS can read `auth.jwt()->>'sub'`
- * and restrict rows to the current user (trainer or client).
- *
- * The Clerk JWT template named in CLERK_SUPABASE_JWT_TEMPLATE must be signed
- * with the Supabase project's JWT secret and include the `sub` claim.
+ * Attaches a Clerk-signed JWT (template: `supabase`) so Postgres RLS can
+ * read `auth.jwt()->>'sub'` and restrict rows to the current user. The
+ * Clerk JWT template must be signed with the Supabase project's JWT
+ * secret (HS256) and include `{ "sub": "{{user.id}}" }`.
  */
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const { getToken } = await auth();
-  const token = await getToken({ template: env.CLERK_SUPABASE_JWT_TEMPLATE });
+  const token = await getToken({ template: "supabase" });
 
   return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     cookies: {
