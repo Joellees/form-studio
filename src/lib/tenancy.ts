@@ -78,10 +78,10 @@ export function parseHost(host: string): { slug: string | null; kind: TenantKind
   return { slug: null, kind: "root" };
 }
 
-/** Validate a requested slug during trainer sign-up. */
+/** Validate a requested slug during trainer sign-up. Letters only, lowercase. */
 export function isValidSlug(slug: string): boolean {
   if (slug.length < 3 || slug.length > 32) return false;
-  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)) return false;
+  if (!/^[a-z]+$/.test(slug)) return false;
   if (RESERVED_SLUGS.has(slug)) return false;
   return true;
 }

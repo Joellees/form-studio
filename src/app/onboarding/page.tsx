@@ -27,7 +27,7 @@ export default async function OnboardingPage() {
 
   const suggestion = (user?.firstName ?? user?.username ?? "")
     .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "")
+    .replace(/[^a-z]/g, "")
     .slice(0, 32);
 
   return (

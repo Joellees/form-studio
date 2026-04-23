@@ -63,7 +63,7 @@ export function OnboardingForm({ initialSlug, initialName }: { initialSlug: stri
           </span>
         </div>
         <p id="slug-hint" className="text-xs text-[color:var(--color-stone)]">
-          Lowercase, letters, numbers, dashes. 3&ndash;32 characters.
+          Letters only, lowercase. 3&ndash;32 characters.
         </p>
         {errors.slug ? <p className="text-xs text-[color:var(--color-sienna)]">{errors.slug.message}</p> : null}
       </div>
