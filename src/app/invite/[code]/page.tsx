@@ -24,7 +24,7 @@ export default async function InvitePage({ params }: Props) {
 
   const { data: invite } = await admin
     .from("client_invites")
-    .select("code, tenant_id, display_name, claimed_at, trainers(display_name, subdomain_slug)")
+    .select("code, tenant_id, display_name, phone, claimed_at, trainers(display_name, subdomain_slug)")
     .eq("code", code.toUpperCase())
     .maybeSingle();
 
@@ -66,9 +66,10 @@ export default async function InvitePage({ params }: Props) {
         <Card className="mt-10 w-full">
           <CardContent className="flex flex-col gap-4">
             <p className="text-sm text-[color:var(--color-ink)]/75">
-              You&rsquo;re signed in and ready. Accept the invite to join {trainerName}&rsquo;s studio.
+              You&rsquo;re signed in and ready. Enter your phone number and accept the invite
+              to join {trainerName}&rsquo;s studio.
             </p>
-            <ClaimInviteButton code={invite.code} />
+            <ClaimInviteButton code={invite.code} defaultPhone={invite.phone ?? null} />
             <Link href="/sign-in" className="text-xs text-[color:var(--color-stone)] hover:text-[color:var(--color-moss-deep)]">
               use a different account
             </Link>

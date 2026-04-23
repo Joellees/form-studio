@@ -6,13 +6,18 @@ import { z } from "zod";
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
+const claimSchema = z.object({
+  code: z.string().length(6),
+  phone: z.string().min(3).max(40),
+});
+
 /**
- * Claims an unclaimed invite for the signed-in Clerk user. Creates the
- * `clients` row, seeds default log-field toggles, and marks the invite
- * as claimed so it can&rsquo;t be reused.
+ * Claims an unclaimed invite for the signed-in Clerk user. Requires a
+ * phone number (enforced client-side too). Creates the `clients` row,
+ * seeds default log-field toggles, and marks the invite as claimed.
  */
-export async function claimInvite(code: string): Promise<ActionResult<{ clientId: string }>> {
-  return runAction(z.string().length(6), code, async (code) => {
+export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId: string }>> {
+  return runAction(claimSchema, raw, async ({ code, phone }) => {
     const { userId } = await auth();
     if (!userId) return fail("You need to sign in or sign up first.");
 
@@ -20,7 +25,7 @@ export async function claimInvite(code: string): Promise<ActionResult<{ clientId
 
     const { data: invite } = await admin
       .from("client_invites")
-      .select("code, tenant_id, email, phone, notes, display_name, claimed_at")
+      .select("code, tenant_id, email, display_name, notes, claimed_at")
       .eq("code", code.toUpperCase())
       .maybeSingle();
     if (!invite) return fail("This invite link isn&rsquo;t valid.");
@@ -38,7 +43,9 @@ export async function claimInvite(code: string): Promise<ActionResult<{ clientId
 
     let clientId: string;
     if (existing) {
+      // Same trainer — just update phone on their existing row.
       clientId = existing.id;
+      await admin.from("clients").update({ phone }).eq("id", clientId);
     } else {
       const user = await currentUser();
       const email = invite.email || user?.primaryEmailAddress?.emailAddress || null;
@@ -52,7 +59,7 @@ export async function claimInvite(code: string): Promise<ActionResult<{ clientId
           clerk_id: userId,
           display_name: displayName,
           email,
-          phone: invite.phone ?? null,
+          phone,
           notes: invite.notes ?? null,
         })
         .select("id")

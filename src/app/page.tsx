@@ -36,54 +36,24 @@ export default function RootPage() {
         </p>
       </section>
 
-      <section id="get-started" className="mt-24 grid gap-6 md:grid-cols-2 rise-in">
-        <div className="flex flex-col justify-between rounded-3xl border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 p-8">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-              for trainers
-            </p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Create your studio.</h2>
-            <p className="mt-3 text-[color:var(--color-ink)]/75">
-              Pick a subdomain, upload your exercise library, build your first session.
-              Ten minutes from zero.
-            </p>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link
-              href="/sign-up"
-              className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-6 text-sm font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
-            >
-              create your studio
-            </Link>
-            <Link
-              href="/sign-in"
-              className="text-sm text-[color:var(--color-ink)]/70 underline underline-offset-4 hover:text-[color:var(--color-ink)]"
-            >
-              already have one? sign in
-            </Link>
-          </div>
+      <section id="get-started" className="mt-20 flex flex-col items-start gap-4 rise-in">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/sign-up"
+            className="inline-flex h-12 items-center rounded-full bg-[color:var(--color-ink)] px-7 text-[15px] font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
+          >
+            create your studio
+          </Link>
+          <Link
+            href="/sign-in"
+            className="text-sm text-[color:var(--color-ink)]/70 underline underline-offset-4 hover:text-[color:var(--color-ink)]"
+          >
+            already have one? sign in
+          </Link>
         </div>
-
-        <div className="flex flex-col justify-between rounded-3xl border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 p-8">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-              for clients
-            </p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Sign in to your studio.</h2>
-            <p className="mt-3 text-[color:var(--color-ink)]/75">
-              Your trainer sends you an invite link. Click it, create your account, and
-              you&rsquo;re training. Already set up? Sign in.
-            </p>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link
-              href="/sign-in"
-              className="inline-flex h-11 items-center rounded-full border border-[color:var(--color-ink)] px-6 text-sm font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
-            >
-              client sign in
-            </Link>
-          </div>
-        </div>
+        <p className="text-xs text-[color:var(--color-stone)]">
+          Clients — don&rsquo;t sign up here. Your trainer will send you an invite link.
+        </p>
       </section>
 
       <section id="approach" className="mt-32 grid gap-16 border-t border-[color:var(--color-stone-soft)] pt-16 md:grid-cols-3">
