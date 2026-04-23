@@ -87,12 +87,11 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
         </Card>
       ) : null}
 
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <SessionBuilder
         sessionId={session.id}
         sessionNotes={session.notes}
         canEdit={false}
-        blocks={blocks as any}
+        blocks={blocks as unknown as Parameters<typeof SessionBuilder>[0]["blocks"]}
         library={[]}
       />
     </div>

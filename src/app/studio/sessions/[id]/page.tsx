@@ -85,12 +85,11 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
 
       <SessionActions session={session} />
 
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <SessionBuilder
         sessionId={session.id}
         sessionNotes={session.notes}
         canEdit={true}
-        blocks={blocks as any}
+        blocks={blocks as unknown as Parameters<typeof SessionBuilder>[0]["blocks"]}
         library={exercises ?? []}
       />
     </div>
