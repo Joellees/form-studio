@@ -7,12 +7,23 @@
 --
 -- The Clerk-issued JWT is injected by the Supabase client library; its
 -- `sub` claim carries the Clerk user ID. We read it via `auth.jwt()->>'sub'`.
+--
+-- Safe to run on an empty or already-migrated project — the header below
+-- resets the public schema first so partial state from failed runs is
+-- cleaned up.
 -- ─────────────────────────────────────────────────────────────────────────
 
-create extension if not exists "pgcrypto";
-create extension if not exists "citext";
+-- Reset: drop every application object so reruns are idempotent. Storage
+-- and auth schemas are untouched because Supabase manages them.
+drop schema if exists public cascade;
+create schema public;
+grant usage on schema public to anon, authenticated, service_role;
+grant create on schema public to postgres, service_role;
 
--- ─── helpers ─────────────────────────────────────────────────────────────
+create extension if not exists "pgcrypto" with schema public;
+create extension if not exists "citext"   with schema public;
+
+-- ─── zero-dependency helpers ─────────────────────────────────────────────
 
 create or replace function public.current_clerk_id() returns text
 language sql stable as $$
@@ -22,46 +33,6 @@ language sql stable as $$
   ), '')
 $$;
 
--- These helpers read from tables defined below. plpgsql defers name
--- resolution until call time, so we can create them before the tables.
-create or replace function public.is_super_admin() returns boolean
-language plpgsql stable as $$
-begin
-  return exists (select 1 from public.super_admins where clerk_id = public.current_clerk_id());
-end;
-$$;
-
-create or replace function public.current_trainer_id() returns uuid
-language plpgsql stable as $$
-declare
-  result uuid;
-begin
-  select id into result from public.trainers where clerk_id = public.current_clerk_id() limit 1;
-  return result;
-end;
-$$;
-
-create or replace function public.current_client_id() returns uuid
-language plpgsql stable as $$
-declare
-  result uuid;
-begin
-  select id into result from public.clients where clerk_id = public.current_clerk_id() limit 1;
-  return result;
-end;
-$$;
-
-create or replace function public.current_client_tenant() returns uuid
-language plpgsql stable as $$
-declare
-  result uuid;
-begin
-  select tenant_id into result from public.clients where clerk_id = public.current_clerk_id() limit 1;
-  return result;
-end;
-$$;
-
--- Touch-updated_at trigger
 create or replace function public.touch_updated_at() returns trigger
 language plpgsql as $$
 begin
@@ -70,7 +41,7 @@ begin
 end
 $$;
 
--- ─── super_admins ────────────────────────────────────────────────────────
+-- ─── super_admins (no deps) ──────────────────────────────────────────────
 
 create table public.super_admins (
   clerk_id text primary key,
@@ -81,7 +52,12 @@ alter table public.super_admins enable row level security;
 create policy super_admins_read_self on public.super_admins
   for select using (clerk_id = public.current_clerk_id());
 
--- ─── trainers ────────────────────────────────────────────────────────────
+create or replace function public.is_super_admin() returns boolean
+language sql stable as $$
+  select exists (select 1 from public.super_admins where clerk_id = public.current_clerk_id())
+$$;
+
+-- ─── trainers (FK target for most other tables) ──────────────────────────
 
 create table public.trainers (
   id uuid primary key default gen_random_uuid(),
@@ -109,27 +85,22 @@ create trigger trainers_touch before update on public.trainers
 
 alter table public.trainers enable row level security;
 
--- Public read of the minimal marketing fields is handled via a view below.
+create or replace function public.current_trainer_id() returns uuid
+language sql stable as $$
+  select id from public.trainers where clerk_id = public.current_clerk_id() limit 1
+$$;
+
+-- Trainer-self policies can be added immediately. Cross-role policies
+-- that depend on current_client_tenant() are added after clients exists.
 create policy trainers_self_read on public.trainers
   for select using (clerk_id = public.current_clerk_id() or public.is_super_admin());
-create policy trainers_client_read_own on public.trainers
-  for select using (id = public.current_client_tenant());
 create policy trainers_self_update on public.trainers
   for update using (clerk_id = public.current_clerk_id())
   with check (clerk_id = public.current_clerk_id());
 create policy trainers_super_admin_all on public.trainers
   for all using (public.is_super_admin()) with check (public.is_super_admin());
 
--- ─── public trainer view (for the marketing subdomain) ──────────────────
-
-create or replace view public.trainer_public as
-  select id, subdomain_slug, display_name, bio, cover_image_url, profile_image_url, accent_color_override
-  from public.trainers
-  where archived_at is null;
-
-grant select on public.trainer_public to anon, authenticated;
-
--- ─── clients ─────────────────────────────────────────────────────────────
+-- ─── clients (FK to trainers) ────────────────────────────────────────────
 
 create table public.clients (
   id uuid primary key default gen_random_uuid(),
@@ -151,6 +122,22 @@ create trigger clients_touch before update on public.clients
   for each row execute function public.touch_updated_at();
 
 alter table public.clients enable row level security;
+
+create or replace function public.current_client_id() returns uuid
+language sql stable as $$
+  select id from public.clients where clerk_id = public.current_clerk_id() limit 1
+$$;
+
+create or replace function public.current_client_tenant() returns uuid
+language sql stable as $$
+  select tenant_id from public.clients where clerk_id = public.current_clerk_id() limit 1
+$$;
+
+-- Now that clients + current_client_tenant exist, add the remaining
+-- cross-role policy on trainers, plus all policies on clients.
+create policy trainers_client_read_own on public.trainers
+  for select using (id = public.current_client_tenant());
+
 create policy clients_trainer_access on public.clients
   for all using (tenant_id = public.current_trainer_id())
   with check (tenant_id = public.current_trainer_id());
@@ -159,6 +146,14 @@ create policy clients_self_read on public.clients
 create policy clients_self_update on public.clients
   for update using (clerk_id = public.current_clerk_id())
   with check (clerk_id = public.current_clerk_id());
+
+-- Public marketing view — minimal fields exposed to anonymous callers.
+create or replace view public.trainer_public as
+  select id, subdomain_slug, display_name, bio, cover_image_url, profile_image_url, accent_color_override
+  from public.trainers
+  where archived_at is null;
+
+grant select on public.trainer_public to anon, authenticated;
 
 -- ─── client_profile_fields ───────────────────────────────────────────────
 
@@ -213,7 +208,6 @@ create policy packages_trainer_access on public.packages
   with check (tenant_id = public.current_trainer_id());
 create policy packages_client_read on public.packages
   for select using (tenant_id = public.current_client_tenant() and active);
--- Public (anonymous) can see active packages on a trainer's page
 create policy packages_public_read on public.packages
   for select to anon using (active);
 
@@ -279,7 +273,7 @@ create policy exercises_trainer_access on public.exercises
 create policy exercises_client_read on public.exercises
   for select using (tenant_id = public.current_client_tenant() and not archived);
 
--- ─── session_templates ──────────────────────────────────────────────────
+-- ─── session_templates + children ────────────────────────────────────────
 
 create table public.session_templates (
   id uuid primary key default gen_random_uuid(),
@@ -350,7 +344,7 @@ create policy template_set_groups_trainer on public.template_set_groups
   for all using (tenant_id = public.current_trainer_id())
   with check (tenant_id = public.current_trainer_id());
 
--- ─── sessions ────────────────────────────────────────────────────────────
+-- ─── sessions + children ─────────────────────────────────────────────────
 
 create table public.sessions (
   id uuid primary key default gen_random_uuid(),
@@ -389,8 +383,6 @@ create policy sessions_client_request on public.sessions
 create policy sessions_client_cancel on public.sessions
   for update using (client_id = public.current_client_id())
   with check (client_id = public.current_client_id());
-
--- Session blocks / exercises / set groups (mirror of template shape + performed_*)
 
 create table public.session_blocks (
   id uuid primary key default gen_random_uuid(),
@@ -467,7 +459,7 @@ create policy session_set_groups_client_log on public.session_set_groups
     where s.client_id = public.current_client_id() and s.session_type = 'in_app'
   ));
 
--- ─── client_logs ────────────────────────────────────────────────────────
+-- ─── client_logs ─────────────────────────────────────────────────────────
 
 create table public.client_logs (
   id uuid primary key default gen_random_uuid(),
@@ -488,7 +480,7 @@ create policy client_logs_self_all on public.client_logs
   for all using (client_id = public.current_client_id())
   with check (client_id = public.current_client_id());
 
--- ─── cancellations ──────────────────────────────────────────────────────
+-- ─── cancellations ───────────────────────────────────────────────────────
 
 create table public.cancellations (
   id uuid primary key default gen_random_uuid(),
@@ -507,7 +499,7 @@ create policy cancellations_trainer on public.cancellations
 create policy cancellations_client_read on public.cancellations
   for select using (session_id in (select id from public.sessions where client_id = public.current_client_id()));
 
--- ─── payments ───────────────────────────────────────────────────────────
+-- ─── payments ────────────────────────────────────────────────────────────
 
 create table public.payments (
   id uuid primary key default gen_random_uuid(),
@@ -534,7 +526,7 @@ create policy payments_client_read on public.payments
     or session_id in (select id from public.sessions where client_id = public.current_client_id())
   );
 
--- ─── platform_subscriptions (Phase 2) ───────────────────────────────────
+-- ─── platform_subscriptions (Phase 2) ────────────────────────────────────
 
 create table public.platform_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -554,9 +546,23 @@ create policy platform_subs_trainer on public.platform_subscriptions
 create policy platform_subs_admin on public.platform_subscriptions
   for all using (public.is_super_admin()) with check (public.is_super_admin());
 
--- ─── Storage RLS ─────────────────────────────────────────────────────────
+-- ─── Storage buckets + RLS ───────────────────────────────────────────────
 
--- Exercise videos: path convention "{tenant_id}/{exercise_id}/{filename}"
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('exercise-videos', 'exercise-videos', false, 209715200, array['video/mp4','video/quicktime','video/webm']),
+  ('exercise-thumbs', 'exercise-thumbs', true,   5242880,  array['image/jpeg','image/png','image/webp']),
+  ('trainer-assets', 'trainer-assets',   true,  10485760,  array['image/jpeg','image/png','image/webp','image/avif']),
+  ('client-progress','client-progress',  false, 15728640,  array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
+
+-- Path convention: "{tenant_id}/{child_id}/{filename}"
+drop policy if exists "videos_trainer_rw"        on storage.objects;
+drop policy if exists "videos_client_read"       on storage.objects;
+drop policy if exists "trainer_assets_rw"        on storage.objects;
+drop policy if exists "client_progress_self"     on storage.objects;
+drop policy if exists "client_progress_trainer_read" on storage.objects;
+
 create policy "videos_trainer_rw" on storage.objects
   for all to authenticated
   using (
