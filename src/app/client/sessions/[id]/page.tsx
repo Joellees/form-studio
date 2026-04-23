@@ -56,7 +56,7 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
               href={session.zoom_url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-md bg-[color:var(--color-moss)] px-4 py-2 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
+              className="rounded-xl bg-[color:var(--color-moss)] px-4 py-2 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
             >
               join zoom
             </a>

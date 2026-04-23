@@ -13,7 +13,7 @@ export function EmptyState({ title, body, action, className }: EmptyStateProps) 
   return (
     <div
       className={cn(
-        "flex flex-col items-start gap-4 rounded-lg border border-dashed border-[color:var(--color-stone-soft)] bg-[color:var(--color-parchment)]/40 px-8 py-10",
+        "flex flex-col items-start gap-4 rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] bg-[color:var(--color-parchment)]/40 px-8 py-10",
         className,
       )}
     >

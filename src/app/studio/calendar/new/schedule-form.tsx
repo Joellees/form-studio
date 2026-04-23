@@ -69,7 +69,7 @@ export function ScheduleForm({ clients, templates }: { clients: ClientOpt[]; tem
         <Label>client</Label>
         <select
           {...register("clientId", { required: true })}
-          className="h-10 rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           {clients.length === 0 ? <option value="">no clients yet</option> : null}
           {clients.map((c) => (
@@ -97,7 +97,7 @@ export function ScheduleForm({ clients, templates }: { clients: ClientOpt[]; tem
         <Label>session type</Label>
         <select
           {...register("sessionType")}
-          className="h-10 rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           <option value="in_person">in person</option>
           <option value="zoom">zoom</option>
@@ -116,7 +116,7 @@ export function ScheduleForm({ clients, templates }: { clients: ClientOpt[]; tem
         <Label>template (optional)</Label>
         <select
           {...register("templateId")}
-          className="h-10 rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           <option value="">no template</option>
           {templates.map((t) => (

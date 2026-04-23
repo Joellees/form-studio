@@ -23,7 +23,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <p className="mt-2 font-mono text-xs text-[color:var(--color-stone)]">ref: {error.digest}</p>
       ) : null}
       {process.env.NODE_ENV !== "production" ? (
-        <pre className="mt-4 max-w-full overflow-auto rounded-md bg-[color:var(--color-parchment)] p-3 text-xs text-[color:var(--color-ink)]">
+        <pre className="mt-4 max-w-full overflow-auto rounded-xl bg-[color:var(--color-parchment)] p-3 text-xs text-[color:var(--color-ink)]">
           {error.message}
         </pre>
       ) : null}

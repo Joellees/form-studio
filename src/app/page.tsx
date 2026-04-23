@@ -21,13 +21,13 @@ export default function RootPage() {
           </Link>
           <Link
             href="/sign-in"
-            className="rounded-md border border-[color:var(--color-ink)] px-3 py-1.5 text-[color:var(--color-ink)] hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
+            className="rounded-xl border border-[color:var(--color-ink)] px-3 py-1.5 text-[color:var(--color-ink)] hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
           >
             sign in
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-md bg-[color:var(--color-ink)] px-3 py-1.5 font-semibold text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
+            className="rounded-xl bg-[color:var(--color-ink)] px-3 py-1.5 font-semibold text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
           >
             start your studio
           </Link>
@@ -49,13 +49,13 @@ export default function RootPage() {
         <div className="mt-10 flex flex-wrap gap-4">
           <Link
             href="/sign-up"
-            className="rounded-md bg-[color:var(--color-moss)] px-5 py-3 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
+            className="rounded-xl bg-[color:var(--color-moss)] px-5 py-3 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
           >
             start your studio
           </Link>
           <Link
             href="#approach"
-            className="rounded-md border border-[color:var(--color-stone-soft)] px-5 py-3 text-sm font-medium hover:border-[color:var(--color-moss)]"
+            className="rounded-xl border border-[color:var(--color-stone-soft)] px-5 py-3 text-sm font-medium hover:border-[color:var(--color-moss)]"
           >
             see how it works
           </Link>

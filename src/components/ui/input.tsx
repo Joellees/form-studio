@@ -8,7 +8,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
       ref={ref}
       type={type}
       className={cn(
-        "flex h-10 w-full rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm text-[color:var(--color-ink)] transition-colors placeholder:text-[color:var(--color-stone)] focus-visible:border-[color:var(--color-moss)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60",
+        "flex h-11 w-full rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-5 text-sm text-[color:var(--color-ink)] transition-colors placeholder:text-[color:var(--color-stone)] focus-visible:border-[color:var(--color-ink)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
       {...props}
@@ -23,7 +23,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
       ref={ref}
       rows={rows}
       className={cn(
-        "flex w-full rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm text-[color:var(--color-ink)] transition-colors placeholder:text-[color:var(--color-stone)] focus-visible:border-[color:var(--color-moss)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60",
+        "flex w-full rounded-2xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-5 py-3 text-sm text-[color:var(--color-ink)] transition-colors placeholder:text-[color:var(--color-stone)] focus-visible:border-[color:var(--color-ink)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
       {...props}

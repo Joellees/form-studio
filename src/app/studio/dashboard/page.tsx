@@ -100,7 +100,7 @@ export default async function DashboardPage() {
 
 function Stat({ label, value, suffix }: { label: string; value: string; suffix: string }) {
   return (
-    <div className="rounded-lg border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 px-6 py-5">
+    <div className="rounded-2xl border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 px-6 py-5">
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">{label}</p>
       <p className="mt-3 text-4xl tabular-nums">
         {value}

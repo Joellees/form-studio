@@ -50,7 +50,7 @@ export function OnboardingForm({ initialSlug, initialName }: { initialSlug: stri
     <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-6 rise-in">
       <div className="flex flex-col gap-2">
         <Label htmlFor="slug">your address</Label>
-        <div className="flex items-stretch overflow-hidden rounded-md border border-[color:var(--color-stone-soft)] focus-within:border-[color:var(--color-moss)]">
+        <div className="flex items-stretch overflow-hidden rounded-xl border border-[color:var(--color-stone-soft)] focus-within:border-[color:var(--color-moss)]">
           <Input
             id="slug"
             {...register("slug", { required: "Pick a subdomain to continue" })}

@@ -69,7 +69,7 @@ export default async function CalendarPage({ searchParams }: Props) {
                       <Link
                         key={s.id}
                         href={`/studio/sessions/${s.id}`}
-                        className="block rounded-md border border-[color:var(--color-stone-soft)]/60 bg-[color:var(--color-canvas)] px-3 py-2 hover:border-[color:var(--color-moss)]"
+                        className="block rounded-xl border border-[color:var(--color-stone-soft)]/60 bg-[color:var(--color-canvas)] px-3 py-2 hover:border-[color:var(--color-moss)]"
                       >
                         <p className="text-xs tabular-nums text-[color:var(--color-stone)]">
                           {formatInTz(new Date(s.scheduled_at), trainer.timezone, "HH:mm")}

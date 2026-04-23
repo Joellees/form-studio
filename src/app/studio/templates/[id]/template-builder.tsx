@@ -207,7 +207,7 @@ function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
   }
 
   return (
-    <div className="rounded-md border border-[color:var(--color-stone-soft)]/60 p-4">
+    <div className="rounded-xl border border-[color:var(--color-stone-soft)]/60 p-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label>sets</Label>
@@ -235,7 +235,7 @@ function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
               };
               save({ rep_type: next, rep_value: defaults[next] ?? { type: next } });
             }}
-            className="h-9 rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            className="h-9 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
           >
             <option value="fixed">fixed</option>
             <option value="range">range</option>
@@ -316,7 +316,7 @@ function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
               };
               save({ weight_type: next, weight_value: defaults[next] ?? { type: next } });
             }}
-            className="h-9 rounded-md border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            className="h-9 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
           >
             <option value="load">kg</option>
             <option value="bw">bw</option>

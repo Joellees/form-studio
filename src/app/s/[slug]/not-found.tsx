@@ -14,7 +14,7 @@ export default function TrainerNotFound() {
       </p>
       <Link
         href={`${process.env.NEXT_PUBLIC_APP_URL ?? "/"}`}
-        className="mt-8 rounded-md border border-[color:var(--color-stone-soft)] px-4 py-2 text-sm hover:border-[color:var(--color-moss)]"
+        className="mt-8 rounded-xl border border-[color:var(--color-stone-soft)] px-4 py-2 text-sm hover:border-[color:var(--color-moss)]"
       >
         go to {env.NEXT_PUBLIC_ROOT_DOMAIN}
       </Link>
