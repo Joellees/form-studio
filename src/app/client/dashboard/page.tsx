@@ -50,7 +50,7 @@ export default async function ClientDashboard({ searchParams }: { searchParams: 
           ))}
         </div>
       ) : (
-        <EmptyState
+        <EmptyState bordered
           title="No active blocks yet"
           body="Pick a package on your trainer&rsquo;s studio page to get started."
         />

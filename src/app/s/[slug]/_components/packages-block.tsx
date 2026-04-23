@@ -18,7 +18,7 @@ type Pkg = {
 export function PackagesBlock({ packages, trainerName }: { packages: Pkg[]; trainerName: string }) {
   if (packages.length === 0) {
     return (
-      <EmptyState
+      <EmptyState bordered
         title="New packages coming soon"
         body={`${trainerName} is preparing packages for new clients. Check back in a few days.`}
       />

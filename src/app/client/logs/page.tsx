@@ -38,7 +38,7 @@ export default async function ClientLogsPage() {
       </section>
 
       {!anyEnabled ? (
-        <EmptyState
+        <EmptyState bordered
           title="Nothing to log yet"
           body="Your trainer decides which fields show up here. If something&rsquo;s missing, message them."
         />

@@ -94,7 +94,7 @@ export default async function CalendarPage({ searchParams }: Props) {
       </div>
 
       {sessions && sessions.length === 0 ? (
-        <EmptyState title="Nothing scheduled this week" body="Add your first session from the top right." />
+        <EmptyState bordered title="Nothing scheduled this week" body="Add your first session from the top right." />
       ) : null}
     </div>
   );

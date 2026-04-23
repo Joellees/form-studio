@@ -49,7 +49,7 @@ export default async function LibraryPage({ searchParams }: Props) {
       <LibraryFilters groups={groups} initialQuery={sp.q ?? ""} initialGroup={sp.group ?? ""} />
 
       {!exercises || exercises.length === 0 ? (
-        <EmptyState
+        <EmptyState bordered
           title="Nothing here yet"
           body="Add your first exercise — just the name, maybe a video, and a group tag for browsing."
           action={

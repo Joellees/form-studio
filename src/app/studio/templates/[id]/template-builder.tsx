@@ -95,7 +95,7 @@ export function TemplateBuilder({ template, blocks, exercises }: Props) {
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <section className="space-y-6">
           {blocks.length === 0 ? (
-            <EmptyState
+            <EmptyState bordered
               title="Add the first exercise"
               body="Pick from your library on the right. You&rsquo;ll configure sets and reps per exercise."
             />

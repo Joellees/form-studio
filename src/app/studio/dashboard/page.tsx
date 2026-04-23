@@ -3,21 +3,25 @@ import Link from "next/link";
 import { PendingSubscriptions, type PendingRow } from "./pending-subscriptions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const supabase = await createSupabaseServerClient();
-  const [{ count: clientCount }, { data: pendingRaw }] = await Promise.all([
-    supabase.from("clients").select("*", { count: "exact", head: true }).eq("active", true),
-    supabase
+  const trainer = await requireTrainer();
+  const admin = createSupabaseAdminClient();
+
+  const [{ count: clientCount }, { data: pendingRaw }, { count: exerciseCount }] = await Promise.all([
+    admin.from("clients").select("*", { count: "exact", head: true }).eq("tenant_id", trainer.id).eq("active", true),
+    admin
       .from("subscriptions")
       .select("id, created_at, clients(display_name), packages(name, price_usd)")
+      .eq("tenant_id", trainer.id)
       .eq("payment_status", "pending")
       .order("created_at", { ascending: false })
       .limit(8),
+    admin.from("exercises").select("*", { count: "exact", head: true }).eq("tenant_id", trainer.id).eq("archived", false),
   ]);
 
   const pending: PendingRow[] = (pendingRaw ?? []).map((row) => {
@@ -37,15 +41,12 @@ export default async function DashboardPage() {
       <section>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">overview</p>
         <h1 className="mt-2 font-display text-4xl leading-tight">Welcome to your studio.</h1>
-        <p className="mt-2 max-w-xl text-[color:var(--color-ink)]/75">
-          Start by inviting your first client and setting up the exercises you rely on most.
-        </p>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-3">
         <Stat label="today" value="0" suffix="sessions" />
         <Stat label="this week" value="0" suffix="sessions" />
-        <Stat label="active clients" value={String(clientCount ?? 0)} suffix="" />
+        <Stat label="active clients" value={String(clientCount ?? 0)} />
       </section>
 
       {pending.length > 0 ? (
@@ -59,53 +60,69 @@ export default async function DashboardPage() {
         </Card>
       ) : null}
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Your first client</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EmptyState
-              title="No clients yet"
-              body="Invite someone by email and they&rsquo;ll land in your studio with a personal space for sessions and tracking."
-              action={
-                <Button asChild>
-                  <Link href="/studio/clients/new">invite a client</Link>
-                </Button>
-              }
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Your library</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EmptyState
-              title="No exercises yet"
-              body="Add the movements you coach most often. Every session you build will draw from here."
-              action={
-                <Button asChild variant="secondary">
-                  <Link href="/studio/library/new">add an exercise</Link>
-                </Button>
-              }
-            />
-          </CardContent>
-        </Card>
+      <section className="grid gap-4 md:grid-cols-2">
+        <NextStepCard
+          eyebrow="your clients"
+          headline={clientCount && clientCount > 0 ? "Invite another client" : "Invite your first client"}
+          body="Generate a link, send it over, they sign up and land in your studio."
+          cta="invite a client"
+          href="/studio/clients/new"
+          tone="primary"
+        />
+        <NextStepCard
+          eyebrow="your library"
+          headline={exerciseCount && exerciseCount > 0 ? "Add another exercise" : "Build your exercise library"}
+          body="Every session you build will draw from here — name, cue, video, default sets."
+          cta="add an exercise"
+          href="/studio/library/new"
+          tone="secondary"
+        />
       </section>
     </div>
   );
 }
 
-function Stat({ label, value, suffix }: { label: string; value: string; suffix: string }) {
+function Stat({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
   return (
-    <div className="rounded-2xl border border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-parchment)]/60 px-6 py-5">
+    <div className="rounded-2xl bg-[color:var(--color-parchment)]/60 px-6 py-5">
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">{label}</p>
-      <p className="mt-3 text-4xl tabular-nums">
+      <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
         {value}
-        {suffix ? <span className="ml-2 text-sm text-[color:var(--color-stone)]">{suffix}</span> : null}
+        {suffix ? <span className="ml-2 text-sm font-normal text-[color:var(--color-stone)]">{suffix}</span> : null}
       </p>
+    </div>
+  );
+}
+
+function NextStepCard({
+  eyebrow,
+  headline,
+  body,
+  cta,
+  href,
+  tone,
+}: {
+  eyebrow: string;
+  headline: string;
+  body: string;
+  cta: string;
+  href: string;
+  tone: "primary" | "secondary";
+}) {
+  return (
+    <div className="flex flex-col justify-between rounded-3xl bg-[color:var(--color-parchment)]/60 p-6">
+      <div>
+        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[color:var(--color-stone)]">
+          {eyebrow}
+        </p>
+        <h3 className="mt-3 text-xl font-semibold tracking-tight">{headline}</h3>
+        <p className="mt-2 max-w-md text-sm text-[color:var(--color-ink)]/70">{body}</p>
+      </div>
+      <div className="mt-6">
+        <Button asChild variant={tone === "primary" ? "primary" : "secondary"}>
+          <Link href={href}>{cta}</Link>
+        </Button>
+      </div>
     </div>
   );
 }
