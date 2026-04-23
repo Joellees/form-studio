@@ -20,8 +20,27 @@ const isPublicRoute = createRouteMatcher([
   "/sitemap.xml",
 ]);
 
-/** Paths that are exempt from the beta gate (otherwise the gate can&rsquo;t render). */
-const BETA_EXEMPT_PREFIXES = ["/beta", "/_next", "/icons", "/fonts", "/manifest.webmanifest", "/robots.txt", "/favicon.ico", "/sw.js"];
+/**
+ * Paths exempt from the beta gate.
+ *
+ * - `/beta` itself (otherwise the gate can&rsquo;t render)
+ * - `/invite/*` — an invite link IS the beta pass. A trainer with beta
+ *   access has been vouched for; anyone they invite is vouched for by
+ *   transitivity. The claim action sets a valid beta cookie on success
+ *   so the invitee can continue using the app after accepting.
+ * - static assets + service worker
+ */
+const BETA_EXEMPT_PREFIXES = [
+  "/beta",
+  "/invite/",
+  "/_next",
+  "/icons",
+  "/fonts",
+  "/manifest.webmanifest",
+  "/robots.txt",
+  "/favicon.ico",
+  "/sw.js",
+];
 
 function isBetaExempt(pathname: string): boolean {
   return BETA_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));

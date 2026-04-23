@@ -1,9 +1,11 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { BETA_COOKIE, parseBetaCodes } from "@/lib/beta";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const claimSchema = z.object({
@@ -78,6 +80,24 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       .from("client_invites")
       .update({ claimed_by_clerk_id: userId, claimed_at: new Date().toISOString() })
       .eq("code", invite.code);
+
+    // Grant beta-gate access. The invite IS the beta pass — dropping a
+    // valid code cookie lets the user navigate the rest of the app
+    // after claiming without needing a separately-shared beta code.
+    const validCodes = parseBetaCodes(process.env.BETA_CODES);
+    if (validCodes.length > 0) {
+      const anyCode = validCodes[0]?.code;
+      if (anyCode) {
+        const jar = await cookies();
+        jar.set(BETA_COOKIE, anyCode, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 30,
+        });
+      }
+    }
 
     return ok({ clientId });
   });
