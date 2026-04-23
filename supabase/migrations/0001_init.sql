@@ -17,8 +17,16 @@
 -- and auth schemas are untouched because Supabase manages them.
 drop schema if exists public cascade;
 create schema public;
+
+-- Restore the grants Supabase normally provisions out of the box. Without
+-- these, PostgREST requests from anon/authenticated/service_role get
+-- 42501 permission-denied before RLS is even consulted.
 grant usage on schema public to anon, authenticated, service_role;
 grant create on schema public to postgres, service_role;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+alter default privileges in schema public grant all on routines to anon, authenticated, service_role;
 
 create extension if not exists "pgcrypto" with schema public;
 create extension if not exists "citext"   with schema public;
@@ -609,3 +617,13 @@ create policy "client_progress_trainer_read" on storage.objects
     bucket_id = 'client-progress'
     and (storage.foldername(name))[2]::uuid = public.current_trainer_id()
   );
+
+-- ─── Grants on existing objects ──────────────────────────────────────────
+-- default_privileges only applies to FUTURE objects; everything above was
+-- created in this transaction, so grant explicitly. RLS still gates per
+-- row for anon/authenticated; service_role has BYPASSRLS so it sees all.
+
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all functions in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
