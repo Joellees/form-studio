@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { OnboardingForm } from "./onboarding-form";
 import { Wordmark } from "@/components/brand/wordmark";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,15 @@ export default async function OnboardingPage() {
   if (!userId) redirect("/sign-in");
 
   const user = await currentUser();
-  const supabase = await createSupabaseServerClient();
 
-  // If trainer record already exists, jump straight to their studio dashboard.
-  const { data: trainer } = await supabase
+  // Use the admin client for the existence check. RLS on trainers
+  // requires a valid Clerk JWT that Supabase can verify — if the JWT
+  // template claims don't align or signing is off, the user's own
+  // row appears invisible and they get stuck on the onboarding form.
+  // Here we've already authenticated via Clerk, so trusting userId to
+  // look up the matching row is safe.
+  const admin = createSupabaseAdminClient();
+  const { data: trainer } = await admin
     .from("trainers")
     .select("subdomain_slug")
     .eq("clerk_id", userId)
