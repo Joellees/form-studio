@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 
-import { archiveExercise, saveExercise } from "../actions";
+import { archiveExercise, saveExercise, saveGroup } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +60,11 @@ export function ExerciseForm({
 
   const initialRV = (initial?.default_rep_value as Record<string, number | string> | null) ?? {};
   const initialRepType = (initial?.default_rep_type as RepType | null) ?? "fixed";
+
+  const [availableGroups, setAvailableGroups] = useState<Group[]>(groups);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [groupError, setGroupError] = useState<string | null>(null);
 
   const { register, handleSubmit, setValue, watch, formState: { errors }, setError } = useForm<FormValues>({
     defaultValues: {
@@ -161,6 +166,22 @@ export function ExerciseForm({
     });
   }
 
+  async function handleCreateGroup() {
+    const name = newGroupName.trim();
+    if (!name) return;
+    setGroupError(null);
+    const result = await saveGroup({ name });
+    if (!result.ok) {
+      setGroupError(result.error);
+      return;
+    }
+    const newGroup = { id: result.data.id, name };
+    setAvailableGroups((prev) => [...prev, newGroup].sort((a, b) => a.name.localeCompare(b.name)));
+    setValue("group_id", result.data.id, { shouldDirty: true });
+    setCreatingGroup(false);
+    setNewGroupName("");
+  }
+
   function onArchive() {
     if (!initial?.id) return;
     if (!confirm("Archive this exercise? It stays in past sessions; new templates can&rsquo;t use it.")) return;
@@ -179,22 +200,65 @@ export function ExerciseForm({
 
       <div className="grid gap-6 md:grid-cols-2">
         <Field label="group">
-          <select
-            {...register("group_id")}
-            className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
-          >
-            <option value="">no group</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          {groups.length === 0 ? (
-            <p className="mt-1 text-xs text-[color:var(--color-stone)]">
-              Create groups in the <a className="underline" href="/studio/library?tab=groups">library</a> first.
-            </p>
-          ) : null}
+          {creatingGroup ? (
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="e.g. lower push"
+                maxLength={40}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCreateGroup();
+                  }
+                  if (e.key === "Escape") {
+                    setCreatingGroup(false);
+                    setNewGroupName("");
+                    setGroupError(null);
+                  }
+                }}
+              />
+              <Button type="button" size="sm" onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
+                add
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setCreatingGroup(false);
+                  setNewGroupName("");
+                  setGroupError(null);
+                }}
+              >
+                cancel
+              </Button>
+            </div>
+          ) : (
+            <select
+              {...register("group_id")}
+              onChange={(e) => {
+                if (e.target.value === "__new__") {
+                  setValue("group_id", "");
+                  setCreatingGroup(true);
+                } else {
+                  setValue("group_id", e.target.value);
+                }
+              }}
+              className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            >
+              <option value="">no group</option>
+              {availableGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+              <option value="__new__">+ create new group…</option>
+            </select>
+          )}
+          {groupError ? <p className="mt-1 text-xs text-[color:var(--color-sienna)]">{groupError}</p> : null}
         </Field>
         <Field label="equipment (optional)">
           <Input {...register("equipment")} placeholder="barbell, kb, bw…" maxLength={40} />

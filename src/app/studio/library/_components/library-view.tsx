@@ -150,37 +150,106 @@ function ExercisesTab({
       {filtered.length === 0 ? (
         <EmptyState title="No matches" body="Try clearing the filter or search." />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((ex) => {
-            const group = groups.find((g) => g.id === ex.group_id);
-            return (
-              <Link key={ex.id} href={`/studio/library/${ex.id}`} className="focus-visible:outline-none">
-                <Card className="h-full overflow-hidden transition-transform hover:-translate-y-[1px]">
-                  <div className="relative aspect-video w-full bg-[color:var(--color-canvas)]">
-                    {ex.thumbnail_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={ex.thumbnail_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-5xl text-[color:var(--color-stone)]">
-                        {ex.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="space-y-3">
-                    <h3 className="font-semibold tracking-tight">{ex.name}</h3>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {group ? <Badge tone="moss">{group.name}</Badge> : null}
-                      {ex.is_timed ? <Badge tone="stone">timed</Badge> : null}
-                      {ex.equipment ? <Badge tone="stone">{ex.equipment}</Badge> : null}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+        <GroupedExerciseList filtered={filtered} groups={groups} groupFilter={groupFilter} />
       )}
     </div>
+  );
+}
+
+function GroupedExerciseList({
+  filtered,
+  groups,
+  groupFilter,
+}: {
+  filtered: Exercise[];
+  groups: Group[];
+  groupFilter: string;
+}) {
+  // When a specific group is selected, render a flat grid (no section headers).
+  if (groupFilter) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((ex) => (
+          <ExerciseCard key={ex.id} exercise={ex} group={groups.find((g) => g.id === ex.group_id)} />
+        ))}
+      </div>
+    );
+  }
+
+  // Otherwise group by group, rendered in section blocks.
+  const byGroup = new Map<string, Exercise[]>();
+  for (const ex of filtered) {
+    const key = ex.group_id ?? "__ungrouped";
+    if (!byGroup.has(key)) byGroup.set(key, []);
+    byGroup.get(key)!.push(ex);
+  }
+
+  const ordered: Array<{ key: string; name: string; items: Exercise[] }> = [];
+  for (const g of groups) {
+    const items = byGroup.get(g.id);
+    if (items?.length) ordered.push({ key: g.id, name: g.name, items });
+  }
+  const ungrouped = byGroup.get("__ungrouped");
+  if (ungrouped?.length) ordered.push({ key: "__ungrouped", name: "Unassigned", items: ungrouped });
+
+  return (
+    <div className="space-y-8">
+      {ordered.map((section) => (
+        <section key={section.key}>
+          <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            {section.name}{" "}
+            <span className="ml-1 tabular-nums text-[color:var(--color-stone)]/70">
+              {section.items.length}
+            </span>
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {section.items.map((ex) => (
+              <ExerciseCard
+                key={ex.id}
+                exercise={ex}
+                group={section.key === "__ungrouped" ? undefined : { id: section.key, name: section.name, sort_index: 0 }}
+                hideGroupBadge
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ExerciseCard({
+  exercise,
+  group,
+  hideGroupBadge,
+}: {
+  exercise: Exercise;
+  group?: Group;
+  hideGroupBadge?: boolean;
+}) {
+  return (
+    <Link href={`/studio/library/${exercise.id}`} className="focus-visible:outline-none">
+      <Card className="h-full overflow-hidden transition-transform hover:-translate-y-[1px]">
+        <div className="relative aspect-video w-full bg-[color:var(--color-canvas)]">
+          {exercise.thumbnail_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={exercise.thumbnail_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-5xl text-[color:var(--color-stone)]">
+              {exercise.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <CardContent className="space-y-3">
+          <h3 className="font-semibold tracking-tight">{exercise.name}</h3>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {!hideGroupBadge && group ? <Badge tone="moss">{group.name}</Badge> : null}
+            {exercise.is_timed ? <Badge tone="stone">timed</Badge> : null}
+            {exercise.equipment ? <Badge tone="stone">{exercise.equipment}</Badge> : null}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
