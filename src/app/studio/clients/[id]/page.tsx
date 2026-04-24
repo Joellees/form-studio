@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ArchiveClientButton } from "./archive-button";
+import { ClientDetailsEditor } from "./client-details-editor";
 import { ClientFieldToggles } from "./client-field-toggles";
+import { SessionRow } from "../../_components/session-row";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -131,17 +132,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             {upcoming.length === 0 ? (
               <p className="text-sm text-[color:var(--color-ink)]/70">Nothing scheduled.</p>
             ) : (
-              <ul className="divide-y divide-[color:var(--color-stone-soft)]">
+              <ul className="divide-y divide-[color:var(--color-stone-soft)]/70">
                 {upcoming.slice(0, 5).map((s) => (
-                  <li key={s.id} className="py-3">
-                    <Link href={`/studio/sessions/${s.id}`} className="block hover:text-[color:var(--color-moss-deep)]">
-                      <p className="text-xs tabular-nums text-[color:var(--color-stone)]">
-                        {formatInTz(new Date(s.scheduled_at), trainer.timezone, "EEE, MMM d · HH:mm")}
-                      </p>
-                      <p className="text-sm font-medium">
-                        {s.name ?? s.session_type.replace("_", " ")}
-                      </p>
-                    </Link>
+                  <li key={s.id}>
+                    <SessionRow
+                      session={{
+                        id: s.id,
+                        scheduled_at: s.scheduled_at,
+                        duration_minutes: s.duration_minutes,
+                        session_type: s.session_type as "in_person" | "zoom" | "in_app",
+                        status: s.status as "scheduled" | "completed" | "cancelled" | "requested" | "declined",
+                        name: s.name,
+                        client_name: client.display_name,
+                        formatted_time: formatInTz(new Date(s.scheduled_at), trainer.timezone, "EEE, MMM d · HH:mm"),
+                      }}
+                    />
                   </li>
                 ))}
               </ul>
@@ -157,16 +162,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             {past.length === 0 ? (
               <p className="text-sm text-[color:var(--color-ink)]/70">No past sessions yet.</p>
             ) : (
-              <ul className="divide-y divide-[color:var(--color-stone-soft)]">
+              <ul className="divide-y divide-[color:var(--color-stone-soft)]/70">
                 {past.slice(0, 5).map((s) => (
-                  <li key={s.id} className="flex items-center justify-between py-3">
-                    <Link href={`/studio/sessions/${s.id}`} className="block hover:text-[color:var(--color-moss-deep)]">
-                      <p className="text-xs tabular-nums text-[color:var(--color-stone)]">
-                        {formatInTz(new Date(s.scheduled_at), trainer.timezone, "EEE, MMM d · HH:mm")}
-                      </p>
-                      <p className="text-sm font-medium">{s.name ?? s.session_type.replace("_", " ")}</p>
-                    </Link>
-                    <Badge tone={s.status === "completed" ? "moss" : "stone"}>{s.status}</Badge>
+                  <li key={s.id}>
+                    <SessionRow
+                      session={{
+                        id: s.id,
+                        scheduled_at: s.scheduled_at,
+                        duration_minutes: s.duration_minutes,
+                        session_type: s.session_type as "in_person" | "zoom" | "in_app",
+                        status: s.status as "scheduled" | "completed" | "cancelled" | "requested" | "declined",
+                        name: s.name,
+                        client_name: client.display_name,
+                        formatted_time: formatInTz(new Date(s.scheduled_at), trainer.timezone, "EEE, MMM d · HH:mm"),
+                      }}
+                    />
                   </li>
                 ))}
               </ul>
@@ -214,16 +224,20 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       <section className="grid gap-6 md:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Notes</CardTitle>
+            <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent>
-            {client.notes ? (
-              <p className="whitespace-pre-wrap text-[color:var(--color-ink)]/85">{client.notes}</p>
-            ) : (
-              <p className="text-sm text-[color:var(--color-ink)]/70">
-                No notes yet. Add goals, injuries, reminders.
-              </p>
-            )}
+            <ClientDetailsEditor
+              client={{
+                id,
+                display_name: client.display_name,
+                email: client.email ?? null,
+                phone: client.phone ?? null,
+                notes: client.notes ?? null,
+                goals: (client as { goals?: string | null }).goals ?? null,
+                injuries: (client as { injuries?: string | null }).injuries ?? null,
+              }}
+            />
           </CardContent>
         </Card>
 

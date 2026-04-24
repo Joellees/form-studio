@@ -303,3 +303,28 @@ export async function approveSessionRequest(sessionId: string): Promise<ActionRe
     return ok();
   });
 }
+
+const updateTypeSchema = z.object({
+  sessionId: z.string().uuid(),
+  sessionType: z.enum(["in_person", "zoom", "in_app"]),
+});
+
+/**
+ * Inline edit of a session's type. Scope is the trainer's own tenant.
+ */
+export async function updateSessionType(raw: unknown): Promise<ActionResult<void>> {
+  return runAction(updateTypeSchema, raw, async ({ sessionId, sessionType }) => {
+    const trainer = await requireTrainer();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("sessions")
+      .update({ session_type: sessionType })
+      .eq("id", sessionId)
+      .eq("tenant_id", trainer.id);
+    if (error) return fail(error.message);
+    revalidatePath("/studio/calendar");
+    revalidatePath("/client/calendar");
+    revalidatePath(`/studio/sessions/${sessionId}`);
+    return ok();
+  });
+}

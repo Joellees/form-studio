@@ -67,3 +67,40 @@ export async function updateClientFields(raw: unknown): Promise<ActionResult<voi
     return ok();
   });
 }
+
+const detailsSchema = z.object({
+  id: z.string().uuid(),
+  displayName: z.string().min(1).max(80),
+  email: z.string().email().nullable().or(z.literal("").transform(() => null)),
+  phone: z.string().max(40).nullable().or(z.literal("").transform(() => null)),
+  notes: z.string().max(4000).nullable().or(z.literal("").transform(() => null)),
+  goals: z.string().max(2000).nullable().or(z.literal("").transform(() => null)),
+  injuries: z.string().max(2000).nullable().or(z.literal("").transform(() => null)),
+});
+
+/**
+ * Edits the trainer-facing fields on a client row. Scoped to the
+ * trainer's tenant so two studios can't read or write each other's rows.
+ */
+export async function updateClientDetails(raw: unknown): Promise<ActionResult<void>> {
+  return runAction(detailsSchema, raw, async ({ id, displayName, email, phone, notes, goals, injuries }) => {
+    const trainer = await requireTrainer();
+    const admin = createSupabaseAdminClient();
+    const { error } = await admin
+      .from("clients")
+      .update({
+        display_name: displayName,
+        email,
+        phone,
+        notes,
+        goals,
+        injuries,
+      })
+      .eq("id", id)
+      .eq("tenant_id", trainer.id);
+    if (error) return fail(error.message);
+    revalidatePath("/studio/clients");
+    revalidatePath(`/studio/clients/${id}`);
+    return ok();
+  });
+}

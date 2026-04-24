@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
+import { SessionRow, type SessionSummary } from "../_components/session-row";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
@@ -27,23 +26,36 @@ export default async function CalendarPage({ searchParams }: Props) {
     .lte("scheduled_at", end.toISOString())
     .order("scheduled_at");
 
-  const byDay = new Map<string, typeof sessions>();
+  // Normalize + group by day in trainer timezone
+  const byDay = new Map<string, SessionSummary[]>();
   for (const d of days) byDay.set(formatInTz(d, trainer.timezone, "yyyy-MM-dd"), []);
   for (const s of sessions ?? []) {
     const key = formatInTz(new Date(s.scheduled_at), trainer.timezone, "yyyy-MM-dd");
-    byDay.get(key)?.push(s);
+    const clientRel = s.clients as { display_name?: string } | { display_name?: string }[] | null;
+    const client = Array.isArray(clientRel) ? clientRel[0] : clientRel;
+    byDay.get(key)?.push({
+      id: s.id,
+      scheduled_at: s.scheduled_at,
+      duration_minutes: s.duration_minutes,
+      session_type: s.session_type as SessionSummary["session_type"],
+      status: s.status as SessionSummary["status"],
+      name: s.name,
+      client_name: client?.display_name ?? null,
+      formatted_time: formatInTz(new Date(s.scheduled_at), trainer.timezone, "HH:mm"),
+    });
   }
 
   return (
     <div className="rise-in-stagger space-y-8">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">calendar</p>
+          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+            calendar
+          </p>
           <h1 className="mt-2 text-4xl">This week.</h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
-            {formatInTz(start, trainer.timezone, "MMM d")} — {formatInTz(end, trainer.timezone, "MMM d, yyyy")}
-            {" · "}
-            {trainer.timezone}
+            {formatInTz(start, trainer.timezone, "MMM d")} —{" "}
+            {formatInTz(end, trainer.timezone, "MMM d, yyyy")} · {trainer.timezone}
           </p>
         </div>
         <Button asChild>
@@ -51,51 +63,50 @@ export default async function CalendarPage({ searchParams }: Props) {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-7">
+      <div className="grid gap-3 md:grid-cols-7">
         {days.map((d) => {
           const key = formatInTz(d, trainer.timezone, "yyyy-MM-dd");
           const daysSessions = byDay.get(key) ?? [];
+          const isToday =
+            formatInTz(new Date(), trainer.timezone, "yyyy-MM-dd") === key;
           return (
-            <Card key={key} className="min-h-[12rem]">
-              <CardContent className="p-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            <div
+              key={key}
+              className="flex min-h-[10rem] flex-col rounded-2xl bg-[color:var(--color-parchment)]/60 p-3"
+            >
+              <div className="mb-2 flex items-baseline justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
                   {formatInTz(d, trainer.timezone, "EEE")}
-                </p>
-                <p className="text-2xl tabular-nums">{formatInTz(d, trainer.timezone, "d")}</p>
-                <div className="mt-3 space-y-2">
-                  {daysSessions.length === 0 ? (
-                    <p className="text-xs text-[color:var(--color-stone)]">—</p>
-                  ) : (
-                    daysSessions.map((s) => (
-                      <Link
-                        key={s.id}
-                        href={`/studio/sessions/${s.id}`}
-                        className="block rounded-xl border border-[color:var(--color-stone-soft)]/60 bg-[color:var(--color-canvas)] px-3 py-2 hover:border-[color:var(--color-moss)]"
-                      >
-                        <p className="text-xs tabular-nums text-[color:var(--color-stone)]">
-                          {formatInTz(new Date(s.scheduled_at), trainer.timezone, "HH:mm")}
-                        </p>
-                        <p className="truncate text-sm font-medium">
-                          {/* @ts-expect-error — nested typings */}
-                          {s.clients?.display_name ?? "Client"}
-                        </p>
-                        <div className="mt-1 flex items-center gap-1">
-                          <Badge tone={s.status === "requested" ? "signal" : s.session_type === "in_app" ? "moss" : "stone"}>
-                            {s.status === "requested" ? "request" : s.session_type.replace("_", " ")}
-                          </Badge>
-                        </div>
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                </span>
+                <span
+                  className={
+                    "text-lg font-semibold tabular-nums tracking-tight " +
+                    (isToday
+                      ? "text-[color:var(--color-ink)]"
+                      : "text-[color:var(--color-ink)]/60")
+                  }
+                >
+                  {formatInTz(d, trainer.timezone, "d")}
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5">
+                {daysSessions.length === 0 ? (
+                  <span className="mt-1 text-xs text-[color:var(--color-stone)]/60">—</span>
+                ) : (
+                  daysSessions.map((s) => <SessionRow key={s.id} session={s} variant="card" />)
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
 
       {sessions && sessions.length === 0 ? (
-        <EmptyState bordered title="Nothing scheduled this week" body="Add your first session from the top right." />
+        <EmptyState
+          bordered
+          title="Nothing scheduled this week"
+          body="Add your first session from the top right."
+        />
       ) : null}
     </div>
   );
