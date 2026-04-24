@@ -107,19 +107,26 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-10 rise-in-stagger">
-      <header className="flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">client</p>
-          <h1 className="mt-2 text-4xl">{client.display_name}</h1>
+      <header className="flex flex-wrap items-start justify-between gap-5">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+            client
+          </p>
+          <h1 className="mt-2 text-3xl md:text-4xl">{client.display_name}</h1>
           <p className="mt-1 text-sm text-[color:var(--color-ink)]/70">
             {[client.email, client.phone].filter(Boolean).join(" · ") || "No contact info"}
-            {" · added "}{fmt(client.created_at)}
+            {" · added "}
+            {fmt(client.created_at)}
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge tone={client.active ? "moss" : "stone"}>
+              {client.active ? "active" : "paused"}
+            </Badge>
+            {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge tone={client.active ? "moss" : "stone"}>{client.active ? "active" : "paused"}</Badge>
-          {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
-          <Button asChild size="sm">
+        <div className="flex items-center gap-2">
+          <Button asChild>
             <Link href={`/studio/calendar/new?client=${id}`}>schedule session</Link>
           </Button>
           <ArchiveClientButton clientId={id} archived={!client.active} />

@@ -14,36 +14,51 @@ type SubLite = {
   end_date: string | null;
   sessions_remaining: number;
   payment_status: string;
-  packages: { name: string } | { name: string }[] | null;
+  packages: { name: string; session_count: number } | { name: string; session_count: number }[] | null;
 };
 
 type ClientState =
-  | { kind: "active"; package: string; endDate: string | null; sessionsLeft: number }
+  | { kind: "active"; package: string; endDate: string | null; done: number; total: number }
   | { kind: "pending"; package: string }
-  | { kind: "expired"; package: string; endDate: string | null }
+  | { kind: "expired"; package: string; endDate: string | null; done: number; total: number }
   | { kind: "none" };
+
+function pkgOf(s: SubLite) {
+  return Array.isArray(s.packages) ? s.packages[0] ?? null : s.packages;
+}
 
 function stateFor(subs: SubLite[]): ClientState {
   const today = new Date().toISOString().slice(0, 10);
-  const nameOf = (s: SubLite) => {
-    const p = Array.isArray(s.packages) ? s.packages[0] : s.packages;
-    return p?.name ?? "Package";
-  };
   const active = subs.find(
     (s) => s.payment_status === "paid" && (s.end_date ?? "9999-12-31") >= today && s.sessions_remaining > 0,
   );
   if (active) {
+    const pkg = pkgOf(active);
+    const total = pkg?.session_count ?? active.sessions_remaining;
+    const done = Math.max(0, total - active.sessions_remaining);
     return {
       kind: "active",
-      package: nameOf(active),
+      package: pkg?.name ?? "Package",
       endDate: active.end_date,
-      sessionsLeft: active.sessions_remaining,
+      done,
+      total,
     };
   }
   const pending = subs.find((s) => s.payment_status === "pending");
-  if (pending) return { kind: "pending", package: nameOf(pending) };
+  if (pending) return { kind: "pending", package: pkgOf(pending)?.name ?? "Package" };
   const expired = [...subs].sort((a, b) => (b.end_date ?? "").localeCompare(a.end_date ?? ""))[0];
-  if (expired) return { kind: "expired", package: nameOf(expired), endDate: expired.end_date };
+  if (expired) {
+    const pkg = pkgOf(expired);
+    const total = pkg?.session_count ?? 0;
+    const done = Math.max(0, total - expired.sessions_remaining);
+    return {
+      kind: "expired",
+      package: pkg?.name ?? "Package",
+      endDate: expired.end_date,
+      done,
+      total,
+    };
+  }
   return { kind: "none" };
 }
 
@@ -66,7 +81,7 @@ export default async function ClientsPage({
     .from("clients")
     .select(
       `id, display_name, email, phone, active, created_at,
-       subscriptions(id, start_date, end_date, sessions_remaining, payment_status, packages(name))`,
+       subscriptions(id, start_date, end_date, sessions_remaining, payment_status, packages(name, session_count))`,
     )
     .eq("tenant_id", trainer.id)
     .eq("active", !showArchived)
@@ -142,10 +157,10 @@ export default async function ClientsPage({
                     {"package" in c.state ? (
                       <p className="pl-[52px] text-xs text-[color:var(--color-ink)]/70">
                         {c.state.package}
-                        {c.state.kind === "active" ? (
+                        {c.state.kind === "active" || c.state.kind === "expired" ? (
                           <span className="tabular-nums">
                             {" · "}
-                            {c.state.sessionsLeft} left
+                            {c.state.done}/{c.state.total} sessions
                             {c.state.endDate ? ` · ends ${fmtDate(c.state.endDate)}` : ""}
                           </span>
                         ) : null}
@@ -170,7 +185,9 @@ export default async function ClientsPage({
                       {"package" in c.state ? c.state.package : "—"}
                     </p>
                     <p className="text-right text-sm tabular-nums text-[color:var(--color-ink)]">
-                      {c.state.kind === "active" ? c.state.sessionsLeft : "—"}
+                      {c.state.kind === "active" || c.state.kind === "expired"
+                        ? `${c.state.done}/${c.state.total}`
+                        : "—"}
                     </p>
                     <p className="text-sm tabular-nums text-[color:var(--color-ink)]/60">
                       {c.state.kind === "active" || c.state.kind === "expired"
