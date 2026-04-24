@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 import { canClientCancel } from "@/lib/schedule";
 
@@ -27,7 +27,7 @@ const scheduleSchema = z.object({
 export async function scheduleSession(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(scheduleSchema, raw, async (values) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: activeSub } = await supabase
       .from("subscriptions")
@@ -158,7 +158,7 @@ const cancelSchema = z.object({
  */
 export async function cancelSession(raw: unknown): Promise<ActionResult<void>> {
   return runAction(cancelSchema, raw, async ({ sessionId, reason, actor }) => {
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: session } = await supabase
       .from("sessions")
@@ -234,7 +234,7 @@ const requestSchema = z.object({
  */
 export async function requestSession(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(requestSchema, raw, async (values) => {
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data: client } = await supabase
       .from("clients")
       .select("id, tenant_id, subscriptions(id, sessions_remaining, payment_status)")
@@ -267,7 +267,7 @@ export async function requestSession(raw: unknown): Promise<ActionResult<{ id: s
 export async function approveSessionRequest(sessionId: string): Promise<ActionResult<void>> {
   return runAction(z.object({ id: z.string().uuid() }), { id: sessionId }, async ({ id }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data: session } = await supabase
       .from("sessions")
       .select("id, client_id, subscription_id")
@@ -315,7 +315,7 @@ const updateTypeSchema = z.object({
 export async function updateSessionType(raw: unknown): Promise<ActionResult<void>> {
   return runAction(updateTypeSchema, raw, async ({ sessionId, sessionType }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("sessions")
       .update({ session_type: sessionType })

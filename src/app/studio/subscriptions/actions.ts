@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
 import { sendEmail, subscriptionPaidEmail } from "@/lib/email";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
 const markPaidSchema = z.object({ subscriptionId: z.string().uuid() });
@@ -17,7 +17,7 @@ const markPaidSchema = z.object({ subscriptionId: z.string().uuid() });
 export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<void>> {
   return runAction(markPaidSchema, raw, async ({ subscriptionId }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: sub } = await supabase
       .from("subscriptions")
@@ -63,6 +63,32 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
     }
 
     revalidatePath("/studio/dashboard");
+    revalidatePath("/studio/clients");
+    return ok();
+  });
+}
+
+const updateSubSchema = z.object({
+  id: z.string().uuid(),
+  sessions_remaining: z.number().int().nonnegative().optional(),
+  start_date: z.string().nullable().optional(),
+  end_date: z.string().nullable().optional(),
+});
+
+/**
+ * Trainer adjusts the live block: how many sessions remain, when it
+ * starts, when it ends. Scoped to the trainer's tenant.
+ */
+export async function updateSubscription(raw: unknown): Promise<ActionResult<void>> {
+  return runAction(updateSubSchema, raw, async ({ id, ...fields }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+      .from("subscriptions")
+      .update(fields)
+      .eq("id", id)
+      .eq("tenant_id", trainer.id);
+    if (error) return fail(error.message);
     revalidatePath("/studio/clients");
     return ok();
   });

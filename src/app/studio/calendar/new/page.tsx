@@ -1,17 +1,30 @@
 import { ScheduleForm } from "./schedule-form";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewSessionPage() {
-  const supabase = await createSupabaseServerClient();
+export default async function NewSessionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>;
+}) {
+  const sp = await searchParams;
+  const trainer = await requireTrainer();
+  const admin = createSupabaseAdminClient();
   const [{ data: clients }, { data: templates }] = await Promise.all([
-    supabase
+    admin
       .from("clients")
       .select("id, display_name, subscriptions(id, sessions_remaining, payment_status, packages(name))")
+      .eq("tenant_id", trainer.id)
       .eq("active", true)
       .order("display_name"),
-    supabase.from("session_templates").select("id, name").eq("archived", false).order("name"),
+    admin
+      .from("session_templates")
+      .select("id, name")
+      .eq("tenant_id", trainer.id)
+      .eq("archived", false)
+      .order("name"),
   ]);
 
   const clientsFlat = (clients ?? []).map((c) => {
@@ -37,9 +50,13 @@ export default async function NewSessionPage() {
       <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">calendar</p>
       <h1 className="mt-2 text-4xl">Schedule a session.</h1>
       <p className="mt-3 text-[color:var(--color-ink)]/75">
-        Pick a client, a time, and optionally clone a template to prescribe what&rsquo;s in the session.
+        Pick a client, a time, and optionally a workout to prefill.
       </p>
-      <ScheduleForm clients={clientsFlat} templates={templates ?? []} />
+      <ScheduleForm
+        clients={clientsFlat}
+        templates={templates ?? []}
+        preselectClientId={sp.client}
+      />
     </div>
   );
 }

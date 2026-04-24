@@ -10,7 +10,7 @@ const LINKS = [
   { href: "/studio/clients", label: "clients" },
   { href: "/studio/calendar", label: "calendar" },
   { href: "/studio/library", label: "library" },
-  { href: "/studio/templates", label: "templates" },
+  { href: "/studio/templates", label: "workouts" },
   { href: "/studio/packages", label: "packages" },
 ];
 

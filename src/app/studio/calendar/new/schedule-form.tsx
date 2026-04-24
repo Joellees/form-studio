@@ -27,12 +27,20 @@ type Values = {
   name: string;
 };
 
-export function ScheduleForm({ clients, templates }: { clients: ClientOpt[]; templates: { id: string; name: string }[] }) {
+export function ScheduleForm({
+  clients,
+  templates,
+  preselectClientId,
+}: {
+  clients: ClientOpt[];
+  templates: { id: string; name: string }[];
+  preselectClientId?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { register, handleSubmit, watch, setError, formState: { errors } } = useForm<Values>({
     defaultValues: {
-      clientId: clients[0]?.id ?? "",
+      clientId: preselectClientId || clients[0]?.id || "",
       scheduledAt: defaultDateTime(),
       durationMinutes: 60,
       sessionType: "in_person",
@@ -113,7 +121,7 @@ export function ScheduleForm({ clients, templates }: { clients: ClientOpt[]; tem
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <Label>template (optional)</Label>
+        <Label>workout (optional)</Label>
         <select
           {...register("templateId")}
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
@@ -126,7 +134,7 @@ export function ScheduleForm({ clients, templates }: { clients: ClientOpt[]; tem
           ))}
         </select>
         <p className="text-xs text-[color:var(--color-stone)]">
-          For in-app sessions, pick a template so the client knows what to do.
+          For in-app sessions, pick one so the client knows what to do.
         </p>
       </div>
 

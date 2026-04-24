@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ArchiveClientButton } from "./archive-button";
 import { ClientDetailsEditor } from "./client-details-editor";
 import { ClientFieldToggles } from "./client-field-toggles";
+import { SubscriptionEditor } from "./subscription-editor";
 import { SessionRow } from "../../_components/session-row";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
@@ -78,7 +81,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge tone={client.active ? "moss" : "stone"}>{client.active ? "active" : "archived"}</Badge>
+          <Badge tone={client.active ? "moss" : "stone"}>{client.active ? "active" : "paused"}</Badge>
+          <Button asChild size="sm">
+            <Link href={`/studio/calendar/new?client=${id}`}>schedule session</Link>
+          </Button>
           <ArchiveClientButton clientId={id} archived={!client.active} />
         </div>
       </header>
@@ -90,14 +96,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </h2>
         {activeSub ? (
           <Card className="mt-3">
-            <CardContent className="grid gap-6 md:grid-cols-4">
-              <Detail label="package" value={pkgOf(activeSub.packages)?.name ?? "Package"} />
-              <Detail
-                label="sessions"
-                value={`${activeSub.sessions_remaining} of ${pkgOf(activeSub.packages)?.session_count ?? "—"} left`}
+            <CardContent>
+              <SubscriptionEditor
+                sub={{
+                  id: activeSub.id,
+                  sessions_remaining: activeSub.sessions_remaining,
+                  start_date: activeSub.start_date,
+                  end_date: activeSub.end_date,
+                  package_name: pkgOf(activeSub.packages)?.name ?? null,
+                  package_session_count: pkgOf(activeSub.packages)?.session_count ?? null,
+                }}
               />
-              <Detail label="started" value={fmt(activeSub.start_date)} />
-              <Detail label="ends" value={fmt(activeSub.end_date)} />
             </CardContent>
           </Card>
         ) : pendingSub ? (

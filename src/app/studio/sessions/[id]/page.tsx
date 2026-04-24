@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { SessionActions } from "./session-actions";
 import { SessionBuilder } from "./session-builder";
+import { SessionTypeEditor } from "./session-type-editor";
 import { Badge } from "@/components/ui/badge";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatInTz } from "@/lib/schedule";
@@ -71,16 +72,23 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
           <h1 className="mt-2 text-4xl">
-            {clientName} · {session.name ?? session.session_type.replace("_", " ")}
+            {clientName} · {session.name ?? "Session"}
           </h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(new Date(session.scheduled_at), trainer.timezone, "EEE, MMM d, yyyy · HH:mm")} ·{" "}
             {session.duration_minutes} min
           </p>
         </div>
-        <Badge tone={session.status === "completed" ? "moss" : session.status === "requested" ? "signal" : "stone"}>
-          {session.status}
-        </Badge>
+        <div className="flex items-center gap-3">
+          {session.status === "requested" ? <Badge tone="signal">request</Badge> : null}
+          {session.status === "cancelled" ? <Badge tone="stone">cancelled</Badge> : null}
+          {session.status === "completed" ? <Badge tone="moss">completed</Badge> : null}
+          <SessionTypeEditor
+            sessionId={session.id}
+            initialType={session.session_type as "in_person" | "zoom" | "in_app"}
+            disabled={session.status === "cancelled"}
+          />
+        </div>
       </header>
 
       <SessionActions session={session} />
