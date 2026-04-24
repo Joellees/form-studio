@@ -101,6 +101,21 @@
   }
 }
 
+/* Number inputs — hide the up/down spinner arrows everywhere.
+   Trainers type weights, reps, etc. by hand; the arrows add visual
+   noise and are unusable on phones. */
+@layer base {
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
 /* Native selects — hide the default OS chevron and draw our own with
    comfortable right-padding. Apply with the `.select-pill` class
    anywhere we use a bare <select>. */
