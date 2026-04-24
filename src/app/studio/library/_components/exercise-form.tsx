@@ -27,7 +27,7 @@ type Initial = {
 };
 
 type RepMode = "reps" | "per_side" | "amrap";
-type SetRow = { reps: number; mode: RepMode };
+type SetRow = { reps: number; mode: RepMode; kg: number; rest: number };
 
 const REP_MODES: { value: RepMode; label: string }[] = [
   { value: "reps", label: "reps" },
@@ -35,24 +35,26 @@ const REP_MODES: { value: RepMode; label: string }[] = [
   { value: "amrap", label: "to failure" },
 ];
 
-type ParsedSets = { sets: SetRow[]; kg: number };
-
-function parseSets(rv: unknown): ParsedSets {
+function parseSets(rv: unknown, fallbackRest: number): SetRow[] {
   const obj = (rv ?? {}) as {
-    kg?: number;
-    sets?: Array<{ reps?: number; seconds?: number; kg?: number; mode?: RepMode; rep_type?: RepMode }>;
+    sets?: Array<{
+      reps?: number;
+      seconds?: number;
+      kg?: number;
+      rest?: number;
+      mode?: RepMode;
+      rep_type?: RepMode;
+    }>;
   };
-  const kg = obj.kg ?? obj.sets?.[0]?.kg ?? 0;
   if (Array.isArray(obj.sets) && obj.sets.length > 0) {
-    return {
-      kg,
-      sets: obj.sets.map((s) => ({
-        reps: s.reps ?? s.seconds ?? 10,
-        mode: (s.mode ?? s.rep_type ?? "reps") as RepMode,
-      })),
-    };
+    return obj.sets.map((s) => ({
+      reps: s.reps ?? s.seconds ?? 10,
+      mode: (s.mode ?? s.rep_type ?? "reps") as RepMode,
+      kg: s.kg ?? 0,
+      rest: s.rest ?? fallbackRest,
+    }));
   }
-  return { kg, sets: [{ reps: 10, mode: "reps" }] };
+  return [{ reps: 10, mode: "reps", kg: 0, rest: fallbackRest }];
 }
 
 export function ExerciseForm({
@@ -71,10 +73,8 @@ export function ExerciseForm({
   const [groupId, setGroupId] = useState(initial?.group_id ?? "");
   const [equipment, setEquipment] = useState(initial?.equipment ?? "");
   const [isTimed, setIsTimed] = useState(!!initial?.is_timed);
-  const parsed = parseSets(initial?.default_rep_value);
-  const [sets, setSets] = useState<SetRow[]>(parsed.sets);
-  const [kg, setKg] = useState<number>(parsed.kg);
-  const [rest, setRest] = useState<number>(initial?.default_rest_seconds ?? 60);
+  const defaultRest = initial?.default_rest_seconds ?? 60;
+  const [sets, setSets] = useState<SetRow[]>(parseSets(initial?.default_rep_value, defaultRest));
   const [notes, setNotes] = useState(initial?.trainer_notes ?? "");
   const [videoUrl, setVideoUrl] = useState(initial?.video_url ?? "");
 
@@ -93,7 +93,10 @@ export function ExerciseForm({
     setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
   function addSet() {
-    setSets((prev) => [...prev, { ...(prev[prev.length - 1] ?? { reps: 10, mode: "reps" as RepMode }) }]);
+    setSets((prev) => [
+      ...prev,
+      { ...(prev[prev.length - 1] ?? { reps: 10, mode: "reps" as RepMode, kg: 0, rest: defaultRest }) },
+    ]);
   }
   function removeSet(i: number) {
     setSets((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
@@ -140,15 +143,14 @@ export function ExerciseForm({
       setNameError("Required");
       return;
     }
-    // Exercise-level default kg + rest; each set just owns reps and mode.
-    // When is_timed is on, every set is seconds.
+    // Each set carries its own reps+kg+rest. When is_timed is on, the
+    // rep count field represents seconds.
     const rep_value = {
       type: isTimed ? "timed_sets" : "sets",
-      kg,
       sets: sets.map((s) =>
         isTimed
-          ? { seconds: s.reps }
-          : { reps: s.mode === "amrap" ? 0 : s.reps, mode: s.mode },
+          ? { seconds: s.reps, kg: s.kg, rest: s.rest }
+          : { reps: s.mode === "amrap" ? 0 : s.reps, mode: s.mode, kg: s.kg, rest: s.rest },
       ),
     };
     startTransition(async () => {
@@ -160,7 +162,9 @@ export function ExerciseForm({
         is_timed: isTimed,
         default_rep_type: isTimed ? "time" : "fixed",
         default_rep_value: rep_value,
-        default_rest_seconds: Number.isFinite(rest) ? rest : null,
+        // Seed the legacy scalar from the first set so anything reading
+        // the old column still gets a reasonable value.
+        default_rest_seconds: sets[0]?.rest ?? null,
         notes: notes.trim() || null,
         video_url: videoUrl || null,
       });
@@ -280,7 +284,7 @@ export function ExerciseForm({
           {sets.map((s, i) => {
             const isAmrap = !isTimed && s.mode === "amrap";
             return (
-              <li key={i} className="flex items-center gap-3">
+              <li key={i} className="flex flex-wrap items-center gap-2.5">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-canvas)] text-[13px] font-semibold tabular-nums text-[color:var(--color-ink)]">
                   {i + 1}
                 </span>
@@ -292,18 +296,18 @@ export function ExerciseForm({
                   placeholder={isAmrap ? "—" : undefined}
                   disabled={isAmrap}
                   onChange={(e) => updateSet(i, { reps: Number(e.target.value) || 0 })}
-                  className="w-24 text-center"
+                  className="w-20 text-center"
                 />
 
                 {isTimed ? (
-                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
-                    seconds
+                  <span className="px-1 text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+                    sec
                   </span>
                 ) : (
                   <Select
                     value={s.mode}
                     onChange={(e) => updateSet(i, { mode: e.target.value as RepMode })}
-                    className="h-9 w-[128px] pl-4 pr-9 text-xs"
+                    className="h-9 w-[118px] pl-4 pr-9 text-xs"
                   >
                     {REP_MODES.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -312,6 +316,18 @@ export function ExerciseForm({
                     ))}
                   </Select>
                 )}
+
+                <InlinePill
+                  value={s.kg}
+                  unit="kg"
+                  step="0.5"
+                  onChange={(v) => updateSet(i, { kg: v })}
+                />
+                <InlinePill
+                  value={s.rest}
+                  unit="sec"
+                  onChange={(v) => updateSet(i, { rest: v })}
+                />
 
                 <button
                   type="button"
@@ -327,36 +343,7 @@ export function ExerciseForm({
           })}
         </ul>
 
-        {/* Exercise-level defaults: weight + rest. Same line, two pills. */}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Pill label="weight">
-            <input
-              type="number"
-              min={0}
-              step="0.5"
-              value={kg}
-              onChange={(e) => setKg(Number(e.target.value) || 0)}
-              className="w-14 bg-transparent text-sm tabular-nums focus:outline-none"
-            />
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
-              kg
-            </span>
-          </Pill>
-          <Pill label="rest">
-            <input
-              type="number"
-              min={0}
-              value={rest}
-              onChange={(e) => setRest(Number(e.target.value) || 0)}
-              className="w-14 bg-transparent text-sm tabular-nums focus:outline-none"
-            />
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
-              sec
-            </span>
-          </Pill>
-        </div>
-
-        <div className="mt-4">
+        <div className="mt-5">
           <Button type="button" variant="ghost" size="sm" onClick={addSet}>
             + add set
           </Button>
@@ -419,13 +406,30 @@ function Field({
   );
 }
 
-function Pill({ label, children }: { label: string; children: React.ReactNode }) {
+function InlinePill({
+  value,
+  unit,
+  step = "1",
+  onChange,
+}: {
+  value: number;
+  unit: string;
+  step?: string;
+  onChange: (v: number) => void;
+}) {
   return (
-    <label className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 py-2">
-      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-        {label}
+    <label className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3">
+      <input
+        type="number"
+        min={0}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        className="w-10 bg-transparent text-sm tabular-nums focus:outline-none"
+      />
+      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+        {unit}
       </span>
-      {children}
     </label>
   );
 }
