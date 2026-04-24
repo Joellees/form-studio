@@ -5,6 +5,7 @@ import { ArchiveClientButton } from "./archive-button";
 import { AssignPackageButton } from "./assign-package";
 import { ClientDetailsEditor } from "./client-details-editor";
 import { ClientFieldToggles } from "./client-field-toggles";
+import { ProgressPanel, type LogEntry } from "./progress-panel";
 import { SubscriptionEditor } from "./subscription-editor";
 import { SessionRow } from "../../_components/session-row";
 import { Badge } from "@/components/ui/badge";
@@ -42,30 +43,42 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
 
-  const [{ data: client }, { data: fields }, { data: subs }, { data: sessions }, { data: packages }] =
-    await Promise.all([
-      admin.from("clients").select("*").eq("id", id).eq("tenant_id", trainer.id).maybeSingle(),
-      admin.from("client_profile_fields").select("*").eq("client_id", id).maybeSingle(),
-      admin
-        .from("subscriptions")
-        .select(
-          "id, payment_status, payment_method, sessions_remaining, start_date, end_date, paid_confirmed_at, created_at, packages(name, session_count, price_usd, duration_days)",
-        )
-        .eq("client_id", id)
-        .order("created_at", { ascending: false }),
-      admin
-        .from("sessions")
-        .select("id, scheduled_at, duration_minutes, session_type, status, name")
-        .eq("client_id", id)
-        .order("scheduled_at", { ascending: false })
-        .limit(20),
-      admin
-        .from("packages")
-        .select("id, name, session_count, duration_days, price_usd")
-        .eq("tenant_id", trainer.id)
-        .eq("active", true)
-        .order("price_usd"),
-    ]);
+  const [
+    { data: client },
+    { data: fields },
+    { data: subs },
+    { data: sessions },
+    { data: packages },
+    { data: logs },
+  ] = await Promise.all([
+    admin.from("clients").select("*").eq("id", id).eq("tenant_id", trainer.id).maybeSingle(),
+    admin.from("client_profile_fields").select("*").eq("client_id", id).maybeSingle(),
+    admin
+      .from("subscriptions")
+      .select(
+        "id, payment_status, payment_method, sessions_remaining, start_date, end_date, paid_confirmed_at, created_at, packages(name, session_count, price_usd, duration_days)",
+      )
+      .eq("client_id", id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("sessions")
+      .select("id, scheduled_at, duration_minutes, session_type, status, name")
+      .eq("client_id", id)
+      .order("scheduled_at", { ascending: false })
+      .limit(20),
+    admin
+      .from("packages")
+      .select("id, name, session_count, duration_days, price_usd")
+      .eq("tenant_id", trainer.id)
+      .eq("active", true)
+      .order("price_usd"),
+    admin
+      .from("client_logs")
+      .select("id, field_type, value, notes, logged_at")
+      .eq("client_id", id)
+      .order("logged_at", { ascending: false })
+      .limit(100),
+  ]);
 
   if (!client) notFound();
 
@@ -76,6 +89,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const activeSub = (subs ?? []).find((s) => isActive(s));
   const pendingSub = (subs ?? []).find((s) => s.payment_status === "pending");
   const historySubs = (subs ?? []).filter((s) => s.id !== activeSub?.id && s.id !== pendingSub?.id);
+
+  // Billing snapshot — what the trainer sees at a glance
+  const billing = (() => {
+    if (pendingSub) {
+      const price = pkgOf(pendingSub.packages)?.price_usd ?? 0;
+      return { tone: "signal" as const, text: `awaiting $${price.toLocaleString()}` };
+    }
+    if (activeSub) {
+      return {
+        tone: "moss" as const,
+        text: activeSub.end_date ? `paid · through ${fmt(activeSub.end_date)}` : "paid",
+      };
+    }
+    return null;
+  })();
 
   return (
     <div className="space-y-10 rise-in-stagger">
@@ -88,8 +116,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             {" · added "}{fmt(client.created_at)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Badge tone={client.active ? "moss" : "stone"}>{client.active ? "active" : "paused"}</Badge>
+          {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
           <Button asChild size="sm">
             <Link href={`/studio/calendar/new?client=${id}`}>schedule session</Link>
           </Button>
@@ -138,6 +167,20 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             <AssignPackageButton clientId={id} packages={packages ?? []} />
           </div>
         )}
+      </section>
+
+      {/* Progress snapshot */}
+      <section>
+        <ProgressPanel
+          logs={(logs ?? []) as LogEntry[]}
+          enabled={{
+            weight: fields?.weight ?? true,
+            mood: fields?.mood ?? false,
+            sleep: fields?.sleep ?? false,
+            measurements: fields?.measurements ?? false,
+            prs: fields?.prs ?? false,
+          }}
+        />
       </section>
 
       {/* Sessions */}
