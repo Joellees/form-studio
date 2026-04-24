@@ -23,16 +23,22 @@ const isPublicRoute = createRouteMatcher([
 /**
  * Paths exempt from the beta gate.
  *
- * - `/beta` itself (otherwise the gate can&rsquo;t render)
- * - `/invite/*` — an invite link IS the beta pass. A trainer with beta
- *   access has been vouched for; anyone they invite is vouched for by
- *   transitivity. The claim action sets a valid beta cookie on success
- *   so the invitee can continue using the app after accepting.
- * - static assets + service worker
+ * The beta gate keeps random people from signing up as trainers. It
+ * does NOT need to protect:
+ *   - `/beta` itself (otherwise the gate can&rsquo;t render)
+ *   - `/invite/*` — an invite link IS the beta pass; the claim action
+ *     sets a valid beta cookie on success
+ *   - `/sign-in` — returning trainers and clients can always sign back
+ *     in (Clerk handles authorization)
+ *   - static assets + service worker
+ *
+ * In addition to this list, any request with a live Clerk session bypasses
+ * the gate entirely — once you&rsquo;re signed in, you&rsquo;re inside.
  */
 const BETA_EXEMPT_PREFIXES = [
   "/beta",
   "/invite/",
+  "/sign-in",
   "/_next",
   "/icons",
   "/fonts",
@@ -63,17 +69,21 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   requestHeaders.set(TENANT_KIND_HEADER, kind);
   if (slug) requestHeaders.set(TENANT_SLUG_HEADER, slug);
 
-  // Beta gate — only enforced when BETA_CODES is set. Keeps prod/dev
-  // flows open unless we&rsquo;re explicitly in private-beta mode.
+  // Beta gate — only enforced when BETA_CODES is set, only on exempt
+  // paths, and only for users without a live Clerk session. Signed-in
+  // users don&rsquo;t need a beta code; they&rsquo;ve already been vouched for.
   const betaCodes = parseBetaCodes(process.env.BETA_CODES);
   if (betaCodes.length > 0 && !isBetaExempt(url.pathname)) {
-    const cookieValue = req.cookies.get(BETA_COOKIE)?.value;
-    const hasValidCode = cookieValue ? !!isValidBetaCode(cookieValue, betaCodes) : false;
-    if (!hasValidCode) {
-      const gate = req.nextUrl.clone();
-      gate.pathname = "/beta";
-      gate.search = `?next=${encodeURIComponent(url.pathname + url.search)}`;
-      return NextResponse.redirect(gate);
+    const { userId } = await auth();
+    if (!userId) {
+      const cookieValue = req.cookies.get(BETA_COOKIE)?.value;
+      const hasValidCode = cookieValue ? !!isValidBetaCode(cookieValue, betaCodes) : false;
+      if (!hasValidCode) {
+        const gate = req.nextUrl.clone();
+        gate.pathname = "/beta";
+        gate.search = `?next=${encodeURIComponent(url.pathname + url.search)}`;
+        return NextResponse.redirect(gate);
+      }
     }
   }
 
