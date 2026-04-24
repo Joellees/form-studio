@@ -98,7 +98,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
       <Field label="session mix">
         <select
           {...register("session_type_mix")}
-          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           <option value="strength">strength</option>
           <option value="strength_mobility">strength + mobility</option>
@@ -108,7 +108,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
       <Field label="payment mode">
         <select
           {...register("payment_mode")}
-          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           <option value="manual">manual / cash</option>
           <option value="online">online (phase 2)</option>
@@ -118,7 +118,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
       <Field label="cancellation policy">
         <select
           {...register("cancellation_policy")}
-          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           <option value="credited">credited back (within cutoff)</option>
           <option value="lost">forfeits the session</option>

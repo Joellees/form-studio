@@ -247,7 +247,7 @@ export function ExerciseForm({
                   setValue("group_id", e.target.value);
                 }
               }}
-              className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+              className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
             >
               <option value="">no group</option>
               {availableGroups.map((g) => (
@@ -290,7 +290,7 @@ export function ExerciseForm({
             <Field label="reps">
               <select
                 {...register("default_rep_type")}
-                className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+                className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
               >
                 <option value="fixed">fixed reps</option>
                 <option value="range">rep range</option>

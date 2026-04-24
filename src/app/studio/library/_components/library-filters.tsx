@@ -46,7 +46,7 @@ export function LibraryFilters({
       <select
         value={initialGroup}
         onChange={(e) => apply({ group: e.target.value })}
-        className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+        className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
       >
         <option value="">all groups</option>
         {groups.map((g) => (

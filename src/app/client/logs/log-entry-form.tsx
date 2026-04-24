@@ -69,7 +69,7 @@ export function LogEntryForm({ enabled }: { enabled: Enabled }) {
             setFieldType(e.target.value as FieldType);
             setValue({});
           }}
-          className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
         >
           {fieldOptions.map((f) => (
             <option key={f.key} value={f.key}>
@@ -113,7 +113,7 @@ export function LogEntryForm({ enabled }: { enabled: Enabled }) {
           <select
             value={(value.phase as string) ?? "follicular"}
             onChange={(e) => setValue({ phase: e.target.value })}
-            className="h-10 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
           >
             <option value="menstrual">menstrual</option>
             <option value="follicular">follicular</option>
