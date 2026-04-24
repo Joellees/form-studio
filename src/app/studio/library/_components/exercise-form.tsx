@@ -26,17 +26,27 @@ type Initial = {
   archived?: boolean;
 };
 
-type SetRow = { reps: number; kg: number };
+type RepMode = "reps" | "per_side" | "amrap";
+type SetRow = { reps: number; kg: number; mode: RepMode };
+
+const REP_MODES: { value: RepMode; label: string }[] = [
+  { value: "reps", label: "reps" },
+  { value: "per_side", label: "/ side" },
+  { value: "amrap", label: "to failure" },
+];
 
 function parseSets(rv: unknown): SetRow[] {
-  const obj = (rv ?? {}) as { sets?: Array<{ reps?: number; seconds?: number; kg?: number }> };
+  const obj = (rv ?? {}) as {
+    sets?: Array<{ reps?: number; seconds?: number; kg?: number; mode?: RepMode; rep_type?: RepMode }>;
+  };
   if (Array.isArray(obj.sets) && obj.sets.length > 0) {
     return obj.sets.map((s) => ({
       reps: s.reps ?? s.seconds ?? 10,
       kg: s.kg ?? 0,
+      mode: (s.mode ?? s.rep_type ?? "reps") as RepMode,
     }));
   }
-  return [{ reps: 10, kg: 0 }];
+  return [{ reps: 10, kg: 0, mode: "reps" }];
 }
 
 export function ExerciseForm({
@@ -75,7 +85,7 @@ export function ExerciseForm({
     setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
   function addSet() {
-    setSets((prev) => [...prev, { ...(prev[prev.length - 1] ?? { reps: 10, kg: 0 }) }]);
+    setSets((prev) => [...prev, { ...(prev[prev.length - 1] ?? { reps: 10, kg: 0, mode: "reps" as RepMode }) }]);
   }
   function removeSet(i: number) {
     setSets((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
@@ -122,10 +132,14 @@ export function ExerciseForm({
       setNameError("Required");
       return;
     }
-    // Store the sets under a consistent shape — reps becomes seconds when timed.
+    // Store sets under a consistent shape. When the whole exercise is
+    // timed, rep count isn&rsquo;t meaningful — every set stores seconds.
+    // Otherwise each set carries its own mode (reps / per-side / amrap).
     const rep_value = {
       type: isTimed ? "timed_sets" : "sets",
-      sets: sets.map((s) => (isTimed ? { seconds: s.reps, kg: s.kg } : { reps: s.reps, kg: s.kg })),
+      sets: sets.map((s) =>
+        isTimed ? { seconds: s.reps, kg: s.kg } : { reps: s.mode === "amrap" ? 0 : s.reps, mode: s.mode, kg: s.kg },
+      ),
     };
     startTransition(async () => {
       const result = await saveExercise({
@@ -252,46 +266,71 @@ export function ExerciseForm({
           <Toggle checked={isTimed} onChange={setIsTimed} label="timed" />
         </div>
 
-        <div className="hidden grid-cols-[auto_1fr_1fr_auto] items-center gap-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)] md:grid">
+        <div
+          className={`hidden items-center gap-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)] md:grid ${
+            isTimed ? "grid-cols-[auto_1fr_1fr_auto]" : "grid-cols-[auto_1fr_auto_1fr_auto]"
+          }`}
+        >
           <span className="w-10" />
           <span>{repLabel}</span>
+          {!isTimed ? <span>type</span> : null}
           <span>kg</span>
           <span className="w-8" />
         </div>
 
         <ul className="space-y-3">
-          {sets.map((s, i) => (
-            <li
-              key={i}
-              className="grid grid-cols-[auto_1fr_1fr_auto] items-center gap-3"
-            >
-              <span className="inline-flex h-8 w-10 items-center justify-center rounded-full bg-[color:var(--color-canvas)] text-xs font-semibold tabular-nums text-[color:var(--color-ink)]/70">
-                {i + 1}
-              </span>
-              <Input
-                type="number"
-                min={1}
-                value={s.reps}
-                onChange={(e) => updateSet(i, { reps: Number(e.target.value) || 0 })}
-              />
-              <Input
-                type="number"
-                min={0}
-                step="0.5"
-                value={s.kg}
-                onChange={(e) => updateSet(i, { kg: Number(e.target.value) || 0 })}
-              />
-              <button
-                type="button"
-                onClick={() => removeSet(i)}
-                disabled={sets.length <= 1}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] disabled:opacity-30"
-                aria-label={`remove set ${i + 1}`}
+          {sets.map((s, i) => {
+            const isAmrap = !isTimed && s.mode === "amrap";
+            return (
+              <li
+                key={i}
+                className={`grid items-center gap-3 ${
+                  isTimed ? "grid-cols-[auto_1fr_1fr_auto]" : "grid-cols-[auto_1fr_auto_1fr_auto]"
+                }`}
               >
-                ×
-              </button>
-            </li>
-          ))}
+                <span className="inline-flex h-8 w-10 items-center justify-center rounded-full bg-[color:var(--color-canvas)] text-xs font-semibold tabular-nums text-[color:var(--color-ink)]/70">
+                  {i + 1}
+                </span>
+                <Input
+                  type="number"
+                  min={isAmrap ? 0 : 1}
+                  value={isAmrap ? "" : s.reps}
+                  placeholder={isAmrap ? "—" : undefined}
+                  disabled={isAmrap}
+                  onChange={(e) => updateSet(i, { reps: Number(e.target.value) || 0 })}
+                />
+                {!isTimed ? (
+                  <Select
+                    value={s.mode}
+                    onChange={(e) => updateSet(i, { mode: e.target.value as RepMode })}
+                    className="h-11 w-[130px] pl-4 pr-9"
+                  >
+                    {REP_MODES.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  value={s.kg}
+                  onChange={(e) => updateSet(i, { kg: Number(e.target.value) || 0 })}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeSet(i)}
+                  disabled={sets.length <= 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] disabled:opacity-30"
+                  aria-label={`remove set ${i + 1}`}
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
         </ul>
 
         <div className="mt-4 flex items-center justify-between gap-4">
@@ -313,11 +352,16 @@ export function ExerciseForm({
       </div>
 
       <Field label="video">
+        <Input
+          value={videoUrl}
+          onChange={(e) => setVideoUrl(e.target.value)}
+          placeholder="paste a URL"
+        />
         <FileUpload
           accept="video/*"
           disabled={uploading}
           onFile={onFile}
-          label={uploading ? "uploading…" : videoUrl ? "replace video" : "upload video"}
+          label={uploading ? "uploading…" : videoUrl ? "replace with upload" : "upload video"}
           hint="mp4, mov, or webm"
           fileName={uploadedName}
         />
@@ -325,11 +369,6 @@ export function ExerciseForm({
         {videoUrl && !uploadedName ? (
           <p className="truncate text-xs text-[color:var(--color-moss-deep)]">video linked</p>
         ) : null}
-        <Input
-          value={videoUrl}
-          onChange={(e) => setVideoUrl(e.target.value)}
-          placeholder="or paste a URL"
-        />
       </Field>
 
       <Field label="notes">
