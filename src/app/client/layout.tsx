@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ClientNav } from "./_components/client-nav";
 import { Wordmark } from "@/components/brand/wordmark";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -34,20 +35,18 @@ export default async function ClientLayout({ children }: { children: React.React
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-[color:var(--color-stone-soft)]/70 bg-[color:var(--color-canvas)]/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-4">
-          <Link href="/client/dashboard">
+      <header className="sticky top-0 z-40 border-b border-[color:var(--color-stone-soft)]/50 bg-[color:var(--color-canvas)]/85 backdrop-blur">
+        <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-3 px-5 py-3 md:gap-8 md:px-8 md:py-5">
+          <Link href="/client/dashboard" className="min-w-0">
             <Wordmark variant="inline" name={firstName} />
           </Link>
-          <nav className="flex items-center gap-6 text-sm">
-            <Link href="/client/dashboard">overview</Link>
-            <Link href="/client/calendar">calendar</Link>
-            <Link href="/client/logs">logs</Link>
-            <UserButton afterSignOutUrl="/" />
-          </nav>
+          <div className="flex items-center gap-2 md:gap-6">
+            <ClientNav />
+            <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "size-8" } }} />
+          </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1180px] px-6 py-10">{children}</main>
+      <main className="mx-auto max-w-[1180px] px-5 py-6 md:px-8 md:py-10">{children}</main>
     </div>
   );
 }

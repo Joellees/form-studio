@@ -10,7 +10,10 @@ export function Wordmark({ variant = "inline-platform", name, className }: Wordm
   if (variant === "inline-platform") {
     return (
       <span
-        className={cn("font-display text-[26px] leading-none text-[color:var(--color-moss)]", className)}
+        className={cn(
+          "font-display text-[22px] leading-none text-[color:var(--color-moss)] md:text-[26px]",
+          className,
+        )}
       >
         Form Studio
       </span>
@@ -19,11 +22,18 @@ export function Wordmark({ variant = "inline-platform", name, className }: Wordm
 
   if (variant === "inline") {
     return (
-      <span className={cn("inline-flex items-baseline gap-[0.3em] leading-none", className)}>
-        <span className="text-[26px] font-semibold tracking-[-0.02em] text-[color:var(--color-ink)]">
+      <span
+        className={cn(
+          "inline-flex items-baseline gap-[0.3em] leading-none whitespace-nowrap",
+          className,
+        )}
+      >
+        <span className="text-[18px] font-semibold tracking-[-0.02em] text-[color:var(--color-ink)] md:text-[24px]">
           {name ? `${name}\u2019s` : "Your"}
         </span>
-        <span className="font-display text-[26px] text-[color:var(--color-moss)]">Form Studio</span>
+        <span className="font-display text-[18px] text-[color:var(--color-moss)] md:text-[24px]">
+          Form Studio
+        </span>
       </span>
     );
   }

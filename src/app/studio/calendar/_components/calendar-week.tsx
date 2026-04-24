@@ -31,13 +31,14 @@ export function CalendarWeek({ days, sessionsByDay, clients, workouts }: Props) 
 
   return (
     <>
+      {/* Mobile: stack days vertically; md+: 7-column week grid */}
       <div className="grid gap-3 md:grid-cols-7">
         {days.map((d) => {
           const sessions = sessionsByDay[d.key] ?? [];
           return (
             <div
               key={d.key}
-              className="group relative flex min-h-[10rem] flex-col rounded-2xl bg-[color:var(--color-parchment)]/60 p-3 transition-colors hover:bg-[color:var(--color-parchment)]"
+              className="group relative flex min-h-[5rem] flex-col rounded-2xl bg-[color:var(--color-parchment)]/60 p-4 transition-colors hover:bg-[color:var(--color-parchment)] md:min-h-[10rem] md:p-3"
             >
               <button
                 type="button"

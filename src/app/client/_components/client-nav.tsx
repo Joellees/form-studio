@@ -7,24 +7,19 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { href: "/studio/dashboard", label: "overview" },
-  { href: "/studio/clients", label: "clients" },
-  { href: "/studio/calendar", label: "calendar" },
-  { href: "/studio/library", label: "library" },
-  { href: "/studio/templates", label: "workouts" },
-  { href: "/studio/packages", label: "packages" },
+  { href: "/client/dashboard", label: "overview" },
+  { href: "/client/calendar", label: "calendar" },
+  { href: "/client/logs", label: "logs" },
 ];
 
-export function StudioNav() {
+export function ClientNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Close the mobile drawer on navigation
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-  // Lock scroll when drawer is open
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -36,7 +31,6 @@ export function StudioNav() {
 
   return (
     <>
-      {/* Desktop horizontal nav */}
       <nav className="hidden items-center gap-6 text-sm md:flex">
         {LINKS.map((l) => {
           const active = pathname === l.href || pathname.startsWith(l.href + "/");
@@ -52,18 +46,11 @@ export function StudioNav() {
               )}
             >
               {l.label}
-              {active ? (
-                <span
-                  aria-hidden
-                  className="mx-auto mt-1 block h-[2px] w-4 rounded-full bg-[color:var(--color-moss)]"
-                />
-              ) : null}
             </Link>
           );
         })}
       </nav>
 
-      {/* Mobile: hamburger + slide-down drawer */}
       <button
         type="button"
         aria-label="menu"
@@ -90,13 +77,11 @@ export function StudioNav() {
       {open ? (
         <>
           <div
-            className="fixed inset-0 top-[60px] z-30 bg-[color:var(--color-ink)]/30 md:hidden"
+            className="fixed inset-0 top-[56px] z-30 bg-[color:var(--color-ink)]/30 md:hidden"
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <nav
-            className="fixed inset-x-0 top-[60px] z-40 flex flex-col gap-1 bg-[color:var(--color-canvas)] px-5 py-4 shadow-[0_16px_32px_-16px_rgba(31,30,27,0.25)] md:hidden"
-          >
+          <nav className="fixed inset-x-0 top-[56px] z-40 flex flex-col gap-1 bg-[color:var(--color-canvas)] px-5 py-4 shadow-[0_16px_32px_-16px_rgba(31,30,27,0.25)] md:hidden">
             {LINKS.map((l) => {
               const active = pathname === l.href || pathname.startsWith(l.href + "/");
               return (
