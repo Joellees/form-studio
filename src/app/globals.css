@@ -101,6 +101,22 @@
   }
 }
 
+/* Native selects — hide the default OS chevron and draw our own with
+   comfortable right-padding. Apply with the `.select-pill` class
+   anywhere we use a bare <select>. */
+@layer components {
+  .select-pill {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='%231F1E1B' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M4 6.5l4 4 4-4'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 14px;
+    padding-right: 2.5rem;
+    padding-left: 1.25rem;
+  }
+}
+
 /* A single page-load orchestration: fade + rise, staggered children. */
 @layer utilities {
   .rise-in {

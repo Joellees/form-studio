@@ -135,7 +135,7 @@ function ExercisesTab({
         <select
           value={groupFilter}
           onChange={(e) => setGroupFilter(e.target.value)}
-          className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
           <option value="">all groups</option>
           {groups.map((g) => (

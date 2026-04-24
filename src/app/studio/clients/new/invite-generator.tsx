@@ -75,7 +75,7 @@ export function InviteGenerator() {
               setInviteUrl(null);
             }}
           >
-            create another
+            new invite
           </Button>
           <Button onClick={() => router.push("/studio/clients")}>done</Button>
         </div>

@@ -62,17 +62,17 @@ export default async function DashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <NextStepCard
-          eyebrow="your clients"
-          headline={clientCount && clientCount > 0 ? "Invite another client" : "Invite your first client"}
-          body="Generate a link, send it over, they sign up and land in your studio."
-          cta="invite a client"
+          eyebrow="clients"
+          headline="Add client"
+          body="Generate a link and send it over. They sign up and land in your studio."
+          cta="add client"
           href="/studio/clients/new"
         />
         <NextStepCard
-          eyebrow="your library"
-          headline={exerciseCount && exerciseCount > 0 ? "Add another exercise" : "Build your exercise library"}
-          body="Every session you build will draw from here — name, cue, video, default sets."
-          cta="add an exercise"
+          eyebrow="library"
+          headline="Add exercise"
+          body="Name, video, and default sets. You&rsquo;ll reuse it in every session you build."
+          cta="add exercise"
           href="/studio/library/new"
         />
       </section>
