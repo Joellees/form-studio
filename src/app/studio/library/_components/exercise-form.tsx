@@ -27,7 +27,7 @@ type Initial = {
 };
 
 type RepMode = "reps" | "per_side" | "amrap";
-type SetRow = { reps: number; kg: number; mode: RepMode };
+type SetRow = { reps: number; mode: RepMode };
 
 const REP_MODES: { value: RepMode; label: string }[] = [
   { value: "reps", label: "reps" },
@@ -35,18 +35,24 @@ const REP_MODES: { value: RepMode; label: string }[] = [
   { value: "amrap", label: "to failure" },
 ];
 
-function parseSets(rv: unknown): SetRow[] {
+type ParsedSets = { sets: SetRow[]; kg: number };
+
+function parseSets(rv: unknown): ParsedSets {
   const obj = (rv ?? {}) as {
+    kg?: number;
     sets?: Array<{ reps?: number; seconds?: number; kg?: number; mode?: RepMode; rep_type?: RepMode }>;
   };
+  const kg = obj.kg ?? obj.sets?.[0]?.kg ?? 0;
   if (Array.isArray(obj.sets) && obj.sets.length > 0) {
-    return obj.sets.map((s) => ({
-      reps: s.reps ?? s.seconds ?? 10,
-      kg: s.kg ?? 0,
-      mode: (s.mode ?? s.rep_type ?? "reps") as RepMode,
-    }));
+    return {
+      kg,
+      sets: obj.sets.map((s) => ({
+        reps: s.reps ?? s.seconds ?? 10,
+        mode: (s.mode ?? s.rep_type ?? "reps") as RepMode,
+      })),
+    };
   }
-  return [{ reps: 10, kg: 0, mode: "reps" }];
+  return { kg, sets: [{ reps: 10, mode: "reps" }] };
 }
 
 export function ExerciseForm({
@@ -65,7 +71,9 @@ export function ExerciseForm({
   const [groupId, setGroupId] = useState(initial?.group_id ?? "");
   const [equipment, setEquipment] = useState(initial?.equipment ?? "");
   const [isTimed, setIsTimed] = useState(!!initial?.is_timed);
-  const [sets, setSets] = useState<SetRow[]>(parseSets(initial?.default_rep_value));
+  const parsed = parseSets(initial?.default_rep_value);
+  const [sets, setSets] = useState<SetRow[]>(parsed.sets);
+  const [kg, setKg] = useState<number>(parsed.kg);
   const [rest, setRest] = useState<number>(initial?.default_rest_seconds ?? 60);
   const [notes, setNotes] = useState(initial?.trainer_notes ?? "");
   const [videoUrl, setVideoUrl] = useState(initial?.video_url ?? "");
@@ -85,7 +93,7 @@ export function ExerciseForm({
     setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
   function addSet() {
-    setSets((prev) => [...prev, { ...(prev[prev.length - 1] ?? { reps: 10, kg: 0, mode: "reps" as RepMode }) }]);
+    setSets((prev) => [...prev, { ...(prev[prev.length - 1] ?? { reps: 10, mode: "reps" as RepMode }) }]);
   }
   function removeSet(i: number) {
     setSets((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
@@ -132,13 +140,15 @@ export function ExerciseForm({
       setNameError("Required");
       return;
     }
-    // Store sets under a consistent shape. When the whole exercise is
-    // timed, rep count isn&rsquo;t meaningful — every set stores seconds.
-    // Otherwise each set carries its own mode (reps / per-side / amrap).
+    // Exercise-level default kg + rest; each set just owns reps and mode.
+    // When is_timed is on, every set is seconds.
     const rep_value = {
       type: isTimed ? "timed_sets" : "sets",
+      kg,
       sets: sets.map((s) =>
-        isTimed ? { seconds: s.reps, kg: s.kg } : { reps: s.mode === "amrap" ? 0 : s.reps, mode: s.mode, kg: s.kg },
+        isTimed
+          ? { seconds: s.reps }
+          : { reps: s.mode === "amrap" ? 0 : s.reps, mode: s.mode },
       ),
     };
     startTransition(async () => {
@@ -266,31 +276,15 @@ export function ExerciseForm({
           <Toggle checked={isTimed} onChange={setIsTimed} label="timed" />
         </div>
 
-        <div
-          className={`hidden items-center gap-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)] md:grid ${
-            isTimed ? "grid-cols-[auto_1fr_1fr_auto]" : "grid-cols-[auto_1fr_auto_1fr_auto]"
-          }`}
-        >
-          <span className="w-10" />
-          <span>{repLabel}</span>
-          {!isTimed ? <span>type</span> : null}
-          <span>kg</span>
-          <span className="w-8" />
-        </div>
-
-        <ul className="space-y-3">
+        <ul className="space-y-2.5">
           {sets.map((s, i) => {
             const isAmrap = !isTimed && s.mode === "amrap";
             return (
-              <li
-                key={i}
-                className={`grid items-center gap-3 ${
-                  isTimed ? "grid-cols-[auto_1fr_1fr_auto]" : "grid-cols-[auto_1fr_auto_1fr_auto]"
-                }`}
-              >
-                <span className="inline-flex h-8 w-10 items-center justify-center rounded-full bg-[color:var(--color-canvas)] text-xs font-semibold tabular-nums text-[color:var(--color-ink)]/70">
+              <li key={i} className="flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-canvas)] text-[13px] font-semibold tabular-nums text-[color:var(--color-ink)]">
                   {i + 1}
                 </span>
+
                 <Input
                   type="number"
                   min={isAmrap ? 0 : 1}
@@ -298,12 +292,18 @@ export function ExerciseForm({
                   placeholder={isAmrap ? "—" : undefined}
                   disabled={isAmrap}
                   onChange={(e) => updateSet(i, { reps: Number(e.target.value) || 0 })}
+                  className="w-24 text-center"
                 />
-                {!isTimed ? (
+
+                {isTimed ? (
+                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+                    seconds
+                  </span>
+                ) : (
                   <Select
                     value={s.mode}
                     onChange={(e) => updateSet(i, { mode: e.target.value as RepMode })}
-                    className="h-11 w-[130px] pl-4 pr-9"
+                    className="h-9 w-[128px] pl-4 pr-9 text-xs"
                   >
                     {REP_MODES.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -311,19 +311,13 @@ export function ExerciseForm({
                       </option>
                     ))}
                   </Select>
-                ) : null}
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.5"
-                  value={s.kg}
-                  onChange={(e) => updateSet(i, { kg: Number(e.target.value) || 0 })}
-                />
+                )}
+
                 <button
                   type="button"
                   onClick={() => removeSet(i)}
                   disabled={sets.length <= 1}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] disabled:opacity-30"
+                  className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] disabled:opacity-30"
                   aria-label={`remove set ${i + 1}`}
                 >
                   ×
@@ -333,21 +327,39 @@ export function ExerciseForm({
           })}
         </ul>
 
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <Button type="button" variant="ghost" size="sm" onClick={addSet}>
-            + add set
-          </Button>
-          <div className="flex items-center gap-3">
-            <Label className="m-0">rest</Label>
-            <Input
+        {/* Exercise-level defaults: weight + rest. Same line, two pills. */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Pill label="weight">
+            <input
+              type="number"
+              min={0}
+              step="0.5"
+              value={kg}
+              onChange={(e) => setKg(Number(e.target.value) || 0)}
+              className="w-14 bg-transparent text-sm tabular-nums focus:outline-none"
+            />
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+              kg
+            </span>
+          </Pill>
+          <Pill label="rest">
+            <input
               type="number"
               min={0}
               value={rest}
               onChange={(e) => setRest(Number(e.target.value) || 0)}
-              className="w-20"
+              className="w-14 bg-transparent text-sm tabular-nums focus:outline-none"
             />
-            <span className="text-xs text-[color:var(--color-stone)]">seconds</span>
-          </div>
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+              sec
+            </span>
+          </Pill>
+        </div>
+
+        <div className="mt-4">
+          <Button type="button" variant="ghost" size="sm" onClick={addSet}>
+            + add set
+          </Button>
         </div>
       </div>
 
@@ -404,5 +416,16 @@ function Field({
       {children}
       {error ? <p className="text-xs text-[color:var(--color-sienna)]">{error}</p> : null}
     </div>
+  );
+}
+
+function Pill({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 py-2">
+      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
