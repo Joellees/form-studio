@@ -151,27 +151,28 @@ export function SessionRow({
     return (
       <div
         className={cn(
-          "group relative flex flex-col gap-1.5 rounded-xl bg-[color:var(--color-canvas)] px-2.5 py-2",
+          "group relative flex flex-col gap-2 rounded-xl bg-[color:var(--color-canvas)] p-2.5",
           pending && "opacity-70",
         )}
       >
-        <Link href={`/studio/sessions/${session.id}`} className="block min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--color-stone)] tabular-nums">
-            {session.formatted_time}
-          </p>
-          <p className="truncate text-xs font-semibold text-[color:var(--color-ink)] hover:text-[color:var(--color-moss-deep)]">
-            {session.client_name ?? session.name ?? "Session"}
-          </p>
-        </Link>
-        <div className="flex items-center justify-between gap-1">
-          {TypeSelect}
+        <div className="flex items-start justify-between gap-1">
+          <Link
+            href={`/studio/sessions/${session.id}`}
+            className="min-w-0 flex-1"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--color-stone)] tabular-nums">
+              {session.formatted_time}
+            </p>
+            <p className="truncate text-xs font-semibold text-[color:var(--color-ink)] hover:text-[color:var(--color-moss-deep)]">
+              {session.client_name ?? session.name ?? "Session"}
+            </p>
+          </Link>
           {MenuBtn}
         </div>
-        {isRequested ? (
-          <Badge tone="signal" className="self-start">
-            request
-          </Badge>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {TypeSelect}
+          {isRequested ? <Badge tone="signal">request</Badge> : null}
+        </div>
         {Menu}
       </div>
     );

@@ -7,14 +7,20 @@ import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ tab?: "exercises" | "groups"; group?: string; q?: string }> };
+type Props = {
+  searchParams: Promise<{
+    tab?: "exercises" | "workouts" | "groups";
+    group?: string;
+    q?: string;
+  }>;
+};
 
 export default async function LibraryPage({ searchParams }: Props) {
   const sp = await searchParams;
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
 
-  const [{ data: groups }, { data: exercises }] = await Promise.all([
+  const [{ data: groups }, { data: exercises }, { data: workouts }] = await Promise.all([
     admin
       .from("exercise_groups")
       .select("id, name, sort_index")
@@ -27,18 +33,31 @@ export default async function LibraryPage({ searchParams }: Props) {
       .eq("tenant_id", trainer.id)
       .eq("archived", false)
       .order("name"),
+    admin
+      .from("session_templates")
+      .select("id, name, day_label, description, created_at")
+      .eq("tenant_id", trainer.id)
+      .eq("archived", false)
+      .order("created_at", { ascending: false }),
   ]);
 
   return (
-    <div className="rise-in-stagger space-y-8">
-      <div className="flex items-center justify-between gap-6">
+    <div className="rise-in-stagger space-y-6 md:space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">library</p>
-          <h1 className="mt-2 text-4xl">The movements you coach.</h1>
+          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+            library
+          </p>
+          <h1 className="mt-2 text-3xl md:text-4xl">Everything you coach.</h1>
         </div>
-        <Button asChild>
-          <Link href="/studio/library/new">add exercise</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="secondary" size="md">
+            <Link href="/studio/templates/new">new workout</Link>
+          </Button>
+          <Button asChild size="md">
+            <Link href="/studio/library/new">add exercise</Link>
+          </Button>
+        </div>
       </div>
 
       <LibraryView
@@ -47,6 +66,7 @@ export default async function LibraryPage({ searchParams }: Props) {
         initialQuery={sp.q ?? ""}
         groups={groups ?? []}
         exercises={exercises ?? []}
+        workouts={workouts ?? []}
       />
     </div>
   );

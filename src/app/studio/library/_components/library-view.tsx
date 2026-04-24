@@ -22,7 +22,15 @@ type Exercise = {
   thumbnail_url: string | null;
 };
 
-type Tab = "exercises" | "groups";
+type Workout = {
+  id: string;
+  name: string;
+  day_label: string | null;
+  description: string | null;
+  created_at: string;
+};
+
+type Tab = "exercises" | "workouts" | "groups";
 
 export function LibraryView({
   initialTab,
@@ -30,12 +38,14 @@ export function LibraryView({
   initialQuery,
   groups,
   exercises,
+  workouts,
 }: {
   initialTab: Tab;
   initialGroupFilter: string;
   initialQuery: string;
   groups: Group[];
   exercises: Exercise[];
+  workouts: Workout[];
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [groupFilter, setGroupFilter] = useState(initialGroupFilter);
@@ -43,12 +53,15 @@ export function LibraryView({
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2 border-b border-[color:var(--color-stone-soft)]">
+      <div className="flex gap-1 overflow-x-auto border-b border-[color:var(--color-stone-soft)]">
         <TabButton active={tab === "exercises"} onClick={() => setTab("exercises")}>
-          Exercises ({exercises.length})
+          Exercises <span className="tabular-nums text-[color:var(--color-stone)]">{exercises.length}</span>
+        </TabButton>
+        <TabButton active={tab === "workouts"} onClick={() => setTab("workouts")}>
+          Workouts <span className="tabular-nums text-[color:var(--color-stone)]">{workouts.length}</span>
         </TabButton>
         <TabButton active={tab === "groups"} onClick={() => setTab("groups")}>
-          Groups ({groups.length})
+          Groups <span className="tabular-nums text-[color:var(--color-stone)]">{groups.length}</span>
         </TabButton>
       </div>
 
@@ -61,9 +74,56 @@ export function LibraryView({
           query={query}
           setQuery={setQuery}
         />
+      ) : tab === "workouts" ? (
+        <WorkoutsTab workouts={workouts} />
       ) : (
         <GroupsSection groups={groups} exerciseCountByGroup={countByGroup(exercises)} />
       )}
+    </div>
+  );
+}
+
+function WorkoutsTab({ workouts }: { workouts: Workout[] }) {
+  if (workouts.length === 0) {
+    return (
+      <EmptyState
+        title="No workouts yet"
+        body="Build a reusable session once — exercises, sets, reps, rest. You&rsquo;ll attach it to any client&rsquo;s calendar in one click."
+        action={
+          <Link
+            href="/studio/templates/new"
+            className="inline-flex h-10 items-center rounded-full bg-[color:var(--color-ink)] px-6 text-sm font-semibold text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
+          >
+            create your first workout
+          </Link>
+        }
+      />
+    );
+  }
+  return (
+    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+      {workouts.map((w) => (
+        <Link
+          key={w.id}
+          href={`/studio/templates/${w.id}`}
+          className="group rounded-2xl bg-[color:var(--color-parchment)]/60 p-5 transition-colors hover:bg-[color:var(--color-parchment)]"
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
+            {w.day_label || "workout"}
+          </p>
+          <h3 className="mt-1 text-lg font-semibold tracking-tight group-hover:text-[color:var(--color-moss-deep)]">
+            {w.name}
+          </h3>
+          {w.description ? (
+            <p className="mt-2 line-clamp-2 text-sm text-[color:var(--color-ink)]/70">
+              {w.description}
+            </p>
+          ) : null}
+          <p className="mt-4 text-xs tabular-nums text-[color:var(--color-stone)]">
+            added {new Date(w.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </p>
+        </Link>
+      ))}
     </div>
   );
 }
