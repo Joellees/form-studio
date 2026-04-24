@@ -5,15 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
 export default async function PackagesPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: packages } = await supabase
+  const trainer = await requireTrainer();
+  const admin = createSupabaseAdminClient();
+  const { data: packages } = await admin
     .from("packages")
     .select("id, name, session_type_mix, session_count, duration_days, price_usd, payment_mode, cancellation_policy, active")
+    .eq("tenant_id", trainer.id)
     .order("created_at", { ascending: false });
 
   return (

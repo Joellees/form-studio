@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
 const createSchema = z.object({
@@ -16,7 +16,7 @@ const createSchema = z.object({
 export async function createTemplate(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(createSchema, raw, async (values) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("session_templates")
       .insert({
@@ -36,7 +36,7 @@ export async function createTemplate(raw: unknown): Promise<ActionResult<{ id: s
 export async function archiveTemplate(id: string): Promise<ActionResult<void>> {
   return runAction(z.object({ id: z.string().uuid() }), { id }, async ({ id }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("session_templates")
       .update({ archived: true })
@@ -61,7 +61,7 @@ const addExerciseSchema = z.object({
 export async function addExerciseToTemplate(raw: unknown): Promise<ActionResult<{ blockId: string }>> {
   return runAction(addExerciseSchema, raw, async ({ templateId, exerciseId }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: existingBlocks } = await supabase
       .from("template_blocks")
@@ -117,7 +117,7 @@ export async function addExerciseToTemplate(raw: unknown): Promise<ActionResult<
 export async function removeTemplateBlock(blockId: string): Promise<ActionResult<void>> {
   return runAction(z.object({ id: z.string().uuid() }), { id: blockId }, async ({ id }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { error } = await supabase.from("template_blocks").delete().eq("id", id).eq("tenant_id", trainer.id);
     if (error) return fail(error.message);
     return ok();
@@ -138,7 +138,7 @@ const setGroupUpdateSchema = z.object({
 export async function updateSetGroup(raw: unknown): Promise<ActionResult<void>> {
   return runAction(setGroupUpdateSchema, raw, async ({ id, ...fields }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("template_set_groups")
       .update(fields)

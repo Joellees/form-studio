@@ -3,7 +3,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { z } from "zod";
 
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { isValidSlug } from "@/lib/tenancy";
 
 const schema = z.object({
@@ -46,9 +46,9 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
 
   const admin = createSupabaseAdminClient();
 
-  // Double-check via the user-scoped client that we don&rsquo;t already have a row.
-  const userScoped = await createSupabaseServerClient();
-  const { data: existing } = await userScoped
+  // Idempotency: if the trainer row already exists for this Clerk user,
+  // treat the onboarding call as a success so reloads don&rsquo;t error out.
+  const { data: existing } = await admin
     .from("trainers")
     .select("id")
     .eq("clerk_id", userId)

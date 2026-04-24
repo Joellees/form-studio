@@ -93,3 +93,66 @@ export async function updateSubscription(raw: unknown): Promise<ActionResult<voi
     return ok();
   });
 }
+
+const assignSchema = z.object({
+  clientId: z.string().uuid(),
+  packageId: z.string().uuid(),
+  markPaid: z.boolean().default(false),
+});
+
+/**
+ * Trainer assigns a package to a client in one action. Creates the
+ * subscription row, dates start at today, end = today + duration.
+ * When markPaid is true the sessions unlock immediately; otherwise it
+ * sits in 'pending' like a normal checkout until trainer confirms.
+ */
+export async function assignPackage(raw: unknown): Promise<ActionResult<{ subscriptionId: string }>> {
+  return runAction(assignSchema, raw, async ({ clientId, packageId, markPaid }) => {
+    const trainer = await requireTrainer();
+    const admin = createSupabaseAdminClient();
+
+    const { data: pkg } = await admin
+      .from("packages")
+      .select("id, tenant_id, session_count, duration_days, price_usd")
+      .eq("id", packageId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!pkg) return fail("Package not found.");
+
+    const today = new Date();
+    const end = new Date(today);
+    end.setDate(end.getDate() + pkg.duration_days);
+
+    const { data, error } = await admin
+      .from("subscriptions")
+      .insert({
+        tenant_id: trainer.id,
+        client_id: clientId,
+        package_id: packageId,
+        start_date: today.toISOString().slice(0, 10),
+        end_date: end.toISOString().slice(0, 10),
+        sessions_remaining: markPaid ? pkg.session_count : 0,
+        payment_status: markPaid ? "paid" : "pending",
+        payment_method: "manual",
+        paid_confirmed_at: markPaid ? new Date().toISOString() : null,
+        paid_confirmed_by: markPaid ? trainer.id : null,
+      })
+      .select("id")
+      .single();
+    if (error) return fail(error.message);
+
+    if (markPaid) {
+      await admin.from("payments").insert({
+        tenant_id: trainer.id,
+        subscription_id: data.id,
+        amount_usd: pkg.price_usd,
+        method: "manual",
+        status: "paid",
+      });
+    }
+
+    revalidatePath(`/studio/clients/${clientId}`);
+    revalidatePath("/studio/clients");
+    return ok({ subscriptionId: data.id });
+  });
+}

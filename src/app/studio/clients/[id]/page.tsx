@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ArchiveClientButton } from "./archive-button";
+import { AssignPackageButton } from "./assign-package";
 import { ClientDetailsEditor } from "./client-details-editor";
 import { ClientFieldToggles } from "./client-field-toggles";
 import { SubscriptionEditor } from "./subscription-editor";
@@ -41,23 +42,30 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
 
-  const [{ data: client }, { data: fields }, { data: subs }, { data: sessions }] = await Promise.all([
-    admin.from("clients").select("*").eq("id", id).eq("tenant_id", trainer.id).maybeSingle(),
-    admin.from("client_profile_fields").select("*").eq("client_id", id).maybeSingle(),
-    admin
-      .from("subscriptions")
-      .select(
-        "id, payment_status, payment_method, sessions_remaining, start_date, end_date, paid_confirmed_at, created_at, packages(name, session_count, price_usd, duration_days)",
-      )
-      .eq("client_id", id)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("sessions")
-      .select("id, scheduled_at, duration_minutes, session_type, status, name")
-      .eq("client_id", id)
-      .order("scheduled_at", { ascending: false })
-      .limit(20),
-  ]);
+  const [{ data: client }, { data: fields }, { data: subs }, { data: sessions }, { data: packages }] =
+    await Promise.all([
+      admin.from("clients").select("*").eq("id", id).eq("tenant_id", trainer.id).maybeSingle(),
+      admin.from("client_profile_fields").select("*").eq("client_id", id).maybeSingle(),
+      admin
+        .from("subscriptions")
+        .select(
+          "id, payment_status, payment_method, sessions_remaining, start_date, end_date, paid_confirmed_at, created_at, packages(name, session_count, price_usd, duration_days)",
+        )
+        .eq("client_id", id)
+        .order("created_at", { ascending: false }),
+      admin
+        .from("sessions")
+        .select("id, scheduled_at, duration_minutes, session_type, status, name")
+        .eq("client_id", id)
+        .order("scheduled_at", { ascending: false })
+        .limit(20),
+      admin
+        .from("packages")
+        .select("id, name, session_count, duration_days, price_usd")
+        .eq("tenant_id", trainer.id)
+        .eq("active", true)
+        .order("price_usd"),
+    ]);
 
   if (!client) notFound();
 
@@ -124,9 +132,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         ) : (
           <div className="mt-3 rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] px-6 py-8">
             <p className="text-sm font-semibold">No active block</p>
-            <p className="mt-1 text-sm text-[color:var(--color-ink)]/70">
+            <p className="mt-1 mb-4 text-sm text-[color:var(--color-ink)]/70">
               This client isn&rsquo;t on a package right now.
             </p>
+            <AssignPackageButton clientId={id} packages={packages ?? []} />
           </div>
         )}
       </section>

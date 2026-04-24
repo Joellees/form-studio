@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
 const packageSchema = z.object({
@@ -21,7 +21,7 @@ const packageSchema = z.object({
 export async function savePackage(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(packageSchema, raw, async (values) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const payload = {
       tenant_id: trainer.id,
       name: values.name,
@@ -55,7 +55,7 @@ export async function savePackage(raw: unknown): Promise<ActionResult<{ id: stri
 export async function archivePackage(id: string): Promise<ActionResult<void>> {
   return runAction(z.object({ id: z.string().uuid() }), { id }, async ({ id }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("packages")
       .update({ active: false })

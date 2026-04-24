@@ -1,16 +1,19 @@
 import { RequestSessionButton } from "./request-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireClient } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientDashboard({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const sp = await searchParams;
-  const supabase = await createSupabaseServerClient();
-  const { data: subs } = await supabase
+  const client = await requireClient();
+  const admin = createSupabaseAdminClient();
+  const { data: subs } = await admin
     .from("subscriptions")
     .select("id, payment_status, sessions_remaining, start_date, end_date, packages(name)")
+    .eq("client_id", client.id)
     .order("created_at", { ascending: false });
 
   const pending = subs?.find((s) => s.payment_status === "pending");

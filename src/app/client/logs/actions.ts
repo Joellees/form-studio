@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireClient } from "@/lib/trainer";
 
 const schema = z.object({
   field_type: z.enum(["weight", "cycle", "measurements", "progress_photo", "mood", "sleep", "pr", "custom"]),
@@ -14,16 +15,14 @@ const schema = z.object({
 
 export async function createLog(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(schema, raw, async (values) => {
-    const supabase = await createSupabaseServerClient();
+    const client = await requireClient();
+    const admin = createSupabaseAdminClient();
 
-    const { data: client } = await supabase.from("clients").select("id, tenant_id").maybeSingle();
-    if (!client) return fail("No client profile.");
-
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from("client_logs")
       .insert({
         client_id: client.id,
-        tenant_id: client.tenant_id,
+        tenant_id: client.tenantId,
         field_type: values.field_type,
         value: values.value,
         notes: values.notes,

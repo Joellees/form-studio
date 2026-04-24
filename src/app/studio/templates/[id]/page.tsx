@@ -1,34 +1,42 @@
 import { notFound } from "next/navigation";
 
 import { TemplateBuilder } from "./template-builder";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
 export default async function TemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createSupabaseServerClient();
+  const trainer = await requireTrainer();
+  const admin = createSupabaseAdminClient();
 
-  const { data: template } = await supabase
+  const { data: template } = await admin
     .from("session_templates")
     .select("*")
     .eq("id", id)
+    .eq("tenant_id", trainer.id)
     .maybeSingle();
   if (!template) notFound();
 
   const [{ data: blocks }, { data: exercises }] = await Promise.all([
-    supabase
+    admin
       .from("template_blocks")
       .select(
         `id, order_index, round_label, round_count, round_rest_seconds,
          template_block_exercises(id, order_index, setup_override, exercise_id,
-           exercises(id, name, default_descriptor),
+           exercises(id, name),
            template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, intent_tag)
          )`,
       )
       .eq("template_id", id)
       .order("order_index"),
-    supabase.from("exercises").select("id, name, group_tag").eq("archived", false).order("name"),
+    admin
+      .from("exercises")
+      .select("id, name, group_tag")
+      .eq("tenant_id", trainer.id)
+      .eq("archived", false)
+      .order("name"),
   ]);
 
   // Supabase nested selects type relations as arrays; the builder expects a

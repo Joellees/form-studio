@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
 const archiveSchema = z.object({
@@ -49,9 +49,9 @@ const fieldsSchema = z.object({
 export async function updateClientFields(raw: unknown): Promise<ActionResult<void>> {
   return runAction(fieldsSchema, raw, async ({ clientId, fields }) => {
     const trainer = await requireTrainer();
-    const supabase = await createSupabaseServerClient();
+    const admin = createSupabaseAdminClient();
 
-    const { error } = await supabase
+    const { error } = await admin
       .from("client_profile_fields")
       .upsert(
         {

@@ -2,18 +2,20 @@ import { LogEntryForm } from "./log-entry-form";
 import { LogList } from "./log-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireClient } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientLogsPage() {
-  const supabase = await createSupabaseServerClient();
-  const [, { data: fields }, { data: logs }] = await Promise.all([
-    supabase.from("clients").select("id").maybeSingle(),
-    supabase.from("client_profile_fields").select("*").maybeSingle(),
-    supabase
+  const client = await requireClient();
+  const admin = createSupabaseAdminClient();
+  const [{ data: fields }, { data: logs }] = await Promise.all([
+    admin.from("client_profile_fields").select("*").eq("client_id", client.id).maybeSingle(),
+    admin
       .from("client_logs")
       .select("id, field_type, value, notes, logged_at")
+      .eq("client_id", client.id)
       .order("logged_at", { ascending: false })
       .limit(50),
   ]);

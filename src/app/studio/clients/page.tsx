@@ -109,8 +109,8 @@ export default async function ClientsPage({
         />
       ) : (
         <div>
-          {/* Header row */}
-          <div className="grid grid-cols-[2fr_2fr_6rem_5rem_5rem] items-center gap-6 border-b border-[color:var(--color-ink)]/10 pb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          {/* Header row — desktop only */}
+          <div className="hidden grid-cols-[2fr_2fr_6rem_5rem_5rem] items-center gap-6 border-b border-[color:var(--color-ink)]/10 pb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)] md:grid">
             <span>name</span>
             <span>block</span>
             <span className="text-right">sessions</span>
@@ -118,30 +118,68 @@ export default async function ClientsPage({
             <span></span>
           </div>
           {/* Rows */}
-          <ul>
+          <ul className="divide-y divide-[color:var(--color-ink)]/5">
             {rows.map((c) => (
-              <li key={c.id} className="border-b border-[color:var(--color-ink)]/5">
+              <li key={c.id}>
                 <Link
                   href={`/studio/clients/${c.id}`}
-                  className="grid grid-cols-[2fr_2fr_6rem_5rem_5rem] items-center gap-6 py-4 focus-visible:outline-none focus-visible:shadow-none transition-colors hover:bg-[color:var(--color-parchment)]/50 rounded-xl px-2 -mx-2"
+                  className="block rounded-xl transition-colors hover:bg-[color:var(--color-parchment)]/50 md:px-2 md:-mx-2"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[color:var(--color-ink)]">{c.display_name}</p>
-                    <p className="mt-0.5 truncate text-xs text-[color:var(--color-ink)]/55">
-                      {c.email ?? c.phone ?? "—"}
-                    </p>
+                  {/* Mobile: stacked card */}
+                  <div className="flex flex-col gap-2 py-4 md:hidden">
+                    <div className="flex items-start justify-between gap-3">
+                      <Avatar name={c.display_name} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-[color:var(--color-ink)]">
+                          {c.display_name}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-[color:var(--color-ink)]/55">
+                          {c.email ?? c.phone ?? "—"}
+                        </p>
+                      </div>
+                      <StatusPill state={c.state} />
+                    </div>
+                    {"package" in c.state ? (
+                      <p className="pl-[52px] text-xs text-[color:var(--color-ink)]/70">
+                        {c.state.package}
+                        {c.state.kind === "active" ? (
+                          <span className="tabular-nums">
+                            {" · "}
+                            {c.state.sessionsLeft} left
+                            {c.state.endDate ? ` · ends ${fmtDate(c.state.endDate)}` : ""}
+                          </span>
+                        ) : null}
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="truncate text-sm text-[color:var(--color-ink)]/80">
-                    {"package" in c.state ? c.state.package : "—"}
-                  </p>
-                  <p className="text-right text-sm tabular-nums text-[color:var(--color-ink)]">
-                    {c.state.kind === "active" ? c.state.sessionsLeft : "—"}
-                  </p>
-                  <p className="text-sm tabular-nums text-[color:var(--color-ink)]/60">
-                    {c.state.kind === "active" || c.state.kind === "expired" ? fmtDate(c.state.endDate) : "—"}
-                  </p>
-                  <div className="flex justify-end">
-                    <StatusPill state={c.state} />
+
+                  {/* Desktop: row */}
+                  <div className="hidden grid-cols-[2fr_2fr_6rem_5rem_5rem] items-center gap-6 py-4 md:grid">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar name={c.display_name} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-[color:var(--color-ink)]">
+                          {c.display_name}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-[color:var(--color-ink)]/55">
+                          {c.email ?? c.phone ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="truncate text-sm text-[color:var(--color-ink)]/80">
+                      {"package" in c.state ? c.state.package : "—"}
+                    </p>
+                    <p className="text-right text-sm tabular-nums text-[color:var(--color-ink)]">
+                      {c.state.kind === "active" ? c.state.sessionsLeft : "—"}
+                    </p>
+                    <p className="text-sm tabular-nums text-[color:var(--color-ink)]/60">
+                      {c.state.kind === "active" || c.state.kind === "expired"
+                        ? fmtDate(c.state.endDate)
+                        : "—"}
+                    </p>
+                    <div className="flex justify-end">
+                      <StatusPill state={c.state} />
+                    </div>
                   </div>
                 </Link>
               </li>
@@ -150,6 +188,18 @@ export default async function ClientsPage({
         </div>
       )}
     </div>
+  );
+}
+
+function Avatar({ name }: { name: string }) {
+  const initial = (name ?? "?").trim().charAt(0).toUpperCase();
+  return (
+    <span
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-moss)]/12 text-sm font-semibold text-[color:var(--color-moss-deep)]"
+      aria-hidden
+    >
+      {initial}
+    </span>
   );
 }
 
