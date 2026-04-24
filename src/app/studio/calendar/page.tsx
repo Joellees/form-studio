@@ -1,7 +1,5 @@
-import Link from "next/link";
-
-import { SessionRow, type SessionSummary } from "../_components/session-row";
-import { Button } from "@/components/ui/button";
+import { CalendarWeek } from "./_components/calendar-week";
+import { type SessionSummary } from "../_components/session-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
@@ -18,22 +16,41 @@ export default async function CalendarPage({ searchParams }: Props) {
   const { start, end, days } = weekRange(reference, trainer.timezone);
 
   const admin = createSupabaseAdminClient();
-  const { data: sessions } = await admin
-    .from("sessions")
-    .select("id, scheduled_at, duration_minutes, session_type, status, name, day_label, clients(display_name)")
-    .eq("tenant_id", trainer.id)
-    .gte("scheduled_at", start.toISOString())
-    .lte("scheduled_at", end.toISOString())
-    .order("scheduled_at");
+  const [
+    { data: sessions },
+    { data: clientRows },
+    { data: workouts },
+  ] = await Promise.all([
+    admin
+      .from("sessions")
+      .select("id, scheduled_at, duration_minutes, session_type, status, name, day_label, clients(display_name)")
+      .eq("tenant_id", trainer.id)
+      .gte("scheduled_at", start.toISOString())
+      .lte("scheduled_at", end.toISOString())
+      .order("scheduled_at"),
+    admin
+      .from("clients")
+      .select(
+        "id, display_name, subscriptions(id, sessions_remaining, payment_status, packages(name, session_count))",
+      )
+      .eq("tenant_id", trainer.id)
+      .eq("active", true)
+      .order("display_name"),
+    admin
+      .from("session_templates")
+      .select("id, name")
+      .eq("tenant_id", trainer.id)
+      .eq("archived", false)
+      .order("name"),
+  ]);
 
-  // Normalize + group by day in trainer timezone
-  const byDay = new Map<string, SessionSummary[]>();
-  for (const d of days) byDay.set(formatInTz(d, trainer.timezone, "yyyy-MM-dd"), []);
+  // Group sessions by day in trainer&rsquo;s timezone
+  const sessionsByDay: Record<string, SessionSummary[]> = {};
   for (const s of sessions ?? []) {
     const key = formatInTz(new Date(s.scheduled_at), trainer.timezone, "yyyy-MM-dd");
     const clientRel = s.clients as { display_name?: string } | { display_name?: string }[] | null;
     const client = Array.isArray(clientRel) ? clientRel[0] : clientRel;
-    byDay.get(key)?.push({
+    (sessionsByDay[key] ??= []).push({
       id: s.id,
       scheduled_at: s.scheduled_at,
       duration_minutes: s.duration_minutes,
@@ -44,6 +61,39 @@ export default async function CalendarPage({ searchParams }: Props) {
       formatted_time: formatInTz(new Date(s.scheduled_at), trainer.timezone, "HH:mm"),
     });
   }
+
+  const todayKey = formatInTz(new Date(), trainer.timezone, "yyyy-MM-dd");
+  const dayObjects = days.map((d) => {
+    const key = formatInTz(d, trainer.timezone, "yyyy-MM-dd");
+    return {
+      key,
+      weekday: formatInTz(d, trainer.timezone, "EEE"),
+      dayNum: formatInTz(d, trainer.timezone, "d"),
+      humanDate: formatInTz(d, trainer.timezone, "EEE, MMM d"),
+      isToday: key === todayKey,
+    };
+  });
+
+  const clients = (clientRows ?? []).map((c) => {
+    const subs = (c.subscriptions ?? []) as Array<{
+      id: string;
+      sessions_remaining: number;
+      payment_status: string;
+      packages: { name: string; session_count: number } | { name: string; session_count: number }[] | null;
+    }>;
+    const activeBlocks = subs
+      .filter((s) => s.payment_status === "paid" && s.sessions_remaining > 0)
+      .map((s) => {
+        const p = Array.isArray(s.packages) ? s.packages[0] : s.packages;
+        return {
+          id: s.id,
+          packageName: p?.name ?? "Block",
+          sessionsRemaining: s.sessions_remaining,
+          sessionCount: p?.session_count ?? s.sessions_remaining,
+        };
+      });
+    return { id: c.id, displayName: c.display_name, activeBlocks };
+  });
 
   return (
     <div className="rise-in-stagger space-y-8">
@@ -58,55 +108,25 @@ export default async function CalendarPage({ searchParams }: Props) {
             {formatInTz(end, trainer.timezone, "MMM d, yyyy")} · {trainer.timezone}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/studio/calendar/new">schedule a session</Link>
-        </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-7">
-        {days.map((d) => {
-          const key = formatInTz(d, trainer.timezone, "yyyy-MM-dd");
-          const daysSessions = byDay.get(key) ?? [];
-          const isToday =
-            formatInTz(new Date(), trainer.timezone, "yyyy-MM-dd") === key;
-          return (
-            <div
-              key={key}
-              className="flex min-h-[10rem] flex-col rounded-2xl bg-[color:var(--color-parchment)]/60 p-3"
-            >
-              <div className="mb-2 flex items-baseline justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                  {formatInTz(d, trainer.timezone, "EEE")}
-                </span>
-                <span
-                  className={
-                    "text-lg font-semibold tabular-nums tracking-tight " +
-                    (isToday
-                      ? "text-[color:var(--color-ink)]"
-                      : "text-[color:var(--color-ink)]/60")
-                  }
-                >
-                  {formatInTz(d, trainer.timezone, "d")}
-                </span>
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                {daysSessions.length === 0 ? (
-                  <span className="mt-1 text-xs text-[color:var(--color-stone)]/60">—</span>
-                ) : (
-                  daysSessions.map((s) => <SessionRow key={s.id} session={s} variant="card" />)
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <CalendarWeek
+        days={dayObjects}
+        sessionsByDay={sessionsByDay}
+        clients={clients}
+        workouts={workouts ?? []}
+      />
 
-      {sessions && sessions.length === 0 ? (
+      {clients.length === 0 ? (
         <EmptyState
           bordered
-          title="Nothing scheduled this week"
-          body="Add your first session from the top right."
+          title="No clients yet"
+          body="Add a client first so you have someone to schedule."
         />
+      ) : !sessions || sessions.length === 0 ? (
+        <p className="text-sm text-[color:var(--color-stone)]">
+          Click a day to schedule a session.
+        </p>
       ) : null}
     </div>
   );

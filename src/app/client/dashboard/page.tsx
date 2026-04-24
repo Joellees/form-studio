@@ -1,3 +1,4 @@
+import { RequestSessionButton } from "./request-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,16 +17,19 @@ export default async function ClientDashboard({ searchParams }: { searchParams: 
 
   return (
     <div className="rise-in-stagger space-y-10">
-      <section>
-        <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">overview</p>
-        <h1 className="mt-2 text-4xl">
-          {sp.welcome ? "You&rsquo;re in." : "Welcome back."}
-        </h1>
-        <p className="mt-2 max-w-xl text-[color:var(--color-ink)]/75">
-          {pending
-            ? "Your trainer will confirm your payment soon. Once they do, you can start booking sessions."
-            : "Everything you need for your training block lives here."}
-        </p>
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">overview</p>
+          <h1 className="mt-2 text-4xl">
+            {sp.welcome ? "You&rsquo;re in." : "Welcome back."}
+          </h1>
+          <p className="mt-2 max-w-xl text-[color:var(--color-ink)]/75">
+            {pending
+              ? "Your trainer will confirm your payment soon. Once they do, you can start booking sessions."
+              : "Everything you need for your training block lives here."}
+          </p>
+        </div>
+        <RequestSessionButton />
       </section>
 
       {subs && subs.length > 0 ? (

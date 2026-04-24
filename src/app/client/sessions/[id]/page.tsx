@@ -87,13 +87,74 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
         </Card>
       ) : null}
 
-      <SessionBuilder
-        sessionId={session.id}
-        sessionNotes={session.notes}
-        canEdit={false}
-        blocks={blocks as unknown as Parameters<typeof SessionBuilder>[0]["blocks"]}
-        library={[]}
-      />
+      {session.session_type === "in_app" ? (
+        // In-app session: client sees the full workout — videos, reps,
+        // sets, and the performed-log inputs. This is the paid tier.
+        <SessionBuilder
+          sessionId={session.id}
+          sessionNotes={session.notes}
+          canEdit={false}
+          blocks={blocks as unknown as Parameters<typeof SessionBuilder>[0]["blocks"]}
+          library={[]}
+        />
+      ) : (
+        // In-person or zoom session: the trainer coaches in the room or
+        // on the call. Client sees only the list of exercise names as
+        // a teaser — the plan, the loads, and the videos stay with the
+        // trainer so the client doesn&rsquo;t short-circuit the coaching.
+        <ExerciseTeaser blocks={blocks as unknown as Parameters<typeof ExerciseTeaser>[0]["blocks"]} />
+      )}
     </div>
+  );
+}
+
+function ExerciseTeaser({
+  blocks,
+}: {
+  blocks: Array<{
+    session_block_exercises: Array<{
+      exercises: { name: string } | { name: string }[] | null;
+    }>;
+  }>;
+}) {
+  const names = blocks
+    .flatMap((b) => b.session_block_exercises ?? [])
+    .map((be) => {
+      const ex = Array.isArray(be.exercises) ? be.exercises[0] : be.exercises;
+      return ex?.name;
+    })
+    .filter(Boolean) as string[];
+
+  if (names.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-4 text-sm text-[color:var(--color-ink)]/70">
+          Your trainer will walk you through everything when you meet.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="py-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          today&rsquo;s plan
+        </p>
+        <ul className="mt-3 space-y-2">
+          {names.map((n, i) => (
+            <li key={i} className="flex items-baseline gap-3 text-sm">
+              <span className="text-[color:var(--color-stone)] tabular-nums">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="font-medium text-[color:var(--color-ink)]">{n}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-5 text-xs text-[color:var(--color-stone)]">
+          Sets, reps, and cues come from your trainer in the session.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
