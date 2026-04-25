@@ -27,7 +27,9 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
 
     const { data: invite } = await admin
       .from("client_invites")
-      .select("code, tenant_id, email, display_name, notes, claimed_at")
+      .select(
+        "code, tenant_id, email, display_name, notes, claimed_at, package_id, packages(id, name, session_count, duration_days, price_usd)",
+      )
       .eq("code", code.toUpperCase())
       .maybeSingle();
     if (!invite) return fail("This invite link isn&rsquo;t valid.");
@@ -74,6 +76,40 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
         tenant_id: invite.tenant_id,
         weight: true,
       });
+    }
+
+    // If the trainer attached a package to this invite, create the
+    // first month's subscription on the client's behalf so they land
+    // in their portal with their plan already set up. Marked as
+    // pending until payment is recorded (Phase 2 Stripe integration).
+    if (invite.package_id) {
+      const pkg = Array.isArray(invite.packages) ? invite.packages[0] : invite.packages;
+      if (pkg) {
+        const today = new Date();
+        const nextMonth = new Date(today);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        const { data: existingSub } = await admin
+          .from("subscriptions")
+          .select("id")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!existingSub) {
+          await admin.from("subscriptions").insert({
+            tenant_id: invite.tenant_id,
+            client_id: clientId,
+            package_id: invite.package_id,
+            start_date: today.toISOString().slice(0, 10),
+            end_date: nextMonth.toISOString().slice(0, 10),
+            sessions_remaining: 0,
+            payment_status: "pending",
+            payment_method: "manual",
+            auto_renew: false,
+            next_renewal_date: nextMonth.toISOString().slice(0, 10),
+          });
+        }
+      }
     }
 
     await admin

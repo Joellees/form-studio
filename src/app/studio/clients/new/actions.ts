@@ -20,12 +20,14 @@ const inviteSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().max(40).optional().or(z.literal("")),
   notes: z.string().max(2000).optional().or(z.literal("")),
+  packageId: z.string().uuid().optional().or(z.literal("")),
 });
 
 /**
- * Creates a single-use invite. Trainer shares the returned code (as a URL)
- * with the client — see /invite/[code] — who then signs up or signs in
- * and claims it, creating their real `clients` row.
+ * Single-use invite. Trainer pre-selects the monthly package the client
+ * is agreeing to; on claim that package becomes their first month&rsquo;s
+ * subscription. Client can switch packages from their own portal — the
+ * change applies on the next billing cycle.
  */
 export async function createInvite(raw: unknown): Promise<ActionResult<{ code: string }>> {
   return runAction(inviteSchema, raw, async (values) => {
@@ -41,6 +43,7 @@ export async function createInvite(raw: unknown): Promise<ActionResult<{ code: s
         email: values.email || null,
         phone: values.phone || null,
         notes: values.notes || null,
+        package_id: values.packageId || null,
       });
       if (!error) {
         revalidatePath("/studio/clients");

@@ -8,20 +8,26 @@ import { createInvite } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 type Values = {
   displayName: string;
   email: string;
   phone: string;
   notes: string;
+  packageId: string;
 };
 
-export function InviteGenerator() {
+type PackageOpt = { id: string; name: string; session_count: number; price_usd: number };
+
+export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const { register, handleSubmit, formState: { errors }, setError } = useForm<Values>();
+  const { register, handleSubmit, formState: { errors }, setError } = useForm<Values>({
+    defaultValues: { packageId: packages[0]?.id ?? "" },
+  });
 
   function onSubmit(values: Values) {
     startTransition(async () => {
@@ -93,6 +99,22 @@ export function InviteGenerator() {
       </Field>
       <Field label="phone (optional)">
         <Input {...register("phone")} placeholder="+961 70 000 000" />
+      </Field>
+      <Field label="package they're agreeing to">
+        {packages.length === 0 ? (
+          <p className="text-xs text-[color:var(--color-stone)]">
+            Create a package first to attach one to the invite.
+          </p>
+        ) : (
+          <Select {...register("packageId")}>
+            <option value="">no package — they pick later</option>
+            {packages.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.session_count} sessions / month · ${p.price_usd.toLocaleString()}
+              </option>
+            ))}
+          </Select>
+        )}
       </Field>
       <Field label="private notes (optional)">
         <Textarea {...register("notes")} placeholder="Goals, injuries, anything you want to remember." />

@@ -24,7 +24,9 @@ export default async function InvitePage({ params }: Props) {
 
   const { data: invite } = await admin
     .from("client_invites")
-    .select("code, tenant_id, display_name, phone, claimed_at, trainers(display_name, subdomain_slug)")
+    .select(
+      "code, tenant_id, display_name, phone, claimed_at, trainers(display_name, subdomain_slug), packages(name, session_count, price_usd)",
+    )
     .eq("code", code.toUpperCase())
     .maybeSingle();
 
@@ -37,6 +39,12 @@ export default async function InvitePage({ params }: Props) {
   const trainer = Array.isArray(trainersRel) ? trainersRel[0] ?? null : trainersRel;
   const trainerName = trainer?.display_name ?? "Your trainer";
   const firstName = trainerName.split(" ")[0] ?? trainerName;
+
+  const pkgRel = invite.packages as
+    | { name: string; session_count: number; price_usd: number }
+    | Array<{ name: string; session_count: number; price_usd: number }>
+    | null;
+  const pkg = Array.isArray(pkgRel) ? pkgRel[0] ?? null : pkgRel;
 
   if (invite.claimed_at) {
     return (
@@ -61,6 +69,22 @@ export default async function InvitePage({ params }: Props) {
       <p className="mt-3 text-[color:var(--color-ink)]/75">
         {userId ? "One click to accept and get started." : "Create an account — your studio will be ready in a second."}
       </p>
+
+      {pkg ? (
+        <div className="mt-6 w-full rounded-3xl bg-[color:var(--color-parchment)] p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            your plan
+          </p>
+          <p className="mt-1 text-lg font-semibold tracking-tight">{pkg.name}</p>
+          <p className="mt-1 text-sm text-[color:var(--color-ink)]/70 tabular-nums">
+            {pkg.session_count} sessions / month · ${pkg.price_usd.toLocaleString()} to {firstName}
+          </p>
+          <p className="mt-3 text-xs text-[color:var(--color-ink)]/60">
+            Plus $3/month to Form Studio for your client portal. You can switch packages from
+            inside the portal — the change kicks in next month.
+          </p>
+        </div>
+      ) : null}
 
       {userId ? (
         <Card className="mt-10 w-full">

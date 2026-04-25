@@ -156,3 +156,59 @@ export async function assignPackage(raw: unknown): Promise<ActionResult<{ subscr
     return ok({ subscriptionId: data.id });
   });
 }
+
+const switchSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  packageId: z.string().uuid().nullable(),
+});
+
+/**
+ * Client-side action: schedule a package switch for the next billing
+ * cycle. Doesn't touch the current month — sets pending_package_id
+ * which the renewal job consumes when it rolls the subscription.
+ *
+ * Authorize: caller must be the client whose subscription this is.
+ */
+export async function switchPackageNextCycle(raw: unknown): Promise<ActionResult<void>> {
+  return runAction(switchSchema, raw, async ({ subscriptionId, packageId }) => {
+    const { auth } = await import("@clerk/nextjs/server");
+    const { userId } = await auth();
+    if (!userId) return fail("Not signed in.");
+
+    const admin = createSupabaseAdminClient();
+    const { data: client } = await admin
+      .from("clients")
+      .select("id, tenant_id")
+      .eq("clerk_id", userId)
+      .maybeSingle();
+    if (!client) return fail("No client profile.");
+
+    const { data: sub } = await admin
+      .from("subscriptions")
+      .select("id, client_id, tenant_id")
+      .eq("id", subscriptionId)
+      .maybeSingle();
+    if (!sub || sub.client_id !== client.id) return fail("Not your subscription.");
+
+    // If a package is selected, validate it belongs to the same trainer.
+    if (packageId) {
+      const { data: pkg } = await admin
+        .from("packages")
+        .select("id")
+        .eq("id", packageId)
+        .eq("tenant_id", sub.tenant_id)
+        .eq("active", true)
+        .maybeSingle();
+      if (!pkg) return fail("That package isn't available.");
+    }
+
+    const { error } = await admin
+      .from("subscriptions")
+      .update({ pending_package_id: packageId })
+      .eq("id", subscriptionId);
+    if (error) return fail(error.message);
+
+    revalidatePath("/client/dashboard");
+    return ok();
+  });
+}
