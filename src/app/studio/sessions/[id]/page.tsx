@@ -15,7 +15,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
 
-  const [{ data: session }, { data: blocksRaw }, { data: exercises }] = await Promise.all([
+  const [{ data: session }, { data: blocksRaw }, { data: exercises }, { data: groups }] = await Promise.all([
     admin
       .from("sessions")
       .select("id, scheduled_at, duration_minutes, session_type, status, name, notes, zoom_url, clients(display_name)")
@@ -35,9 +35,15 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       .order("order_index"),
     admin
       .from("exercises")
-      .select("id, name, group_tag")
+      .select("id, name, group_id")
       .eq("tenant_id", trainer.id)
       .eq("archived", false)
+      .order("name"),
+    admin
+      .from("exercise_groups")
+      .select("id, name")
+      .eq("tenant_id", trainer.id)
+      .order("sort_index")
       .order("name"),
   ]);
 
@@ -67,11 +73,11 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   })();
 
   return (
-    <div className="rise-in-stagger space-y-8">
+    <div className="rise-in-stagger space-y-6 md:space-y-8">
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
-          <h1 className="mt-2 text-4xl">
+          <h1 className="mt-2 text-3xl md:text-4xl">
             {clientName} · {session.name ?? "Session"}
           </h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
@@ -99,6 +105,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         canEdit={true}
         blocks={blocks as unknown as Parameters<typeof SessionBuilder>[0]["blocks"]}
         library={exercises ?? []}
+        libraryGroups={groups ?? []}
       />
     </div>
   );

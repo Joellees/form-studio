@@ -70,11 +70,12 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
         <Input {...register("name", { required: "Required" })} placeholder="The 12-session block" />
       </Field>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-3 sm:gap-6">
         <Field label="sessions" error={errors.session_count?.message}>
           <Input
             type="number"
             min={1}
+            inputMode="numeric"
             {...register("session_count", { valueAsNumber: true, required: true, min: 1 })}
           />
         </Field>
@@ -82,6 +83,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           <Input
             type="number"
             min={1}
+            inputMode="numeric"
             {...register("duration_days", { valueAsNumber: true, required: true, min: 1 })}
           />
         </Field>
@@ -90,6 +92,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
             type="number"
             step="0.01"
             min={0}
+            inputMode="decimal"
             {...register("price_usd", { valueAsNumber: true, required: true, min: 0 })}
           />
         </Field>
@@ -120,9 +123,13 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           {...register("cancellation_policy")}
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
-          <option value="credited">credited back (within cutoff)</option>
-          <option value="lost">forfeits the session</option>
+          <option value="credited">reschedule</option>
+          <option value="lost">counted session</option>
         </select>
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/65">
+          Either way, clients can only cancel up until midnight the day before. Same-day
+          cancellations are blocked.
+        </p>
       </Field>
 
       <div className="flex items-center gap-3 pt-2">

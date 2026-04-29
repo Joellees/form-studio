@@ -9,7 +9,11 @@ export const repValueSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("range"), min: z.number().int().positive(), max: z.number().int().positive() }),
   z.object({ type: z.literal("unilateral"), per_side: z.number().int().positive(), plus_reserves: z.boolean().optional() }),
   z.object({ type: z.literal("total"), total: z.number().int().positive() }),
+  // "time" = work for X seconds (cadence-style sets, e.g. 30s row).
   z.object({ type: z.literal("time"), seconds: z.number().int().positive() }),
+  // "hold" = isometric hold for X seconds (planks, wall sits). Distinct
+  // from "time" so the prescription reads correctly to the client.
+  z.object({ type: z.literal("hold"), seconds: z.number().int().positive() }),
   z.object({ type: z.literal("distance"), meters: z.number().int().positive(), intent: z.string().optional() }),
   z.object({ type: z.literal("amrap") }),
   z.object({ type: z.literal("emom"), on_seconds: z.number().int().positive(), off_seconds: z.number().int().nonnegative() }),
@@ -40,6 +44,8 @@ export function formatReps(value: RepValue): string {
       return `${value.total} total`;
     case "time":
       return `${value.seconds}s`;
+    case "hold":
+      return `hold ${value.seconds}s`;
     case "distance":
       return `${value.meters}m${value.intent ? ` · ${value.intent}` : ""}`;
     case "amrap":

@@ -96,13 +96,13 @@ export default async function CalendarPage({ searchParams }: Props) {
   });
 
   return (
-    <div className="rise-in-stagger space-y-8">
+    <div className="rise-in-stagger space-y-6 md:space-y-8">
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
             calendar
           </p>
-          <h1 className="mt-2 text-4xl">This week.</h1>
+          <h1 className="mt-2 text-3xl md:text-4xl">This week.</h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(start, trainer.timezone, "MMM d")} —{" "}
             {formatInTz(end, trainer.timezone, "MMM d, yyyy")} · {trainer.timezone}

@@ -46,7 +46,7 @@ export default async function SubscribePage({ params }: Props) {
   return (
     <main className="mx-auto max-w-xl px-6 py-16 rise-in">
       <Wordmark variant="inline" name={firstName} />
-      <h1 className="mt-12 text-4xl">Reserve this block.</h1>
+      <h1 className="mt-12 text-3xl md:text-4xl">Reserve this block.</h1>
       <p className="mt-3 text-[color:var(--color-ink)]/75">
         You&rsquo;re about to start training with {trainer.display_name}. Confirm your block and
         we&rsquo;ll let them know you&rsquo;re ready.
@@ -63,7 +63,7 @@ export default async function SubscribePage({ params }: Props) {
             <Row label="price" value={`$${pkg.price_usd.toLocaleString()} usd`} />
             <Row
               label="cancellation"
-              value={pkg.cancellation_policy === "credited" ? "credited within cutoff" : "forfeits session"}
+              value={pkg.cancellation_policy === "credited" ? "reschedule" : "counted session"}
             />
             <Row label="payment" value={pkg.payment_mode === "online" ? "online" : "cash / transfer"} />
           </dl>
@@ -81,7 +81,7 @@ export default async function SubscribePage({ params }: Props) {
             email: user?.primaryEmailAddress?.emailAddress ?? null,
           });
           if (!result.ok) throw new Error(result.error);
-          redirect(`/client/dashboard?welcome=1`);
+          redirect(`/client?welcome=1`);
         }}
       >
         <Button type="submit" size="lg" className="w-full">

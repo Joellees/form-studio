@@ -21,7 +21,9 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
 
     const { data: sub } = await supabase
       .from("subscriptions")
-      .select("id, tenant_id, package_id, payment_status, packages(session_count, price_usd)")
+      .select(
+        "id, tenant_id, client_id, package_id, payment_status, packages(session_count, price_usd)",
+      )
       .eq("id", subscriptionId)
       .maybeSingle();
 
@@ -52,14 +54,21 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
       status: "paid",
     });
 
-    const { data: client } = await supabase
-      .from("clients")
-      .select("email, display_name")
-      .eq("id", (await supabase.from("subscriptions").select("client_id").eq("id", subscriptionId).single()).data?.client_id ?? "")
-      .maybeSingle();
-    if (client?.email) {
-      const email = subscriptionPaidEmail({ trainerName: trainer.displayName, sessionsCount: sessionCount });
-      await sendEmail({ to: client.email, ...email });
+    // Notify the client by email — `client_id` is on `sub` already so
+    // there's no need for an extra round trip here.
+    if (sub.client_id) {
+      const { data: client } = await supabase
+        .from("clients")
+        .select("email, display_name")
+        .eq("id", sub.client_id)
+        .maybeSingle();
+      if (client?.email) {
+        const email = subscriptionPaidEmail({
+          trainerName: trainer.displayName,
+          sessionsCount: sessionCount,
+        });
+        await sendEmail({ to: client.email, ...email });
+      }
     }
 
     revalidatePath("/studio/dashboard");
@@ -208,7 +217,7 @@ export async function switchPackageNextCycle(raw: unknown): Promise<ActionResult
       .eq("id", subscriptionId);
     if (error) return fail(error.message);
 
-    revalidatePath("/client/dashboard");
+    revalidatePath("/client");
     return ok();
   });
 }

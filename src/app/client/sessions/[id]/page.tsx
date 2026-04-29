@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { SessionBuilder } from "@/app/studio/sessions/[id]/session-builder";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,13 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientSessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const client = await requireClient();
+  let client;
+  try {
+    client = await requireClient();
+  } catch (err) {
+    if (err instanceof Error && err.message === "PICK_STUDIO") redirect("/client/pick");
+    throw err;
+  }
   const admin = createSupabaseAdminClient();
 
   const [{ data: me }, { data: session }, { data: blocksRaw }] = await Promise.all([
@@ -63,7 +69,7 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
-          <h1 className="mt-2 text-4xl">{session.name ?? session.session_type.replace("_", " ")}</h1>
+          <h1 className="mt-2 text-3xl md:text-4xl">{session.name ?? prettySessionType(session.session_type)}</h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(new Date(session.scheduled_at), tz, "EEE, MMM d, yyyy · HH:mm")} · {session.duration_minutes} min
           </p>
@@ -81,7 +87,7 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
               rel="noreferrer"
               className="inline-flex h-10 items-center rounded-full bg-[color:var(--color-ink)] px-5 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
             >
-              join zoom
+              join call
             </a>
           </CardContent>
         </Card>
@@ -98,7 +104,7 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
           library={[]}
         />
       ) : (
-        // In-person or zoom session: the trainer coaches in the room or
+        // In-person or online-call session: the trainer coaches in the room or
         // on the call. Client sees only the list of exercise names as
         // a teaser — the plan, the loads, and the videos stay with the
         // trainer so the client doesn&rsquo;t short-circuit the coaching.
@@ -157,4 +163,15 @@ function ExerciseTeaser({
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Storage keeps the legacy `zoom` enum value, but every render path
+ * maps it to "online call" — the user-facing language going forward.
+ */
+function prettySessionType(t: string): string {
+  if (t === "in_app") return "in-app";
+  if (t === "in_person") return "in person";
+  if (t === "zoom") return "online call";
+  return t.replace("_", " ");
 }

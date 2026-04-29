@@ -113,18 +113,29 @@ create policy trainers_super_admin_all on public.trainers
 create table public.clients (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.trainers(id) on delete cascade,
-  clerk_id text unique,
+  -- A Clerk user can be a client of MULTIPLE trainers — each row is a
+  -- membership in one studio. Uniqueness is scoped to (tenant_id,
+  -- clerk_id) via an index below; clerk_id alone is intentionally not
+  -- unique.
+  clerk_id text,
   display_name text not null,
   email citext,
   phone text,
   timezone text,
   notes text,
+  -- Free-form note the client writes for the trainer to read. Lives on
+  -- the profile section of the client portal; the trainer sees it as a
+  -- callout on the client detail page.
+  note_to_trainer text,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index clients_tenant_idx on public.clients (tenant_id);
+-- One membership per (trainer, clerk user). Two pending rows with a
+-- null clerk_id (placeholders for un-claimed invites) are allowed.
+create unique index clients_tenant_clerk_unique on public.clients (tenant_id, clerk_id) where clerk_id is not null;
 
 create trigger clients_touch before update on public.clients
   for each row execute function public.touch_updated_at();

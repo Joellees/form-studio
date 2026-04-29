@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import { addExerciseToTemplate, archiveTemplate, removeTemplateBlock, updateSetGroup } from "../actions";
+import { saveExercise } from "@/app/studio/library/actions";
+import { LibraryDock } from "@/app/studio/_components/library-dock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,10 +48,11 @@ type BlockRow = {
 type Props = {
   template: { id: string; name: string; day_label: string | null; description: string | null; archived: boolean };
   blocks: BlockRow[];
-  exercises: { id: string; name: string; group_tag: string | null }[];
+  exercises: { id: string; name: string; group_id: string | null }[];
+  groups: { id: string; name: string }[];
 };
 
-export function TemplateBuilder({ template, blocks, exercises }: Props) {
+export function TemplateBuilder({ template, blocks, exercises, groups }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -58,6 +61,33 @@ export function TemplateBuilder({ template, blocks, exercises }: Props) {
       await addExerciseToTemplate({ templateId: template.id, exerciseId });
       router.refresh();
     });
+  }
+
+  /**
+   * "+ new exercise" path inside the sidebar: persist a minimal new
+   * library entry (name + optional group, defaults to a single set
+   * of 10 reps × 0kg × 60s rest), then attach it to the workout. The
+   * row also lands in the Exercises tab automatically — same row.
+   */
+  async function createAndAddExercise(input: { name: string; groupId: string | null }): Promise<string | null> {
+    const result = await saveExercise({
+      name: input.name,
+      group_id: input.groupId,
+      equipment: null,
+      is_timed: false,
+      default_rep_type: "fixed",
+      default_rep_value: {
+        type: "sets",
+        sets: [{ reps: 10, mode: "reps", kg: 0, rest: 60 }],
+      },
+      default_rest_seconds: 60,
+      notes: null,
+      video_url: null,
+    });
+    if (!result.ok) return null;
+    await addExerciseToTemplate({ templateId: template.id, exerciseId: result.data.id });
+    router.refresh();
+    return result.data.id;
   }
 
   function removeBlock(blockId: string) {
@@ -82,7 +112,7 @@ export function TemplateBuilder({ template, blocks, exercises }: Props) {
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">template</p>
-          <h1 className="mt-2 text-4xl">{template.name}</h1>
+          <h1 className="mt-2 text-3xl md:text-4xl">{template.name}</h1>
           {template.description ? (
             <p className="mt-2 max-w-2xl text-[color:var(--color-ink)]/75">{template.description}</p>
           ) : null}
@@ -95,9 +125,10 @@ export function TemplateBuilder({ template, blocks, exercises }: Props) {
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <section className="space-y-6">
           {blocks.length === 0 ? (
-            <EmptyState bordered
+            <EmptyState
+              bordered
               title="Add the first exercise"
-              body="Pick from your library on the right. You&rsquo;ll configure sets and reps per exercise."
+              body="Tap the library button to pick one. You&rsquo;ll configure sets and reps per exercise."
             />
           ) : (
             blocks.map((block, i) => (
@@ -112,32 +143,13 @@ export function TemplateBuilder({ template, blocks, exercises }: Props) {
           )}
         </section>
 
-        <aside className="sticky top-24 h-fit">
-          <Card>
-            <CardHeader>
-              <CardTitle>library</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {exercises.length === 0 ? (
-                <p className="text-sm text-[color:var(--color-ink)]/70">Add exercises to your library first.</p>
-              ) : (
-                <ul className="max-h-[60vh] space-y-1 overflow-y-auto">
-                  {exercises.map((ex) => (
-                    <li key={ex.id} className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm">{ex.name}</p>
-                        {ex.group_tag ? <p className="text-xs text-[color:var(--color-stone)]">{ex.group_tag}</p> : null}
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={() => addExercise(ex.id)} disabled={pending}>
-                        add
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+        <LibraryDock
+          exercises={exercises}
+          groups={groups}
+          onAdd={addExercise}
+          onCreate={createAndAddExercise}
+          pending={pending}
+        />
       </div>
     </div>
   );
@@ -229,6 +241,7 @@ function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
                 fixed: { type: "fixed", reps: 10 },
                 range: { type: "range", min: 8, max: 12 },
                 time: { type: "time", seconds: 45 },
+                hold: { type: "hold", seconds: 10 },
                 unilateral: { type: "unilateral", per_side: 8 },
                 amrap: { type: "amrap" },
                 single: { type: "single" },
@@ -240,6 +253,7 @@ function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
             <option value="fixed">fixed</option>
             <option value="range">range</option>
             <option value="time">time</option>
+            <option value="hold">hold</option>
             <option value="unilateral">per side</option>
             <option value="amrap">amrap</option>
             <option value="single">single</option>
@@ -296,6 +310,19 @@ function SetGroupEditor({ setGroup }: { setGroup: SetGroupRow }) {
               min={1}
               defaultValue={repVal.seconds}
               onBlur={(e) => save({ rep_value: { type: "time", seconds: Number(e.target.value) || 30 } })}
+              className="w-24"
+            />
+          </div>
+        ) : null}
+
+        {setGroup.rep_type === "hold" && repVal?.type === "hold" ? (
+          <div className="flex flex-col gap-1">
+            <Label>hold (s)</Label>
+            <Input
+              type="number"
+              min={1}
+              defaultValue={repVal.seconds}
+              onBlur={(e) => save({ rep_value: { type: "hold", seconds: Number(e.target.value) || 10 } })}
               className="w-24"
             />
           </div>

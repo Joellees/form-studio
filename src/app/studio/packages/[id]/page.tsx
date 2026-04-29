@@ -21,7 +21,7 @@ export default async function EditPackagePage({ params }: { params: Promise<{ id
   return (
     <div className="mx-auto max-w-xl rise-in">
       <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">package</p>
-      <h1 className="mt-2 text-4xl">{pkg.name}</h1>
+      <h1 className="mt-2 text-3xl md:text-4xl">{pkg.name}</h1>
       <PackageForm mode="edit" initial={pkg} />
     </div>
   );

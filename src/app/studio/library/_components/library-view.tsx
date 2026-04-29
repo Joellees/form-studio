@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { GroupsSection } from "./groups-section";
+import { ImportUniversalButton } from "./import-universal-button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -14,7 +16,10 @@ type Group = { id: string; name: string; sort_index: number };
 type Exercise = {
   id: string;
   name: string;
+  /** Legacy single-group pointer — still written by the edit form. */
   group_id: string | null;
+  /** Source of truth for group memberships. Empty = unassigned. */
+  group_ids: string[];
   equipment: string | null;
   is_timed: boolean;
   default_rep_type: string | null;
@@ -77,7 +82,11 @@ export function LibraryView({
       ) : tab === "workouts" ? (
         <WorkoutsTab workouts={workouts} />
       ) : (
-        <GroupsSection groups={groups} exerciseCountByGroup={countByGroup(exercises)} />
+        <GroupsSection
+          groups={groups}
+          exercises={exercises.map((ex) => ({ id: ex.id, name: ex.name, group_ids: ex.group_ids }))}
+          exerciseCountByGroup={countByGroup(exercises)}
+        />
       )}
     </div>
   );
@@ -101,29 +110,36 @@ function WorkoutsTab({ workouts }: { workouts: Workout[] }) {
     );
   }
   return (
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-      {workouts.map((w) => (
-        <Link
-          key={w.id}
-          href={`/studio/templates/${w.id}`}
-          className="group rounded-2xl bg-[color:var(--color-parchment)]/60 p-5 transition-colors hover:bg-[color:var(--color-parchment)]"
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
-            {w.day_label || "workout"}
-          </p>
-          <h3 className="mt-1 text-lg font-semibold tracking-tight group-hover:text-[color:var(--color-moss-deep)]">
-            {w.name}
-          </h3>
-          {w.description ? (
-            <p className="mt-2 line-clamp-2 text-sm text-[color:var(--color-ink)]/70">
-              {w.description}
+    <div className="space-y-4">
+      <div>
+        <Button asChild size="md">
+          <Link href="/studio/templates/new">new workout</Link>
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {workouts.map((w) => (
+          <Link
+            key={w.id}
+            href={`/studio/templates/${w.id}`}
+            className="group rounded-2xl bg-[color:var(--color-parchment)]/60 p-5 transition-colors hover:bg-[color:var(--color-parchment)]"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
+              {w.day_label || "workout"}
             </p>
-          ) : null}
-          <p className="mt-4 text-xs tabular-nums text-[color:var(--color-stone)]">
-            added {new Date(w.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-          </p>
-        </Link>
-      ))}
+            <h3 className="mt-1 text-lg font-semibold tracking-tight group-hover:text-[color:var(--color-moss-deep)]">
+              {w.name}
+            </h3>
+            {w.description ? (
+              <p className="mt-2 line-clamp-2 text-sm text-[color:var(--color-ink)]/70">
+                {w.description}
+              </p>
+            ) : null}
+            <p className="mt-4 text-xs tabular-nums text-[color:var(--color-stone)]">
+              added {new Date(w.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </p>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -169,123 +185,161 @@ function ExercisesTab({
   setQuery: (v: string) => void;
 }) {
   const filtered = exercises.filter((e) => {
-    if (groupFilter && e.group_id !== groupFilter) return false;
+    if (groupFilter === "__ungrouped") {
+      if (e.group_ids.length > 0) return false;
+    } else if (groupFilter && !e.group_ids.includes(groupFilter)) {
+      return false;
+    }
     if (query && !e.name.toLowerCase().includes(query.toLowerCase())) return false;
     return true;
   });
+
+  // Counts per group, plus an "ungrouped" bucket and an "all" total.
+  const counts = useMemo(() => {
+    const out: Record<string, number> = { __all: exercises.length, __ungrouped: 0 };
+    for (const ex of exercises) {
+      if (ex.group_ids.length === 0) {
+        out["__ungrouped"] = (out["__ungrouped"] ?? 0) + 1;
+        continue;
+      }
+      for (const gid of ex.group_ids) {
+        out[gid] = (out[gid] ?? 0) + 1;
+      }
+    }
+    return out;
+  }, [exercises]);
+
+  const groupsById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
 
   if (exercises.length === 0) {
     return (
       <EmptyState
         title="Nothing here yet"
-        body="Add your first exercise — just the name, maybe a video, and assign it to a group."
+        body="Start with the universal library — common lifts, olympic, conditioning, core. Or add your own from scratch."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportUniversalButton />
+            <Link
+              href="/studio/library/new"
+              className="inline-flex h-10 items-center rounded-full border border-[color:var(--color-ink)]/15 px-5 text-sm font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
+            >
+              add my own
+            </Link>
+          </div>
+        }
       />
     );
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Single header row: add + search side by side, search takes
+          the rest of the width. Modern, minimal, mobile-first. */}
+      <div className="flex items-center gap-2">
+        <Button asChild size="md" className="shrink-0">
+          <Link href="/studio/library/new">add exercise</Link>
+        </Button>
         <Input
           value={query}
-          placeholder="search"
-          className="max-w-xs"
+          placeholder="search exercises"
           onChange={(e) => setQuery(e.target.value)}
+          className="flex-1"
         />
-        <select
-          value={groupFilter}
-          onChange={(e) => setGroupFilter(e.target.value)}
-          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
-        >
-          <option value="">all groups</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-          <option value="__ungrouped">(no group)</option>
-        </select>
+      </div>
+
+      {/* Pill-chip group filter — one tap to switch groups. Replaces
+          the old accordion + dropdown. Scrolls horizontally on
+          phones; wraps cleanly on tablet+. */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <FilterChip
+          active={groupFilter === ""}
+          onClick={() => setGroupFilter("")}
+          label="all"
+          count={counts["__all"] ?? 0}
+        />
+        {groups.map((g) => {
+          const c = counts[g.id] ?? 0;
+          if (c === 0) return null;
+          return (
+            <FilterChip
+              key={g.id}
+              active={groupFilter === g.id}
+              onClick={() => setGroupFilter(g.id)}
+              label={g.name}
+              count={c}
+            />
+          );
+        })}
+        {(counts["__ungrouped"] ?? 0) > 0 ? (
+          <FilterChip
+            active={groupFilter === "__ungrouped"}
+            onClick={() => setGroupFilter("__ungrouped")}
+            label="unassigned"
+            count={counts["__ungrouped"] ?? 0}
+          />
+        ) : null}
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState title="No matches" body="Try clearing the filter or search." />
+        <EmptyState title="No matches" body="Try a different search or pick another group." />
       ) : (
-        <GroupedExerciseList filtered={filtered} groups={groups} groupFilter={groupFilter} />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((ex) => (
+            <ExerciseCard
+              key={ex.id}
+              exercise={ex}
+              groups={ex.group_ids
+                .map((gid) => groupsById.get(gid))
+                .filter((g): g is Group => Boolean(g))}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-function GroupedExerciseList({
-  filtered,
-  groups,
-  groupFilter,
+function FilterChip({
+  active,
+  label,
+  count,
+  onClick,
 }: {
-  filtered: Exercise[];
-  groups: Group[];
-  groupFilter: string;
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
 }) {
-  // When a specific group is selected, render a flat grid (no section headers).
-  if (groupFilter) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((ex) => (
-          <ExerciseCard key={ex.id} exercise={ex} group={groups.find((g) => g.id === ex.group_id)} />
-        ))}
-      </div>
-    );
-  }
-
-  // Otherwise group by group, rendered in section blocks.
-  const byGroup = new Map<string, Exercise[]>();
-  for (const ex of filtered) {
-    const key = ex.group_id ?? "__ungrouped";
-    if (!byGroup.has(key)) byGroup.set(key, []);
-    byGroup.get(key)!.push(ex);
-  }
-
-  const ordered: Array<{ key: string; name: string; items: Exercise[] }> = [];
-  for (const g of groups) {
-    const items = byGroup.get(g.id);
-    if (items?.length) ordered.push({ key: g.id, name: g.name, items });
-  }
-  const ungrouped = byGroup.get("__ungrouped");
-  if (ungrouped?.length) ordered.push({ key: "__ungrouped", name: "Unassigned", items: ungrouped });
-
   return (
-    <div className="space-y-8">
-      {ordered.map((section) => (
-        <section key={section.key}>
-          <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-            {section.name}{" "}
-            <span className="ml-1 tabular-nums text-[color:var(--color-stone)]/70">
-              {section.items.length}
-            </span>
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {section.items.map((ex) => (
-              <ExerciseCard
-                key={ex.id}
-                exercise={ex}
-                group={section.key === "__ungrouped" ? undefined : { id: section.key, name: section.name, sort_index: 0 }}
-                hideGroupBadge
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors",
+        active
+          ? "bg-[color:var(--color-ink)] text-[color:var(--color-canvas)]"
+          : "bg-[color:var(--color-parchment)]/70 text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]",
+      )}
+    >
+      <span>{label}</span>
+      <span
+        className={cn(
+          "tabular-nums text-[11px]",
+          active ? "text-[color:var(--color-canvas)]/70" : "text-[color:var(--color-stone)]",
+        )}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
 function ExerciseCard({
   exercise,
-  group,
-  hideGroupBadge,
+  groups,
 }: {
   exercise: Exercise;
-  group?: Group;
-  hideGroupBadge?: boolean;
+  groups: Group[];
 }) {
   return (
     <Link href={`/studio/library/${exercise.id}`} className="focus-visible:outline-none">
@@ -302,8 +356,12 @@ function ExerciseCard({
         </div>
         <CardContent className="space-y-3">
           <h3 className="font-semibold tracking-tight">{exercise.name}</h3>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {!hideGroupBadge && group ? <Badge tone="moss">{group.name}</Badge> : null}
+          <div className="flex flex-wrap gap-1.5 text-xs">
+            {groups.map((g) => (
+              <Badge key={g.id} tone="moss">
+                {g.name}
+              </Badge>
+            ))}
             {exercise.is_timed ? <Badge tone="stone">timed</Badge> : null}
             {exercise.equipment ? <Badge tone="stone">{exercise.equipment}</Badge> : null}
           </div>
@@ -316,8 +374,13 @@ function ExerciseCard({
 function countByGroup(exercises: Exercise[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const ex of exercises) {
-    const k = ex.group_id ?? "__ungrouped";
-    out[k] = (out[k] ?? 0) + 1;
+    if (ex.group_ids.length === 0) {
+      out["__ungrouped"] = (out["__ungrouped"] ?? 0) + 1;
+      continue;
+    }
+    for (const gid of ex.group_ids) {
+      out[gid] = (out[gid] ?? 0) + 1;
+    }
   }
   return out;
 }

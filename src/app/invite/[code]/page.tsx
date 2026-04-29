@@ -48,7 +48,7 @@ export default async function InvitePage({ params }: Props) {
 
   if (invite.claimed_at) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col items-start justify-center px-6 py-16 rise-in">
+      <main className="rise-in mx-auto flex min-h-screen max-w-md flex-col items-start justify-center px-5 py-10 md:px-6 md:py-16">
         <Wordmark variant="inline" name={firstName} />
         <h1 className="mt-10 text-3xl font-semibold tracking-tight">This invite has been used.</h1>
         <p className="mt-3 text-[color:var(--color-ink)]/75">

@@ -55,7 +55,7 @@ export function ClientDetailsEditor({ client }: { client: Details }) {
         <Detail label="goals" value={client.goals} />
         <Detail label="injuries" value={client.injuries} />
         <Detail label="notes" value={client.notes} />
-        <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+        <Button variant="secondary" onClick={() => setEditing(true)}>
           edit details
         </Button>
       </div>
@@ -64,7 +64,7 @@ export function ClientDetailsEditor({ client }: { client: Details }) {
 
   return (
     <form onSubmit={save} className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <FieldInput label="name">
           <Input
             value={form.display_name}
@@ -74,12 +74,17 @@ export function ClientDetailsEditor({ client }: { client: Details }) {
         <FieldInput label="email">
           <Input
             type="email"
+            inputMode="email"
+            autoComplete="email"
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           />
         </FieldInput>
         <FieldInput label="phone">
           <Input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             value={form.phone}
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
           />

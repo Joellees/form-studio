@@ -15,7 +15,8 @@
     "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts",
     "db:push": "supabase db push",
     "db:reset": "supabase db reset",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "preflight": "npm run typecheck && npm run build"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.9.0",

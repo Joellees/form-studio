@@ -26,12 +26,13 @@ type Initial = {
   archived?: boolean;
 };
 
-type RepMode = "reps" | "per_side" | "amrap";
+type RepMode = "reps" | "per_side" | "amrap" | "hold";
 type SetRow = { reps: number; mode: RepMode; kg: number; rest: number };
 
 const REP_MODES: { value: RepMode; label: string }[] = [
   { value: "reps", label: "reps" },
   { value: "per_side", label: "/ side" },
+  { value: "hold", label: "hold (s)" },
   { value: "amrap", label: "to failure" },
 ];
 
@@ -134,6 +135,10 @@ export function ExerciseForm({
     setGroupId(g.id);
     setCreatingGroup(false);
     setNewGroupName("");
+    // Invalidate the client Router Cache so /studio/library re-fetches
+    // its server props on the next soft navigation — otherwise the
+    // Groups tab would still show the pre-creation list.
+    router.refresh();
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -283,6 +288,7 @@ export function ExerciseForm({
         <ul className="space-y-2.5">
           {sets.map((s, i) => {
             const isAmrap = !isTimed && s.mode === "amrap";
+            const isHold = !isTimed && s.mode === "hold";
             return (
               <li key={i} className="flex flex-wrap items-center gap-2.5">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-canvas)] text-[13px] font-semibold tabular-nums text-[color:var(--color-ink)]">
@@ -316,6 +322,11 @@ export function ExerciseForm({
                     ))}
                   </Select>
                 )}
+                {isHold ? (
+                  <span className="px-1 text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+                    sec
+                  </span>
+                ) : null}
 
                 <InlinePill
                   value={s.kg}
@@ -323,21 +334,28 @@ export function ExerciseForm({
                   step="0.5"
                   onChange={(v) => updateSet(i, { kg: v })}
                 />
-                <InlinePill
-                  value={s.rest}
-                  unit="sec"
-                  onChange={(v) => updateSet(i, { rest: v })}
-                />
 
-                <button
-                  type="button"
-                  onClick={() => removeSet(i)}
-                  disabled={sets.length <= 1}
-                  className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] disabled:opacity-30"
-                  aria-label={`remove set ${i + 1}`}
-                >
-                  ×
-                </button>
+                {/* Push rest + remove to the far right so rest reads
+                    as a separate beat — "what we did" on the left,
+                    "how long until the next set" on the right. On
+                    narrow screens the wrapper drops cleanly below. */}
+                <div className="ml-auto flex items-center gap-2">
+                  <InlinePill
+                    value={s.rest}
+                    prefix="rest"
+                    unit="s"
+                    onChange={(v) => updateSet(i, { rest: v })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeSet(i)}
+                    disabled={sets.length <= 1}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] disabled:opacity-30"
+                    aria-label={`remove set ${i + 1}`}
+                  >
+                    ×
+                  </button>
+                </div>
               </li>
             );
           })}
@@ -409,23 +427,37 @@ function Field({
 function InlinePill({
   value,
   unit,
+  prefix,
   step = "1",
   onChange,
 }: {
   value: number;
   unit: string;
+  /**
+   * Optional leading label, rendered inside the pill before the input.
+   * Used to disambiguate rest from the other numbers in the row —
+   * "rest 60s" reads instantly, plain "60 sec" doesn&rsquo;t.
+   */
+  prefix?: string;
   step?: string;
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3">
+    <label className="inline-flex h-9 w-[112px] items-center justify-between gap-1.5 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3">
+      {/* Fixed width keeps the kg + rest pills aligned even though one
+          carries a leading "rest" label and the other doesn't. */}
+      {prefix ? (
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+          {prefix}
+        </span>
+      ) : null}
       <input
         type="number"
         min={0}
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
-        className="w-10 bg-transparent text-sm tabular-nums focus:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-sm tabular-nums focus:outline-none"
       />
       <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
         {unit}

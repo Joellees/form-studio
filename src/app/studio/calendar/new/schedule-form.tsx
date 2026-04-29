@@ -108,15 +108,15 @@ export function ScheduleForm({
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
           <option value="in_person">in person</option>
-          <option value="zoom">zoom</option>
+          <option value="zoom">online call</option>
           <option value="in_app">in app</option>
         </select>
       </div>
 
       {sessionType === "zoom" ? (
         <div className="flex flex-col gap-2">
-          <Label>zoom url</Label>
-          <Input {...register("zoomUrl")} placeholder="https://zoom.us/j/…" />
+          <Label>call link</Label>
+          <Input {...register("zoomUrl")} placeholder="zoom, meet, whereby — paste the link" />
         </div>
       ) : null}
 

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
 import { BETA_COOKIE, parseBetaCodes } from "@/lib/beta";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { CLIENT_TENANT_COOKIE } from "@/lib/trainer";
 
 const claimSchema = z.object({
   code: z.string().length(6),
@@ -35,19 +36,19 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
     if (!invite) return fail("This invite link isn&rsquo;t valid.");
     if (invite.claimed_at) return fail("This invite has already been used.");
 
-    // If the user is already a client of another trainer, block.
+    // A Clerk user can be a client of any number of trainers; we only
+    // dedupe within the same studio. Look up an existing membership
+    // for THIS trainer specifically — not across all of them.
     const { data: existing } = await admin
       .from("clients")
-      .select("id, tenant_id")
+      .select("id")
       .eq("clerk_id", userId)
+      .eq("tenant_id", invite.tenant_id)
       .maybeSingle();
-    if (existing && existing.tenant_id !== invite.tenant_id) {
-      return fail("This account is already linked to a different trainer.");
-    }
 
     let clientId: string;
     if (existing) {
-      // Same trainer — just update phone on their existing row.
+      // Same studio — just update phone on the existing row.
       clientId = existing.id;
       await admin.from("clients").update({ phone }).eq("id", clientId);
     } else {
@@ -68,7 +69,18 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
         })
         .select("id")
         .single();
-      if (error) return fail(error.message);
+      if (error) {
+        // The legacy unique(clerk_id) constraint is gone post-migration
+        // 0003. If we hit it again, it means the migration hasn't been
+        // applied — surface that explicitly so the trainer or admin
+        // knows what to do instead of the raw Postgres message.
+        if (error.message?.includes("clients_clerk_id_key")) {
+          return fail(
+            "Multi-trainer support isn&rsquo;t enabled yet on this database. Ask the admin to run migration 0003.",
+          );
+        }
+        return fail(error.message);
+      }
       clientId = inserted.id;
 
       await admin.from("client_profile_fields").insert({
@@ -117,6 +129,19 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       .update({ claimed_by_clerk_id: userId, claimed_at: new Date().toISOString() })
       .eq("code", invite.code);
 
+    const jar = await cookies();
+
+    // Pin the active studio to the one just claimed so the post-claim
+    // redirect to /client lands on the right portal — even if the user
+    // is also a client of other trainers.
+    jar.set(CLIENT_TENANT_COOKIE, invite.tenant_id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 60,
+    });
+
     // Grant beta-gate access. The invite IS the beta pass — dropping a
     // valid code cookie lets the user navigate the rest of the app
     // after claiming without needing a separately-shared beta code.
@@ -124,7 +149,6 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
     if (validCodes.length > 0) {
       const anyCode = validCodes[0]?.code;
       if (anyCode) {
-        const jar = await cookies();
         jar.set(BETA_COOKIE, anyCode, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",

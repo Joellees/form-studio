@@ -27,6 +27,24 @@
   --shadow-ring: 0 0 0 1px rgba(31, 30, 27, 0.08);
 }
 
+/* ─────────────────────────────────────────────
+ * Z-INDEX SCALE
+ *
+ * The whole app uses these layers and nothing else. New components
+ * pick a layer based on what they are — never on what number happens
+ * to be free.
+ *
+ *   z-10  inline floating chips, sticky toolbars inside content
+ *   z-30  dropdown menus + their click-outside backdrops
+ *   z-40  sticky page header, persistent floating action buttons
+ *   z-50  modal dialogs, full-screen drawers, bottom sheets
+ *   z-60  toast notifications (reserved — none yet)
+ *
+ * Modals always cover the header. Dropdowns sit below the header so
+ * the header stays clickable; the backdrop never traps clicks on the
+ * top nav.
+ * ───────────────────────────────────────────── */
+
 @layer base {
   :root {
     color-scheme: light;

@@ -10,6 +10,8 @@ import {
   updateSessionNotes,
   updateSessionSetGroup,
 } from "./actions";
+import { saveExercise } from "@/app/studio/library/actions";
+import { LibraryDock } from "@/app/studio/_components/library-dock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +46,8 @@ type Block = {
   session_block_exercises: BlockExercise[];
 };
 
-type LibraryExercise = { id: string; name: string; group_tag: string | null };
+type LibraryExercise = { id: string; name: string; group_id: string | null };
+type LibraryGroup = { id: string; name: string };
 
 type SessionBuilderProps = {
   sessionId: string;
@@ -52,16 +55,45 @@ type SessionBuilderProps = {
   canEdit: boolean; // trainer = true, client viewing = false
   blocks: Block[];
   library: LibraryExercise[];
+  libraryGroups?: LibraryGroup[];
 };
 
-export function SessionBuilder({ sessionId, sessionNotes, canEdit, blocks, library }: SessionBuilderProps) {
+export function SessionBuilder({
+  sessionId,
+  sessionNotes,
+  canEdit,
+  blocks,
+  library,
+  libraryGroups = [],
+}: SessionBuilderProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
 
-  const filtered = library.filter((e) =>
-    query ? e.name.toLowerCase().includes(query.toLowerCase()) : true,
-  );
+  /**
+   * Create a new library exercise + immediately attach it to this
+   * session in one click. The new row also appears in the Exercises
+   * tab — same source row, multiple references.
+   */
+  async function createAndAddExercise(input: { name: string; groupId: string | null }): Promise<string | null> {
+    const result = await saveExercise({
+      name: input.name,
+      group_id: input.groupId,
+      equipment: null,
+      is_timed: false,
+      default_rep_type: "fixed",
+      default_rep_value: {
+        type: "sets",
+        sets: [{ reps: 10, mode: "reps", kg: 0, rest: 60 }],
+      },
+      default_rest_seconds: 60,
+      notes: null,
+      video_url: null,
+    });
+    if (!result.ok) return null;
+    await addExerciseToSession({ sessionId, exerciseId: result.data.id });
+    router.refresh();
+    return result.data.id;
+  }
 
   function addExercise(exerciseId: string) {
     startTransition(async () => {
@@ -142,44 +174,16 @@ export function SessionBuilder({ sessionId, sessionNotes, canEdit, blocks, libra
         )}
       </div>
 
-      {/* Library picker — trainer only */}
+      {/* Library picker — trainer only. Sticky aside on desktop,
+          floating action button + bottom sheet on mobile. */}
       {canEdit ? (
-        <aside className="sticky top-24 h-fit">
-          <Card>
-            <CardHeader>
-              <CardTitle>library</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Input
-                placeholder="search exercises"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="mb-3"
-              />
-              {filtered.length === 0 ? (
-                <p className="text-sm text-[color:var(--color-ink)]/70">
-                  {library.length === 0
-                    ? "Add exercises to your library first."
-                    : "No matches — try a different search."}
-                </p>
-              ) : (
-                <ul className="max-h-[55vh] space-y-1 overflow-y-auto">
-                  {filtered.map((ex) => (
-                    <li key={ex.id} className="flex items-center justify-between gap-2 rounded-xl px-2 py-1 hover:bg-[color:var(--color-parchment)]/60">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm">{ex.name}</p>
-                        {ex.group_tag ? <p className="text-xs text-[color:var(--color-stone)]">{ex.group_tag}</p> : null}
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={() => addExercise(ex.id)} disabled={pending}>
-                        add
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+        <LibraryDock
+          exercises={library}
+          groups={libraryGroups}
+          onAdd={addExercise}
+          onCreate={createAndAddExercise}
+          pending={pending}
+        />
       ) : null}
     </div>
   );
@@ -276,6 +280,7 @@ function SetGroupRow({ setGroup, canEdit }: { setGroup: SetGroup; canEdit: boole
                   fixed: { type: "fixed", reps: 10 },
                   range: { type: "range", min: 8, max: 12 },
                   time: { type: "time", seconds: 45 },
+                  hold: { type: "hold", seconds: 10 },
                   unilateral: { type: "unilateral", per_side: 8 },
                   amrap: { type: "amrap" },
                   single: { type: "single" },
@@ -287,6 +292,7 @@ function SetGroupRow({ setGroup, canEdit }: { setGroup: SetGroup; canEdit: boole
               <option value="fixed">fixed</option>
               <option value="range">range</option>
               <option value="time">time</option>
+              <option value="hold">hold</option>
               <option value="unilateral">per side</option>
               <option value="amrap">amrap</option>
               <option value="single">single</option>
@@ -336,6 +342,17 @@ function SetGroupRow({ setGroup, canEdit }: { setGroup: SetGroup; canEdit: boole
                 min={1}
                 defaultValue={repVal.seconds}
                 onBlur={(e) => saveGroup({ rep_value: { type: "time", seconds: Number(e.target.value) || 30 } })}
+                className="h-9 w-24"
+              />
+            </Field>
+          ) : null}
+          {setGroup.rep_type === "hold" && repVal?.type === "hold" ? (
+            <Field label="hold (s)">
+              <Input
+                type="number"
+                min={1}
+                defaultValue={repVal.seconds}
+                onBlur={(e) => saveGroup({ rep_value: { type: "hold", seconds: Number(e.target.value) || 10 } })}
                 className="h-9 w-24"
               />
             </Field>

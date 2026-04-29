@@ -71,7 +71,7 @@ export async function scheduleSession(raw: unknown): Promise<ActionResult<{ id: 
     }
 
     revalidatePath("/studio/calendar");
-    revalidatePath("/client/calendar");
+    revalidatePath("/client");
     return ok({ id: session.id });
   });
 }
@@ -174,17 +174,22 @@ export async function cancelSession(raw: unknown): Promise<ActionResult<void>> {
     let creditRestored = true;
 
     if (actor === "client") {
+      // Hard block: no same-day or past-cutoff cancellations from the
+      // client side, regardless of the package policy. The trainer
+      // can still cancel + apply credits manually via the trainer UI.
       if (!canClientCancel(new Date(session.scheduled_at), trainerTz)) {
-        // Past cutoff — respect the package cancellation policy.
-        const { data: sub } = await supabase
-          .from("subscriptions")
-          .select("packages(cancellation_policy)")
-          .eq("id", session.subscription_id ?? "")
-          .maybeSingle();
-        // @ts-expect-error — nested typings
-        const policy: string = sub?.packages?.cancellation_policy ?? "lost";
-        creditRestored = policy === "credited";
+        return fail("Too late to cancel from your side — message your trainer.");
       }
+      // Within cutoff: the package policy decides whether the
+      // session is restored to remaining (reschedule) or counted.
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("packages(cancellation_policy)")
+        .eq("id", session.subscription_id ?? "")
+        .maybeSingle();
+      // @ts-expect-error — nested typings
+      const policy: string = sub?.packages?.cancellation_policy ?? "credited";
+      creditRestored = policy === "credited";
     }
 
     const { error } = await supabase
@@ -216,7 +221,7 @@ export async function cancelSession(raw: unknown): Promise<ActionResult<void>> {
     });
 
     revalidatePath("/studio/calendar");
-    revalidatePath("/client/calendar");
+    revalidatePath("/client");
     return ok();
   });
 }
@@ -259,7 +264,7 @@ export async function requestSession(raw: unknown): Promise<ActionResult<{ id: s
       .select("id")
       .single();
     if (error) return fail(error.message);
-    revalidatePath("/client/calendar");
+    revalidatePath("/client");
     return ok({ id: data.id });
   });
 }
@@ -299,7 +304,7 @@ export async function approveSessionRequest(sessionId: string): Promise<ActionRe
         .eq("id", activeSub.id);
     }
     revalidatePath("/studio/calendar");
-    revalidatePath("/client/calendar");
+    revalidatePath("/client");
     return ok();
   });
 }
@@ -323,7 +328,7 @@ export async function updateSessionType(raw: unknown): Promise<ActionResult<void
       .eq("tenant_id", trainer.id);
     if (error) return fail(error.message);
     revalidatePath("/studio/calendar");
-    revalidatePath("/client/calendar");
+    revalidatePath("/client");
     revalidatePath(`/studio/sessions/${sessionId}`);
     return ok();
   });

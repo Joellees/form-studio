@@ -64,13 +64,13 @@ export function RequestSessionDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-4 md:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "w-full max-w-md rounded-3xl bg-[color:var(--color-canvas)] p-6 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)]",
+          "w-full max-w-md rounded-t-3xl bg-[color:var(--color-canvas)] p-5 pb-7 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)] md:rounded-3xl md:p-6 md:pb-6",
           pending && "opacity-80",
         )}
       >
@@ -104,11 +104,17 @@ export function RequestSessionDialog({
           {error ? <p className="text-xs text-[color:var(--color-sienna)]">{error}</p> : null}
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={pending}
+            className="w-full sm:w-auto"
+          >
             cancel
           </Button>
-          <Button type="button" onClick={save} disabled={pending}>
+          <Button type="button" onClick={save} disabled={pending} className="w-full sm:w-auto">
             {pending ? "sending…" : "send request"}
           </Button>
         </div>

@@ -26,7 +26,7 @@ export function ClaimInviteButton({ code, defaultPhone }: { code: string; defaul
         setError(r.error);
         return;
       }
-      router.push("/client/dashboard");
+      router.push("/client?welcome=1");
     });
   }
 

@@ -55,8 +55,11 @@ function isBetaExempt(pathname: string): boolean {
 /**
  * Middleware layers, in order:
  *   1. Parse the hostname → tenant kind.
- *   2. Beta gate — redirects to /beta if no valid code cookie (only when
- *      BETA_CODES is configured; otherwise open).
+ *   2. Beta gate — fail-closed: every signed-out request to a
+ *      non-exempt path must carry a valid beta cookie. If the env
+ *      `BETA_CODES` list is empty (misconfig, deploy gap, anything),
+ *      we still redirect to `/beta` so nobody slips through. Signed-in
+ *      users bypass — they were vouched at sign-up time.
  *   3. Rewrite trainer subdomains into /s/[slug].
  *   4. Clerk auth on non-public routes.
  */
@@ -69,15 +72,18 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   requestHeaders.set(TENANT_KIND_HEADER, kind);
   if (slug) requestHeaders.set(TENANT_SLUG_HEADER, slug);
 
-  // Beta gate — only enforced when BETA_CODES is set, only on exempt
-  // paths, and only for users without a live Clerk session. Signed-in
-  // users don&rsquo;t need a beta code; they&rsquo;ve already been vouched for.
-  const betaCodes = parseBetaCodes(process.env.BETA_CODES);
-  if (betaCodes.length > 0 && !isBetaExempt(url.pathname)) {
+  // Beta gate — always on for signed-out visitors hitting a non-exempt
+  // path. Closed-by-default: empty / missing BETA_CODES means nobody
+  // gets in (the /beta page shows a helpful "no codes configured"
+  // message in that case). Until we ship a paywall, the code IS the
+  // entitlement.
+  if (!isBetaExempt(url.pathname)) {
     const { userId } = await auth();
     if (!userId) {
+      const betaCodes = parseBetaCodes(process.env.BETA_CODES);
       const cookieValue = req.cookies.get(BETA_COOKIE)?.value;
-      const hasValidCode = cookieValue ? !!isValidBetaCode(cookieValue, betaCodes) : false;
+      const hasValidCode =
+        cookieValue && betaCodes.length > 0 ? !!isValidBetaCode(cookieValue, betaCodes) : false;
       if (!hasValidCode) {
         const gate = req.nextUrl.clone();
         gate.pathname = "/beta";

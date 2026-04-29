@@ -43,7 +43,7 @@ export function SessionTypeEditor({
       }}
     >
       <option value="in_person">in person</option>
-      <option value="zoom">zoom</option>
+      <option value="zoom">online call</option>
       <option value="in_app">in app</option>
     </select>
   );

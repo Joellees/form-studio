@@ -8,7 +8,11 @@ export default function SignInPage() {
       <div className="mb-10 rise-in">
         <Wordmark variant="inline-platform" />
       </div>
-      <SignIn appearance={{ elements: { card: "shadow-none bg-transparent" } }} />
+      <SignIn
+        fallbackRedirectUrl="/me"
+        signUpUrl="/sign-up"
+        appearance={{ elements: { card: "shadow-none bg-transparent" } }}
+      />
     </main>
   );
 }

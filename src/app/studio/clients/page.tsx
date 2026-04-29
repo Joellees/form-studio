@@ -93,11 +93,11 @@ export default async function ClientsPage({
   }));
 
   return (
-    <div className="rise-in-stagger space-y-8">
+    <div className="rise-in-stagger space-y-6 md:space-y-8">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">clients</p>
-          <h1 className="mt-2 text-4xl">Everyone you train.</h1>
+          <h1 className="mt-2 text-3xl md:text-4xl">Everyone you train.</h1>
         </div>
         <div className="flex items-center gap-5">
           <Link

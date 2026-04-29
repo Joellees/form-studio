@@ -19,7 +19,7 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
     .maybeSingle();
   if (!template) notFound();
 
-  const [{ data: blocks }, { data: exercises }] = await Promise.all([
+  const [{ data: blocks }, { data: exercises }, { data: groups }] = await Promise.all([
     admin
       .from("template_blocks")
       .select(
@@ -33,9 +33,15 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
       .order("order_index"),
     admin
       .from("exercises")
-      .select("id, name, group_tag")
+      .select("id, name, group_id")
       .eq("tenant_id", trainer.id)
       .eq("archived", false)
+      .order("name"),
+    admin
+      .from("exercise_groups")
+      .select("id, name")
+      .eq("tenant_id", trainer.id)
+      .order("sort_index")
       .order("name"),
   ]);
 
@@ -61,8 +67,13 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="rise-in">
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <TemplateBuilder template={template} blocks={normalized as any} exercises={exercises ?? []} />
+      <TemplateBuilder
+        template={template}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        blocks={normalized as any}
+        exercises={exercises ?? []}
+        groups={groups ?? []}
+      />
     </div>
   );
 }

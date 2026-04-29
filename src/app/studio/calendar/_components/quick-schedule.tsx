@@ -86,13 +86,16 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-4 md:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "w-full max-w-md rounded-3xl bg-[color:var(--color-canvas)] p-6 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)]",
+          // Mobile: full-width bottom sheet, generous bottom padding
+          // for thumb reach. Desktop: floating card.
+          "w-full max-w-md bg-[color:var(--color-canvas)] p-5 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)]",
+          "rounded-t-3xl pb-7 md:rounded-3xl md:p-6 md:pb-6",
           pending && "opacity-80",
         )}
       >
@@ -133,7 +136,7 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
             </Row>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Row label="time">
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
             </Row>
@@ -143,7 +146,7 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
                 onChange={(e) => setType(e.target.value as SessionType)}
               >
                 <option value="in_person">in person</option>
-                <option value="zoom">zoom</option>
+                <option value="zoom">online call</option>
                 <option value="in_app">in app</option>
               </Select>
             </Row>
@@ -165,14 +168,21 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
           {error ? <p className="text-xs text-[color:var(--color-sienna)]">{error}</p> : null}
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={pending}
+            className="w-full sm:w-auto"
+          >
             cancel
           </Button>
           <Button
             type="button"
             onClick={save}
             disabled={pending || clients.length === 0}
+            className="w-full sm:w-auto"
           >
             {pending ? "adding…" : "add session"}
           </Button>

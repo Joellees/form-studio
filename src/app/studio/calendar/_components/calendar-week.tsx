@@ -31,17 +31,32 @@ export function CalendarWeek({ days, sessionsByDay, clients, workouts }: Props) 
 
   return (
     <>
-      <div className="grid gap-3 md:grid-cols-7">
+      <div className="grid gap-2 md:grid-cols-7 md:gap-3">
         {days.map((d) => {
           const sessions = sessionsByDay[d.key] ?? [];
+          const empty = sessions.length === 0;
           return (
             <div
               key={d.key}
-              className="flex min-h-[4.5rem] flex-col gap-2 rounded-2xl bg-[color:var(--color-parchment)]/55 p-3 md:min-h-[10rem]"
+              className={cn(
+                "flex flex-col gap-2 rounded-2xl bg-[color:var(--color-parchment)]/55 p-3",
+                // Mobile: tight when empty (just the header), expand
+                // when sessions exist. Desktop: always tall enough to
+                // feel like a calendar cell.
+                empty ? "min-h-[3rem]" : "min-h-[4.5rem]",
+                "md:min-h-[10rem]",
+                d.isToday ? "ring-1 ring-[color:var(--color-ink)]/15" : "",
+              )}
             >
-              {/* Header row — weekday name, date number, subtle + button */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-baseline gap-2">
+              {/* Header row — tappable on mobile to add a session.
+                  On desktop the dedicated + button does it. */}
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPicked(d)}
+                  className="flex flex-1 items-baseline gap-2 rounded-lg text-left transition-opacity hover:opacity-80"
+                  aria-label={`add session on ${d.humanDate}`}
+                >
                   <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
                     {d.weekday}
                   </span>
@@ -55,12 +70,17 @@ export function CalendarWeek({ days, sessionsByDay, clients, workouts }: Props) 
                   >
                     {d.dayNum}
                   </span>
-                </div>
+                  {empty ? (
+                    <span className="ml-auto text-[11px] text-[color:var(--color-stone)]/70 md:hidden">
+                      tap to add
+                    </span>
+                  ) : null}
+                </button>
                 <button
                   type="button"
                   onClick={() => setPicked(d)}
                   aria-label={`add session on ${d.humanDate}`}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--color-ink)]/60 transition-colors hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 transition-colors hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)]"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
                     <path
@@ -73,22 +93,13 @@ export function CalendarWeek({ days, sessionsByDay, clients, workouts }: Props) 
                 </button>
               </div>
 
-              {/* Sessions list, or a clickable empty hint */}
-              {sessions.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setPicked(d)}
-                  className="flex-1 rounded-xl text-[11px] text-[color:var(--color-stone)]/60 transition-colors hover:text-[color:var(--color-ink)]/70 md:text-xs"
-                >
-                  <span className="block md:hidden">tap to add</span>
-                </button>
-              ) : (
+              {sessions.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
                   {sessions.map((s) => (
                     <SessionRow key={s.id} session={s} variant="card" />
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })}

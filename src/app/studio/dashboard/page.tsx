@@ -12,8 +12,12 @@ export default async function DashboardPage() {
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
 
-  const [{ count: clientCount }, { data: pendingRaw }, { count: exerciseCount }] = await Promise.all([
-    admin.from("clients").select("*", { count: "exact", head: true }).eq("tenant_id", trainer.id).eq("active", true),
+  const [{ count: clientCount }, { data: pendingRaw }] = await Promise.all([
+    admin
+      .from("clients")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", trainer.id)
+      .eq("active", true),
     admin
       .from("subscriptions")
       .select("id, created_at, clients(display_name), packages(name, price_usd)")
@@ -21,7 +25,6 @@ export default async function DashboardPage() {
       .eq("payment_status", "pending")
       .order("created_at", { ascending: false })
       .limit(8),
-    admin.from("exercises").select("*", { count: "exact", head: true }).eq("tenant_id", trainer.id).eq("archived", false),
   ]);
 
   const pending: PendingRow[] = (pendingRaw ?? []).map((row) => {
@@ -37,10 +40,10 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="rise-in-stagger space-y-10">
+    <div className="rise-in-stagger space-y-8 md:space-y-10">
       <section>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">overview</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight">Welcome to your studio.</h1>
+        <h1 className="mt-2 font-display text-3xl md:text-4xl leading-tight">Welcome to your studio.</h1>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">

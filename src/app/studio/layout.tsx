@@ -29,23 +29,25 @@ export default async function StudioLayout({ children }: { children: React.React
     .maybeSingle();
 
   if (!trainer) {
-    // This user is signed in but isn't a trainer. If they're a client,
-    // bounce to their dashboard instead of pushing them into trainer
-    // onboarding.
-    const { data: client } = await admin
+    // This user is signed in but isn't a trainer. If they're a client
+    // of any trainer, bounce them to the portal — /client picks the
+    // active membership (subdomain → cookie → only-one → picker).
+    const { data: clients } = await admin
       .from("clients")
       .select("id")
       .eq("clerk_id", userId)
-      .maybeSingle();
-    if (client) redirect("/client/dashboard");
+      .limit(1);
+    if (clients && clients.length > 0) redirect("/client");
     redirect("/onboarding");
   }
 
   const kind = await getTenantKind();
   const slug = await getTenantSlug();
   if (kind === "trainer" && slug && slug !== trainer.subdomain_slug) {
-    // Trainer landed on another studio&rsquo;s subdomain — kick back to their own.
-    redirect(`${process.env.NEXT_PUBLIC_APP_URL}`);
+    // Trainer landed on another studio's subdomain — kick back to root.
+    // Using a relative path keeps this safe when NEXT_PUBLIC_APP_URL is
+    // unset; the middleware handles the host rewrite afterwards.
+    redirect("/");
   }
 
   return <StudioShell trainer={trainer}>{children}</StudioShell>;

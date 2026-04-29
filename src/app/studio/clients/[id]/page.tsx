@@ -106,7 +106,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   })();
 
   return (
-    <div className="space-y-10 rise-in-stagger">
+    <div className="rise-in-stagger space-y-8 md:space-y-10">
       <header className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
@@ -124,6 +124,16 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </Badge>
             {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
           </div>
+          {(client as { note_to_trainer?: string | null }).note_to_trainer ? (
+            <figure className="mt-4 max-w-xl rounded-2xl border-l-2 border-[color:var(--color-moss)]/40 bg-[color:var(--color-parchment)]/60 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+                from {client.display_name.split(" ")[0]}
+              </p>
+              <blockquote className="mt-1 whitespace-pre-line text-sm text-[color:var(--color-ink)]">
+                {(client as { note_to_trainer?: string | null }).note_to_trainer}
+              </blockquote>
+            </figure>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button asChild>

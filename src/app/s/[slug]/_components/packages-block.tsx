@@ -41,8 +41,8 @@ export function PackagesBlock({ packages, trainerName }: { packages: Pkg[]; trai
                 <span className="font-medium text-[color:var(--color-ink)]">{pkg.session_count}</span> sessions
               </p>
               <p>over {pkg.duration_days} days</p>
-              <p className="capitalize">
-                cancellation · {pkg.cancellation_policy === "credited" ? "credited back" : "forfeits session"}
+              <p>
+                cancellation · {pkg.cancellation_policy === "credited" ? "reschedule" : "counted session"}
               </p>
             </div>
             <p className="mt-6 text-3xl tabular-nums">

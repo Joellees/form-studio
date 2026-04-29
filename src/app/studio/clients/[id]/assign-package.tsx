@@ -68,12 +68,12 @@ export function AssignPackageButton({
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-4 md:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-4"
           onClick={() => setOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-3xl bg-[color:var(--color-canvas)] p-6 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)]"
+            className="w-full max-w-md rounded-t-3xl bg-[color:var(--color-canvas)] p-5 pb-7 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)] md:rounded-3xl md:p-6 md:pb-6"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-moss)]">
               new block
@@ -93,8 +93,8 @@ export function AssignPackageButton({
                 ))}
               </Select>
 
-              <div className="flex items-center justify-between rounded-2xl bg-[color:var(--color-parchment)] px-4 py-3">
-                <div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-[color:var(--color-parchment)] px-4 py-3">
+                <div className="min-w-0">
                   <p className="text-sm font-semibold">mark as paid</p>
                   <p className="text-xs text-[color:var(--color-ink)]/70">
                     Sessions unlock immediately. Leave off if payment is pending.
@@ -106,11 +106,20 @@ export function AssignPackageButton({
               {error ? <p className="text-xs text-[color:var(--color-sienna)]">{error}</p> : null}
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-2">
-              <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => setOpen(false)}
+                disabled={pending}
+                className="w-full sm:w-auto"
+              >
                 cancel
               </Button>
-              <Button onClick={save} disabled={pending || !packageId}>
+              <Button
+                onClick={save}
+                disabled={pending || !packageId}
+                className="w-full sm:w-auto"
+              >
                 {pending ? "assigning…" : "assign"}
               </Button>
             </div>
