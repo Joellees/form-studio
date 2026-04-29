@@ -50,3 +50,4 @@ supabase/seed.local.sql
 
 # typescript
 *.tsbuildinfo
+.claude/
