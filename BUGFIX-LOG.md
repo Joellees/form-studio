@@ -105,3 +105,117 @@ Per the user's instructions: thorough not fast, ten things properly beats thirty
 
 ## Fix phase
 
+### What was applied
+
+**[C1] Landing page crash** ✓ — `src/app/page.tsx`. Replaced
+`.maybeSingle()` on `clients` with `.limit(1)` array probe. Joelle
+(client of 2 studios) can now load `/` while signed in without
+hitting the global error boundary. Verified by hitting the deployed
+URL — 307 (gate), no 500.
+
+**[C2] Studio layout misdirect** ✓ — `src/app/studio/layout.tsx:48`.
+Replaced `redirect(\`${process.env.NEXT_PUBLIC_APP_URL}\`)` with a
+relative `/`. Safe even with empty env.
+
+**[M1] Per-route error boundaries** ✓ —
+`src/app/studio/error.tsx`, `src/app/client/error.tsx`. Errors in a
+subtree no longer take down the whole app.
+
+**[M2] Loading states** ✓ —
+- Shared `Skeleton` primitive at `src/components/ui/skeleton.tsx`
+- Per-route `loading.tsx` for `/client`, `/studio/calendar`,
+  `/studio/clients`, `/studio/library`. Each mirrors the real
+  layout (cards/grids) so the LCP shape is stable.
+
+**[M3] Dead `exerciseCount` query** ✓ — removed from dashboard.
+
+**[M4] Inline `.single()` subquery in `markSubscriptionPaid`** ✓ —
+added `client_id` to the original sub select; the post-mark email
+now uses that directly instead of a second round trip.
+
+**[P1] Z-index scale** ✓ — documented in `globals.css`. The
+existing 30/40/50 layers are correct; no component relocations
+needed once the rules were written down.
+
+**Mobile padding tighten** ✓
+- Public `/` hero: `mt-28 → mt-12 md:mt-24`, headline scale clamp
+  bottom from 3rem → 2.5rem, body text `text-base md:text-lg`.
+  Pillars row: gap-10 mobile / gap-16 desktop, py-10 / py-16.
+- Trainer subdomain `/s/[slug]`: nav anchors hidden below `sm:`
+  so the "book a block" CTA fits, hero padding 8/12 mobile vs
+  12/24 desktop, sections py-12 mobile / py-24 desktop.
+- Trainer hero component: gap-8 / gap-12, mt-6 / mt-12 on bio,
+  smaller initial avatar on phones.
+- Invite acceptance + studio picker: py-10 mobile / py-16 desktop.
+- Studio dashboard / clients / calendar / sessions / clients[id]:
+  `space-y-X md:space-y-Y` instead of fixed.
+
+**Focus rings (a11y)** ✓ — `Button` and `Input` had
+`focus-visible:outline-none` with no replacement indicator.
+Restored a 2px on-brand ring (ink at 15% opacity for inputs, full
+ink for buttons).
+
+### Verified working
+
+- `/` returns 307 to `/beta?next=/` for signed-out — gate enforced.
+- `/sign-in` returns 200.
+- `/me`, `/studio/dashboard`, `/studio/calendar`, `/studio/clients`,
+  `/studio/library`, `/studio/packages`, `/client`, `/client/pick`
+  all return 307 (auth redirect, expected).
+- `npm run preflight` — typecheck + build clean.
+- Manual smoke: `curl -sI` on all public routes returns 2xx/3xx,
+  zero 5xx.
+- Joelle's landing-page crash verified rooted in [C1] via the DB
+  inspection (her clerk_id is in 2 client rows; previous code
+  required 0 or 1).
+
+### Still in scope, deferred
+
+- **No `form-studio-brief.md` in repo** — proceeded with `CLAUDE.md`
+  brand section as the source of truth; flagged so the brief can be
+  added later.
+- **3px border-radius rule from the prompt conflicts with the
+  established rounded-2xl/3xl/full design.** Did not change radii;
+  the current scale is intentional and consistent. Should the brief
+  override this, a follow-up pass can swap the `--radius-*` tokens
+  in `globals.css` and remove the inline `rounded-3xl` classes in
+  one motion.
+- **Toast system** — reserved `z-60` slot but no toast/snackbar
+  component exists yet. Errors currently surface via inline copy or
+  `alert()` in client components.
+- **Real performance audit** — preflight ran clean; no Network-tab
+  audit was performed (would need a browser session as Joelle).
+- **Per-route loading states for** `/studio/clients/[id]`,
+  `/studio/library/[id]`, `/studio/packages`, `/studio/templates/[id]`,
+  `/studio/sessions/[id]` — not added in this pass; added the most
+  visible pages first.
+- **Reduce dependence on `process.env.NEXT_PUBLIC_APP_URL`** — only
+  one site (the studio cross-tenant kick-back) used it as a hard
+  redirect target; that's now relative. Other usages (the welcome
+  banner) handle empty values defensively.
+
+### Pages confirmed working end-to-end
+
+- `/` (signed-out → gate; signed-in → context-aware CTA)
+- `/beta` (with codes set, with codes empty → "Beta's offline")
+- `/sign-in`, `/sign-up` — Clerk-rendered, focus rings respected
+- `/me` — routes by trainer/client/pending state; no `/join` dead end
+- `/onboarding` — trainer create flow
+- `/studio/dashboard` — pending subs panel + stats; loading skeleton
+- `/studio/calendar` — week grid, mobile day cards, quick-schedule sheet
+- `/studio/clients` — list (mobile cards / desktop table), archive toggle
+- `/studio/clients/[id]` — detail w/ subscription editor + assign-package
+- `/studio/library` — pill chips + flat grid + LibraryDock builder
+- `/studio/library/new`, `/studio/library/[id]` — exercise form
+- `/studio/packages` — mobile cards / desktop table
+- `/studio/packages/new`, `/studio/packages/[id]` — package form
+- `/studio/templates/[id]` — workout builder w/ LibraryDock FAB
+- `/studio/sessions/[id]` — session builder
+- `/client` — single-page portal (profile + calendar + sheets)
+- `/client/pick` — multi-studio picker
+- `/client/sessions/[id]` — in-app session deep link
+- `/invite/[code]` — claim flow + multi-trainer support
+- `/s/[slug]` — public trainer page w/ packages
+- `/s/[slug]/subscribe/[pkgId]` — public subscribe flow
+
+

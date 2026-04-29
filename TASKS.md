@@ -79,6 +79,24 @@ Live task tracker. Update after every completed step.
 - [x] Service worker + manifest for PWA installability
 - [x] Focus rings, semantic HTML, reduced-motion support
 
+## Bug-fix + polish sweep (2026-04-29) ✅
+- [x] **C1**: landing-page crash on `.maybeSingle()` over multi-trainer
+  client membership — switched to `.limit(1)` array probe
+- [x] **C2**: studio cross-tenant kick-back used a bare env var as
+  redirect target — now relative `/`
+- [x] **M1**: per-route `error.tsx` for `/studio` and `/client`
+- [x] **M2**: `Skeleton` primitive + `loading.tsx` for `/client`,
+  `/studio/calendar`, `/studio/clients`, `/studio/library`
+- [x] **M3**: removed dead `exerciseCount` query from dashboard
+- [x] **M4**: cleaned up inline `.single()` subquery in
+  `markSubscriptionPaid`
+- [x] **P1**: documented z-index scale in `globals.css`
+- [x] Mobile padding pass on `/`, `/s/[slug]`, `/invite/[code]`,
+  `/client/pick`, and the four major studio stagger pages
+- [x] A11y: visible focus rings on `Button` + `Input` (replaced
+  the old `outline-none` with no replacement)
+- [x] BUGFIX-LOG.md kept current with severity + fix + verified
+
 ## Deferred (explicit follow-ups)
 - [ ] Supabase-generated TS types replace the placeholder in `database.types.ts`
 - [ ] Clerk webhook to soft-delete trainers on account deletion
