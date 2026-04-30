@@ -11,20 +11,26 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   onClose: () => void;
-  defaultType?: "in_person" | "zoom" | "in_app";
+  defaultType?: "in_person" | "zoom";
   title?: string;
   description?: string;
 };
 
 /**
- * Client-initiated request. Goes into the sessions table with
- * status=requested; the trainer sees it in their calendar and can
- * approve or decline from the ⋯ menu. Defaulting to in_app lets a
- * client quickly ask for a home workout.
+ * Client-initiated request to book a session FROM the existing
+ * package. Goes into the sessions table with status=requested; the
+ * trainer sees it in their calendar and can approve or decline from
+ * the ⋯ menu.
+ *
+ * In-app sessions are NOT booked through this dialog — those are
+ * either trainer-pushed (the trainer schedules and prescribes) or
+ * client-purchased through the "request extra workout · $3" CTA on
+ * the calendar section, which charges separately and skips the
+ * package deduction.
  */
 export function RequestSessionDialog({
   onClose,
-  defaultType = "in_app",
+  defaultType = "in_person",
   title = "Request a session",
   description = "Pick a day and time. Your trainer will confirm or suggest another slot.",
 }: Props) {
@@ -60,8 +66,6 @@ export function RequestSessionDialog({
     });
   }
 
-  const isInApp = defaultType === "in_app";
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-4"
@@ -79,13 +83,6 @@ export function RequestSessionDialog({
         </p>
         <h2 className="mt-1 text-xl font-semibold tracking-tight">{title}</h2>
         <p className="mt-2 text-sm text-[color:var(--color-ink)]/70">{description}</p>
-
-        {isInApp ? (
-          <p className="mt-3 rounded-2xl bg-[color:var(--color-parchment)] px-4 py-3 text-xs text-[color:var(--color-ink)]/75">
-            In-app sessions are <strong>$5 extra</strong> on top of your block. You&rsquo;ll see the
-            full workout (sets, reps, videos) here when your trainer sends it over.
-          </p>
-        ) : null}
 
         <div className="mt-5 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

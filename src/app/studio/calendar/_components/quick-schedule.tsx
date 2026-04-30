@@ -19,6 +19,12 @@ export type ClientOpt = {
     packageName: string;
     sessionsRemaining: number;
     sessionCount: number;
+    /**
+     * Default session delivery for this package — derived from the
+     * package&rsquo;s `delivery_method` (in_person or online). Trainer
+     * can still flip it per-session via the type dropdown.
+     */
+    defaultSessionType: "in_person" | "zoom";
   }[];
 };
 
@@ -58,9 +64,20 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
   const client = clients.find((c) => c.id === clientId);
   const activeBlock = client?.activeBlocks[0];
 
+  // When the trainer picks a different client, default the session
+  // type to whatever their package locked in. Trainer can still
+  // override per-session via the dropdown.
+  useEffect(() => {
+    if (activeBlock) setType(activeBlock.defaultSessionType);
+  }, [activeBlock]);
+
   function save() {
     if (!clientId) {
       setError("Pick a client.");
+      return;
+    }
+    if (type === "in_app" && !workoutId) {
+      setError("In-app sessions need a workout — pick one before scheduling.");
       return;
     }
     setError(null);
@@ -149,13 +166,18 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
                 <option value="zoom">online call</option>
                 <option value="in_app">in app</option>
               </Select>
+              {type === "in_app" && client ? (
+                <p className="mt-1 text-xs text-[color:var(--color-ink)]/65">
+                  Trainer-pushed — deducts 1 from {client.displayName}&rsquo;s package count.
+                </p>
+              ) : null}
             </Row>
           </div>
 
           {workouts.length > 0 ? (
-            <Row label="workout (optional)">
+            <Row label={type === "in_app" ? "workout" : "workout (optional)"}>
               <Select value={workoutId} onChange={(e) => setWorkoutId(e.target.value)}>
-                <option value="">no workout</option>
+                <option value="">{type === "in_app" ? "pick a workout" : "no workout"}</option>
                 {workouts.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}

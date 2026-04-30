@@ -97,6 +97,43 @@ Live task tracker. Update after every completed step.
   the old `outline-none` with no replacement)
 - [x] BUGFIX-LOG.md kept current with severity + fix + verified
 
+## Package & in-app session model rewrite (2026-04-30) ✅
+- [x] **Schema**: `packages.delivery_method` (`in_person | online`)
+  replaces `session_type`; `sessions.in_app_origin` (`trainer_pushed
+  | client_requested | null`) added; `subscriptions.status` + partial
+  unique index `where status = 'active'` enforces one-active-sub-per-
+  client at the DB layer (`scripts/apply-package-model-migration.ts`)
+- [x] `EXTRA_INAPP_PRICE_USD = 3` lives in `src/lib/pricing.ts`
+  (shared by the action layer and the UI)
+- [x] `requestExtraInAppSession` action: creates a session with
+  `in_app_origin='client_requested'`, `status='requested'`,
+  `in_app_surcharge_paid=false`, paired pending `payments` row at $3
+- [x] `requestSession` tightened — no `in_app` enum value (forces
+  clients down the explicit $3 path)
+- [x] `scheduleSession` tags trainer-scheduled in-app sessions with
+  `in_app_origin='trainer_pushed'`
+- [x] `approveSessionRequest` skips package deduction when the
+  session is `(in_app, client_requested)`
+- [x] Package form + Zod schema dropped `in_app`; only `in_person |
+  online`
+- [x] Trainer schedule form (`quick-schedule.tsx`) requires a workout
+  template when type = `in_app`; shows deduction note
+- [x] Client portal:
+  - new "request extra workout · $3" CTA + `ExtraInAppDialog` confirm
+    modal (cost shown up-front, "to be prescribed by trainer")
+  - `+$3` badge on client-requested in-app session cards
+  - removed legacy per-session "request in-app upgrade (+$5)" menu
+  - `RequestSessionDialog` defaults to `in_person`, no longer surfaces
+    in-app or the stale "$5 extra" copy
+- [x] Trainer dashboard `in_app_upgrade` action-feed item now derives
+  from `(status='requested' AND in_app_origin='client_requested')`
+  instead of the legacy notes-marker hack
+- [x] `seed-joelle.ts` updated: completed in-app sessions tagged
+  `trainer_pushed`, demo client-requested $3 row added
+- [x] `scripts/seed-extra-inapp-demo.ts` adds two end-to-end demo
+  rows on the Joelle tenant (one pending request, one approved+paid)
+- [x] Typecheck + production build clean
+
 ## Deferred (explicit follow-ups)
 - [ ] Supabase-generated TS types replace the placeholder in `database.types.ts`
 - [ ] Clerk webhook to soft-delete trainers on account deletion

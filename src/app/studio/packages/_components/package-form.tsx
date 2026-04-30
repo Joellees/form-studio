@@ -14,7 +14,8 @@ type FormValues = {
   session_count: number;
   duration_days: number;
   price_usd: number;
-  session_type_mix: "strength" | "strength_mobility";
+  delivery_method_mix: "strength" | "strength_mobility";
+  delivery_method: "in_person" | "online";
   payment_mode: "manual" | "online";
   cancellation_policy: "credited" | "lost";
 };
@@ -30,7 +31,8 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
       session_count: initial?.session_count ?? 12,
       duration_days: initial?.duration_days ?? 60,
       price_usd: initial?.price_usd ?? 1200,
-      session_type_mix: (initial?.session_type_mix as FormValues["session_type_mix"]) ?? "strength",
+      delivery_method_mix: (initial?.delivery_method_mix as FormValues["delivery_method_mix"]) ?? "strength",
+      delivery_method: (initial?.delivery_method as FormValues["delivery_method"]) ?? "in_person",
       payment_mode: (initial?.payment_mode as FormValues["payment_mode"]) ?? "manual",
       cancellation_policy: (initial?.cancellation_policy as FormValues["cancellation_policy"]) ?? "credited",
     },
@@ -100,12 +102,28 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
 
       <Field label="session mix">
         <select
-          {...register("session_type_mix")}
+          {...register("delivery_method_mix")}
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
           <option value="strength">strength</option>
           <option value="strength_mobility">strength + mobility</option>
         </select>
+      </Field>
+
+      <Field label="how sessions are delivered">
+        <select
+          {...register("delivery_method")}
+          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
+        >
+          <option value="in_person">in person</option>
+          <option value="online">online (zoom)</option>
+        </select>
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/65">
+          The default delivery for this package. You can still log a session as the
+          other type per-week (e.g. one zoom while travelling). Clients can request
+          additional in-app workouts anytime for $3 — those don&rsquo;t affect this
+          package count.
+        </p>
       </Field>
 
       <Field label="payment mode">

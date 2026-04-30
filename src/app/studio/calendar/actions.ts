@@ -39,6 +39,12 @@ export async function scheduleSession(raw: unknown): Promise<ActionResult<{ id: 
       .limit(1)
       .maybeSingle();
 
+    // Anything the TRAINER schedules — including in-app — counts as
+    // trainer-pushed and deducts from the package. Client-initiated
+    // in-app requests go through `requestExtraInAppSession` which
+    // sets origin='client_requested' and skips the deduction.
+    const inAppOrigin = values.sessionType === "in_app" ? "trainer_pushed" : null;
+
     const { data: session, error: sessErr } = await supabase
       .from("sessions")
       .insert({
@@ -49,6 +55,7 @@ export async function scheduleSession(raw: unknown): Promise<ActionResult<{ id: 
         scheduled_at: values.scheduledAt,
         duration_minutes: values.durationMinutes,
         session_type: values.sessionType,
+        in_app_origin: inAppOrigin,
         status: "scheduled",
         name: values.name,
         zoom_url: values.zoomUrl,
@@ -184,7 +191,7 @@ export async function cancelSession(raw: unknown): Promise<ActionResult<void>> {
       // session is restored to remaining (reschedule) or counted.
       const { data: sub } = await supabase
         .from("subscriptions")
-        .select("packages(cancellation_policy)")
+        .select("packages!subscriptions_package_id_fkey(cancellation_policy)")
         .eq("id", session.subscription_id ?? "")
         .maybeSingle();
       // @ts-expect-error — nested typings
@@ -229,13 +236,17 @@ export async function cancelSession(raw: unknown): Promise<ActionResult<void>> {
 const requestSchema = z.object({
   scheduledAt: z.string().datetime(),
   durationMinutes: z.number().int().positive().default(60),
-  sessionType: z.enum(["in_person", "zoom", "in_app"]).default("in_person"),
+  // In-app sessions are NOT booked through this path — they go through
+  // `requestExtraInAppSession` ($3, no deduction) on the client portal,
+  // or are scheduled directly by the trainer with origin='trainer_pushed'.
+  sessionType: z.enum(["in_person", "zoom"]).default("in_person"),
   notes: z.string().max(500).optional(),
 });
 
 /**
- * Client-initiated request. Creates a session in `requested` state,
- * consuming a session credit only once the trainer approves.
+ * Client-initiated request to book FROM the active package. Creates a
+ * session in `requested` state; the deduction happens in
+ * `approveSessionRequest` once the trainer approves.
  */
 export async function requestSession(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(requestSchema, raw, async (values) => {
@@ -275,25 +286,36 @@ export async function approveSessionRequest(sessionId: string): Promise<ActionRe
     const supabase = createSupabaseAdminClient();
     const { data: session } = await supabase
       .from("sessions")
-      .select("id, client_id, subscription_id")
+      .select("id, client_id, subscription_id, session_type, in_app_origin")
       .eq("id", id)
       .eq("tenant_id", trainer.id)
       .maybeSingle();
     if (!session) return fail("Session not found.");
 
-    const { data: activeSub } = await supabase
-      .from("subscriptions")
-      .select("id, sessions_remaining")
-      .eq("client_id", session.client_id)
-      .eq("payment_status", "paid")
-      .gt("sessions_remaining", 0)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Client-requested in-app sessions are paid out-of-pocket ($3) and
+    // do NOT deduct from the package. Everything else (in-person,
+    // zoom, trainer-pushed in-app) deducts on approval.
+    const isClientRequestedInApp =
+      session.session_type === "in_app" && session.in_app_origin === "client_requested";
+
+    const { data: activeSub } = isClientRequestedInApp
+      ? { data: null as null | { id: string; sessions_remaining: number } }
+      : await supabase
+          .from("subscriptions")
+          .select("id, sessions_remaining")
+          .eq("client_id", session.client_id)
+          .eq("payment_status", "paid")
+          .gt("sessions_remaining", 0)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
     const { error } = await supabase
       .from("sessions")
-      .update({ status: "scheduled", subscription_id: activeSub?.id ?? null })
+      .update({
+        status: "scheduled",
+        subscription_id: isClientRequestedInApp ? null : activeSub?.id ?? null,
+      })
       .eq("id", id);
     if (error) return fail(error.message);
 

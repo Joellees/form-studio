@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { EXTRA_INAPP_PRICE_USD } from "@/lib/pricing";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireClient } from "@/lib/trainer";
 
@@ -44,44 +45,70 @@ export async function updateNoteToTrainer(raw: unknown): Promise<ActionResult<vo
   });
 }
 
-const upgradeSchema = z.object({ sessionId: z.string().uuid() });
+const extraInAppSchema = z.object({
+  scheduledAt: z.string().datetime(),
+  notes: z.string().max(500).optional().or(z.literal("").transform(() => undefined)),
+});
 
 /**
- * Client asks to convert one of their scheduled sessions into an
- * in-app session (+$5). We stash a marker in the session notes so the
- * trainer sees it from the calendar — they can then flip the type in
- * one click via their existing inline dropdown. No silent type change.
+ * Client requests an additional in-app workout — separate from any
+ * scheduled in-person/zoom session. This does NOT deduct from their
+ * package; instead a $3 charge is recorded against the trainer's
+ * payment method.
+ *
+ * Flow:
+ *   1. Client taps "request extra workout · $3" on the portal,
+ *      confirms in a small modal
+ *   2. We create a session row with status='requested',
+ *      session_type='in_app', in_app_origin='client_requested',
+ *      in_app_surcharge_paid=false (Stripe/Tap will flip this to
+ *      true once the charge clears; for now it's manual)
+ *   3. We insert a payments row with amount_usd=3, method='manual',
+ *      status='pending'
+ *   4. Trainer sees it in their action feed as an "in-app upgrade"
+ *      item, approves it, attaches a workout — the session then
+ *      flips to status='scheduled' without touching sessions_remaining
  */
-export async function requestInAppUpgrade(raw: unknown): Promise<ActionResult<void>> {
-  return runAction(upgradeSchema, raw, async ({ sessionId }) => {
+export async function requestExtraInAppSession(raw: unknown): Promise<ActionResult<{ id: string }>> {
+  return runAction(extraInAppSchema, raw, async ({ scheduledAt, notes }) => {
     const client = await requireClient();
     const admin = createSupabaseAdminClient();
 
-    const { data: session } = await admin
+    // Create the session with the right origin tag so the
+    // approve-side knows not to deduct.
+    const { data: inserted, error: sessErr } = await admin
       .from("sessions")
-      .select("id, client_id, notes, session_type, status")
-      .eq("id", sessionId)
-      .maybeSingle();
-    if (!session || session.client_id !== client.id) return fail("Not your session.");
-    if (session.session_type === "in_app") return fail("Already in-app.");
-    if (session.status === "cancelled" || session.status === "completed") {
-      return fail("This session is closed.");
-    }
+      .insert({
+        tenant_id: client.tenantId,
+        client_id: client.id,
+        scheduled_at: scheduledAt,
+        duration_minutes: 60,
+        session_type: "in_app",
+        in_app_origin: "client_requested",
+        in_app_surcharge_paid: false,
+        status: "requested",
+        notes: notes ?? null,
+      })
+      .select("id")
+      .single();
+    if (sessErr) return fail(sessErr.message);
 
-    const marker = "[client requested in-app upgrade]";
-    const next = (session.notes ?? "").includes(marker)
-      ? session.notes
-      : `${session.notes ?? ""}\n${marker} (+$5) — sent ${new Date().toISOString().slice(0, 10)}`.trim();
-
-    const { error } = await admin
-      .from("sessions")
-      .update({ notes: next })
-      .eq("id", sessionId);
-    if (error) return fail(error.message);
+    // Record the $3 charge as pending. Real payment processing
+    // (Stripe/Tap) will flip status='paid' + the session's
+    // in_app_surcharge_paid=true. Until then it's a manual record.
+    await admin.from("payments").insert({
+      tenant_id: client.tenantId,
+      subscription_id: null,
+      session_id: inserted.id,
+      amount_usd: EXTRA_INAPP_PRICE_USD,
+      method: "manual",
+      status: "pending",
+    });
 
     revalidatePath("/client");
     revalidatePath("/studio/calendar");
-    return ok();
+    revalidatePath("/studio/dashboard");
+    return ok({ id: inserted.id });
   });
 }
 

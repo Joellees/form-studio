@@ -50,7 +50,7 @@ export default async function ClientPortal({
     admin
       .from("subscriptions")
       .select(
-        "id, payment_status, sessions_remaining, package_id, pending_package_id, next_renewal_date, packages(name, session_count, price_usd)",
+        "id, payment_status, sessions_remaining, package_id, pending_package_id, next_renewal_date, packages!subscriptions_package_id_fkey(name, session_count, price_usd)",
       )
       .eq("client_id", client.id)
       .order("created_at", { ascending: false }),
@@ -62,7 +62,9 @@ export default async function ClientPortal({
       .order("price_usd"),
     admin
       .from("sessions")
-      .select("id, scheduled_at, duration_minutes, session_type, status, name, zoom_url, notes")
+      .select(
+        "id, scheduled_at, duration_minutes, session_type, in_app_origin, in_app_surcharge_paid, status, name, zoom_url, notes",
+      )
       .eq("client_id", client.id)
       .order("scheduled_at"),
     admin
@@ -97,6 +99,8 @@ export default async function ClientPortal({
     .map((s) => ({
       ...s,
       session_type: s.session_type as "in_person" | "zoom" | "in_app",
+      in_app_origin: (s.in_app_origin ?? null) as "trainer_pushed" | "client_requested" | null,
+      in_app_surcharge_paid: (s.in_app_surcharge_paid ?? null) as boolean | null,
       status: s.status as "scheduled" | "completed" | "cancelled" | "requested" | "declined",
       formattedWhen: formatInTz(new Date(s.scheduled_at), tz, "EEE, MMM d · HH:mm"),
       formattedDay: formatInTz(new Date(s.scheduled_at), tz, "EEE, MMM d"),
@@ -108,6 +112,8 @@ export default async function ClientPortal({
     .map((s) => ({
       ...s,
       session_type: s.session_type as "in_person" | "zoom" | "in_app",
+      in_app_origin: (s.in_app_origin ?? null) as "trainer_pushed" | "client_requested" | null,
+      in_app_surcharge_paid: (s.in_app_surcharge_paid ?? null) as boolean | null,
       status: s.status as "scheduled" | "completed" | "cancelled" | "requested" | "declined",
       formattedWhen: formatInTz(new Date(s.scheduled_at), tz, "EEE, MMM d · HH:mm"),
       formattedDay: formatInTz(new Date(s.scheduled_at), tz, "EEE, MMM d"),
@@ -160,11 +166,14 @@ function pkgOf(p: unknown): { name?: string; session_count?: number; price_usd?:
   return p as { name?: string };
 }
 
-function buildSignInUrl(slug: string | null): string {
-  // The trainer's subdomain is the canonical client sign-in URL. We
-  // prefer the configured root domain; in dev that's localhost:3000.
+function buildSignInUrl(_slug: string | null): string {
+  // Always emit the apex sign-in URL. Per-trainer subdomains aren't
+  // routable on `*.vercel.app` (Vercel only routes registered aliases),
+  // and even with a custom domain we'd need wildcard DNS configured —
+  // until that's in place, sending a "rand.formstudio.com/sign-in"
+  // link to a client just hits a 404. The apex link works everywhere
+  // and post-sign-in routing already lands them on the right portal.
   const root = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "formstudio.com";
   const protocol = root.includes("localhost") ? "http" : "https";
-  if (slug) return `${protocol}://${slug}.${root}/sign-in`;
   return `${protocol}://${root}/sign-in`;
 }

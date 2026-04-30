@@ -14,6 +14,13 @@ const packageSchema = z.object({
   duration_days: z.number().int().positive("Must be greater than 0"),
   price_usd: z.number().nonnegative("Price must be 0 or greater"),
   session_type_mix: z.enum(["strength", "strength_mobility"]),
+  /**
+   * Default delivery mode for sessions on this package: in person or
+   * online (zoom). In-app is NOT a package-level delivery option —
+   * those are either trainer-pushed (deducts a session) or
+   * client-requested ($3, no deduction).
+   */
+  delivery_method: z.enum(["in_person", "online"]),
   payment_mode: z.enum(["manual", "online"]),
   cancellation_policy: z.enum(["credited", "lost"]),
 });
@@ -29,6 +36,7 @@ export async function savePackage(raw: unknown): Promise<ActionResult<{ id: stri
       duration_days: values.duration_days,
       price_usd: values.price_usd,
       session_type_mix: values.session_type_mix,
+      delivery_method: values.delivery_method,
       payment_mode: values.payment_mode,
       cancellation_policy: values.cancellation_policy,
     };

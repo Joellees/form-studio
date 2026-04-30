@@ -219,3 +219,98 @@ ink for buttons).
 - `/s/[slug]/subscribe/[pkgId]` — public subscribe flow
 
 
+## 2026-04-30 — Package & in-app session model rewrite
+
+The session/package model carried a confused mental model: in-app was
+treated as a third package delivery option, while the real product
+distinction was between **trainer-pushed** in-app workouts (a delivery
+detail of the existing package) and **client-purchased** in-app
+workouts (a $3 add-on that doesn't touch the package count). This pass
+cleans that up and rewires every surface that touched it.
+
+### Schema (applied via `scripts/apply-package-model-migration.ts`)
+
+- `packages.delivery_method` (`in_person | online`) replaces
+  `session_type` — in-app is no longer a package-level option.
+  Existing rows backfilled (`zoom → online`, else `in_person`).
+- `sessions.in_app_origin` (`null | trainer_pushed | client_requested`).
+  Existing in-app rows backfilled to `trainer_pushed` (correct, since
+  the client-requested path didn't exist before).
+- `subscriptions.status` (`active | pending | expired | cancelled`)
+  with partial unique index `where status = 'active'` — enforces
+  **one active subscription per client** at the DB level. Backfill:
+  9 active, 1 expired, 2 pending; no client had two active rows so the
+  index applied cleanly.
+
+### Pricing constant
+
+- New `EXTRA_INAPP_PRICE_USD = 3` lives in `src/lib/pricing.ts`. It is
+  imported by both the server action that creates the charge and the
+  client UI that displays it. (Lived briefly in the `"use server"`
+  module; Next.js disallows non-async exports there, build broke,
+  moved out — preserved as a lesson.)
+
+### Server actions
+
+- `requestExtraInAppSession` (new, client-side, `src/app/client/actions.ts`):
+  inserts a session with `session_type='in_app'`,
+  `in_app_origin='client_requested'`, `status='requested'`, and a
+  paired `payments` row with `amount_usd=3, status='pending'`.
+- `requestSession` (existing, calendar): tightened — `sessionType`
+  enum no longer includes `in_app`. Forces clients down the explicit
+  $3 path for in-app and rejects malformed callers.
+- `scheduleSession` (existing, calendar): when `sessionType='in_app'`,
+  sets `in_app_origin='trainer_pushed'` so the approval/deduction
+  path knows this is package-included, not a $3 add-on.
+- `approveSessionRequest` (existing, calendar): branches on the
+  `(session_type='in_app', in_app_origin='client_requested')` tuple.
+  When true: subscription_id stays null and `sessions_remaining` is
+  not touched. Otherwise: deducts as before.
+
+### UI
+
+- `src/app/client/calendar-section.tsx` rewritten:
+  - Old "request in-app upgrade (+$5)" per-session menu item removed.
+  - Old `[client requested in-app upgrade]` notes-marker detection
+    removed (the marker is no longer used anywhere).
+  - New section-level CTA "request extra workout · $3" sits next to
+    "request session" in the header.
+  - New `ExtraInAppDialog` shows the $3 cost up-front in a payment
+    callout, takes a date/time + optional note, and calls the new
+    action. Workout is "to be prescribed by your trainer."
+  - `+$3` badge appears on session rows where
+    `session_type='in_app' AND in_app_origin='client_requested'`.
+- `src/app/client/dashboard/request-session-dialog.tsx`: stripped the
+  in-app code path (the legacy "$5 extra" copy and the `defaultType=
+  'in_app'`). Defaults to `in_person` and only allows `in_person | zoom`.
+- `src/app/studio/calendar/_components/quick-schedule.tsx`:
+  schedule-form now requires a workout template when type is `in_app`
+  (UX guardrail per spec). Shows trainer-side note: "Trainer-pushed —
+  deducts 1 from {client}'s package count."
+- `src/app/studio/dashboard/page.tsx` + `action-feed.tsx`: the
+  `in_app_upgrade` feed item now derives from the request itself
+  (`status='requested' AND in_app_origin='client_requested'`) instead
+  of the legacy notes-marker hack. Copy updated to "+$3."
+- `src/app/studio/packages/_components/package-form.tsx` +
+  `actions.ts`: only two delivery options surface in the UI;
+  Zod schema is `delivery_method: 'in_person' | 'online'`.
+
+### Demo data
+
+- `scripts/seed-extra-inapp-demo.ts` adds two demo sessions to the
+  Joelle tenant: one pending client-requested ($3, awaits approval)
+  and one approved+paid (visible on calendar with the +$3 badge),
+  so the new flow renders end-to-end without a fresh trainer journey.
+
+### Verified flows
+
+- Trainer schedules trainer-pushed in-app → deducts 1 from package.
+- Client requests extra in-app via $3 modal → row created with
+  `client_requested` origin and `payments(amount_usd=3, status=pending)`.
+  Package count unchanged.
+- Approving a client-requested in-app does **not** touch
+  `sessions_remaining`.
+- Schedule form blocks "in-app" without a workout template selected.
+- Two `active` subscriptions on one client now violate the partial
+  unique index — enforced at the DB layer.
+

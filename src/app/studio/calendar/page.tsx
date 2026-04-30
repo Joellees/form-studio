@@ -31,7 +31,7 @@ export default async function CalendarPage({ searchParams }: Props) {
     admin
       .from("clients")
       .select(
-        "id, display_name, subscriptions(id, sessions_remaining, payment_status, packages(name, session_count))",
+        "id, display_name, subscriptions(id, sessions_remaining, payment_status, packages!subscriptions_package_id_fkey(name, session_count, delivery_method))",
       )
       .eq("tenant_id", trainer.id)
       .eq("active", true)
@@ -79,17 +79,27 @@ export default async function CalendarPage({ searchParams }: Props) {
       id: string;
       sessions_remaining: number;
       payment_status: string;
-      packages: { name: string; session_count: number } | { name: string; session_count: number }[] | null;
+      packages:
+        | { name: string; session_count: number; delivery_method?: string }
+        | { name: string; session_count: number; delivery_method?: string }[]
+        | null;
     }>;
     const activeBlocks = subs
       .filter((s) => s.payment_status === "paid" && s.sessions_remaining > 0)
       .map((s) => {
         const p = Array.isArray(s.packages) ? s.packages[0] : s.packages;
+        // Map package delivery_method ('online') to the session_type
+        // value ('zoom') the schedule form uses. Sessions kept the
+        // legacy 'zoom' value to avoid a destructive DB rename.
+        const delivery = (p?.delivery_method ?? "in_person") as "in_person" | "online";
         return {
           id: s.id,
           packageName: p?.name ?? "Block",
           sessionsRemaining: s.sessions_remaining,
           sessionCount: p?.session_count ?? s.sessions_remaining,
+          defaultSessionType: (delivery === "online" ? "zoom" : "in_person") as
+            | "in_person"
+            | "zoom",
         };
       });
     return { id: c.id, displayName: c.display_name, activeBlocks };
