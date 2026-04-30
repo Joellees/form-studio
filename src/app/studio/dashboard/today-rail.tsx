@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { prettySessionType } from "@/lib/session-type";
+
 export type RailSession = {
   id: string;
   scheduledAt: string;
@@ -64,7 +66,7 @@ export function TodayRail({ sessions }: { sessions: RailSession[] }) {
                     {s.clientName}
                   </span>
                   <span className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
-                    {prettyType(s.sessionType)}
+                    {prettySessionType(s.sessionType)}
                   </span>
                 </Link>
               </li>
@@ -74,10 +76,4 @@ export function TodayRail({ sessions }: { sessions: RailSession[] }) {
       ))}
     </div>
   );
-}
-
-function prettyType(t: RailSession["sessionType"]): string {
-  if (t === "in_person") return "in person";
-  if (t === "in_app") return "in-app";
-  return "online";
 }

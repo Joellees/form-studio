@@ -78,8 +78,8 @@ export function SessionRow({
       }}
     >
       <option value="in_person">in person</option>
-      <option value="zoom">online call</option>
-      <option value="in_app">in app</option>
+      <option value="zoom">online</option>
+      <option value="in_app">in-app</option>
     </select>
   );
 

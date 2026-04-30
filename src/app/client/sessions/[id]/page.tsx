@@ -236,11 +236,11 @@ function formatWeightSuffix(type: string, raw: unknown): string {
 
 /**
  * Storage keeps the legacy `zoom` enum value, but every render path
- * maps it to "online call" — the user-facing language going forward.
+ * maps it to "online" — the user-facing language going forward.
  */
 function prettySessionType(t: string): string {
   if (t === "in_app") return "in-app";
   if (t === "in_person") return "in person";
-  if (t === "zoom") return "online call";
+  if (t === "zoom") return "online";
   return t.replace("_", " ");
 }

@@ -108,8 +108,8 @@ export function ScheduleForm({
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
           <option value="in_person">in person</option>
-          <option value="zoom">online call</option>
-          <option value="in_app">in app</option>
+          <option value="zoom">online</option>
+          <option value="in_app">in-app</option>
         </select>
       </div>
 

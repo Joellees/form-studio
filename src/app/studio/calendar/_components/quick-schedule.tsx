@@ -163,8 +163,8 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
                 onChange={(e) => setType(e.target.value as SessionType)}
               >
                 <option value="in_person">in person</option>
-                <option value="zoom">online call</option>
-                <option value="in_app">in app</option>
+                <option value="zoom">online</option>
+                <option value="in_app">in-app</option>
               </Select>
               {type === "in_app" && client ? (
                 <p className="mt-1 text-xs text-[color:var(--color-ink)]/65">

@@ -55,7 +55,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
               key={`pp-${item.subscriptionId}-${i}`}
               className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
             >
-              <Dot tone="signal" />
+              <KindLabel tone="signal">payment due</KindLabel>
               <Link
                 href={`/studio/clients/${item.clientId}`}
                 className="min-w-0 flex-1 text-sm hover:text-[color:var(--color-moss-deep)]"
@@ -136,6 +136,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
             <ContextRow
               key={`rs-${item.subscriptionId}-${i}`}
               href={`/studio/clients/${item.clientId}`}
+              kind="ending soon"
               tone="moss"
             >
               <span className="font-medium">{item.clientName}</span>
@@ -170,10 +171,12 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
 function ContextRow({
   href,
   tone,
+  kind,
   children,
 }: {
   href: string;
   tone: "signal" | "moss";
+  kind?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -182,7 +185,7 @@ function ContextRow({
         href={href}
         className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 text-sm transition-colors first:-mt-1 last:-mb-1 hover:bg-[color:var(--color-canvas)]"
       >
-        <Dot tone={tone} />
+        {kind ? <KindLabel tone={tone}>{kind}</KindLabel> : <Dot tone={tone} />}
         <span className="min-w-0 flex-1 truncate">{children}</span>
         <span
           aria-hidden
@@ -205,5 +208,31 @@ function Dot({ tone }: { tone: "signal" | "moss" }) {
       }`}
       aria-hidden
     />
+  );
+}
+
+/**
+ * Tiny eyebrow chip prefix that classifies what kind of action item
+ * this is (e.g. "payment due", "ending soon"). Replaces the bare dot
+ * for rows where the visual category matters at a glance — payment
+ * vs renewal in particular were too close to read apart at speed.
+ */
+function KindLabel({
+  tone,
+  children,
+}: {
+  tone: "signal" | "moss";
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+        tone === "signal"
+          ? "bg-[color:var(--color-sienna)]/15 text-[color:var(--color-sienna)]"
+          : "bg-[color:var(--color-moss)]/15 text-[color:var(--color-moss-deep)]"
+      }`}
+    >
+      {children}
+    </span>
   );
 }

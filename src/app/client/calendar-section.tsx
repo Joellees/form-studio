@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EXTRA_INAPP_PRICE_USD } from "@/lib/pricing";
+import { prettySessionType } from "@/lib/session-type";
 import { cn } from "@/lib/utils";
 
 type Session = {
@@ -166,12 +167,12 @@ function SessionItem({ session: s, muted = false }: { session: Session; muted?: 
               {s.name ?? "in-app session"}
             </Link>
           ) : (
-            <span>{s.name ?? prettyType(s.session_type)}</span>
+            <span>{s.name ?? prettySessionType(s.session_type)}</span>
           )}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Badge tone={pillTone(s.status)}>{s.status}</Badge>
-          <Badge tone="stone">{prettyType(s.session_type)}</Badge>
+          <Badge tone="stone">{prettySessionType(s.session_type)}</Badge>
           {isExtraInApp ? (
             <Badge tone="signal">+${EXTRA_INAPP_PRICE_USD}</Badge>
           ) : null}
@@ -416,12 +417,6 @@ function defaultDateTime(): string {
   d.setHours(9, 0, 0, 0);
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
-}
-
-function prettyType(t: Session["session_type"]): string {
-  if (t === "in_app") return "in-app";
-  if (t === "in_person") return "in person";
-  return "online call";
 }
 
 function pillTone(s: Session["status"]): "moss" | "signal" | "stone" {
