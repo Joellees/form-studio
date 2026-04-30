@@ -35,16 +35,17 @@ export function WelcomeBanner({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-moss-deep)]">
-            you&rsquo;re in
+            your portal
           </p>
           <h2 className="mt-1 text-lg font-semibold tracking-tight md:text-xl">
-            Welcome to {trainerName}&rsquo;s studio.
+            You&rsquo;re training with {trainerName}.
           </h2>
           <p className="mt-2 text-sm text-[color:var(--color-ink)]/75">
-            Bookmark your sign-in link so you can come back anytime.
+            This is your client portal — calendar, packages, notes to {trainerName}.
+            Bookmark the sign-in link below so you can come back anytime.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <code className="rounded-full bg-[color:var(--color-canvas)] px-3 py-1.5 text-xs tabular-nums text-[color:var(--color-ink)]">
+            <code className="break-all rounded-full bg-[color:var(--color-canvas)] px-3 py-1.5 text-xs tabular-nums text-[color:var(--color-ink)]">
               {signInUrl}
             </code>
             <button

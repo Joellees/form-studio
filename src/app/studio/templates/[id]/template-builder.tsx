@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
@@ -109,6 +110,21 @@ export function TemplateBuilder({ template, blocks, exercises, groups }: Props) 
 
   return (
     <div className="space-y-8">
+      <Link
+        href="/studio/library?tab=workouts"
+        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)] hover:text-[color:var(--color-moss-deep)]"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+          <path
+            d="M6.5 1.5L3 5l3.5 3.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        back to workouts
+      </Link>
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">template</p>

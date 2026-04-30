@@ -15,10 +15,14 @@ function newCode(): string {
   return out;
 }
 
+// Name + phone are required so the trainer always has something to
+// identify the client by. Email stays optional — many clients don't
+// hand one out and the invite link is shared via the phone number
+// anyway (WhatsApp, SMS).
 const inviteSchema = z.object({
-  displayName: z.string().max(80).optional().or(z.literal("")),
-  email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().max(40).optional().or(z.literal("")),
+  displayName: z.string().min(1, "Required").max(80),
+  email: z.string().email("Looks malformed").optional().or(z.literal("")),
+  phone: z.string().min(3, "Required").max(40),
   notes: z.string().max(2000).optional().or(z.literal("")),
   packageId: z.string().uuid().optional().or(z.literal("")),
 });

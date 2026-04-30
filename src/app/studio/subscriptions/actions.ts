@@ -22,7 +22,7 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
     const { data: sub } = await supabase
       .from("subscriptions")
       .select(
-        "id, tenant_id, client_id, package_id, payment_status, packages(session_count, price_usd)",
+        "id, tenant_id, client_id, package_id, payment_status, packages!subscriptions_package_id_fkey(session_count, price_usd)",
       )
       .eq("id", subscriptionId)
       .maybeSingle();

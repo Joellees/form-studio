@@ -23,46 +23,83 @@ type PackageOpt = { id: string; name: string; session_count: number; price_usd: 
 export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    inviteUrl: string;
+    name: string;
+    phone: string;
+    packageName: string | null;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
-  const { register, handleSubmit, formState: { errors }, setError } = useForm<Values>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError,
+    watch,
+  } = useForm<Values>({
     defaultValues: { packageId: packages[0]?.id ?? "" },
   });
 
   function onSubmit(values: Values) {
     startTransition(async () => {
-      const result = await createInvite(values);
-      if (!result.ok) {
-        setError("displayName", { message: result.error });
+      const r = await createInvite(values);
+      if (!r.ok) {
+        if (r.fieldErrors) {
+          for (const [k, v] of Object.entries(r.fieldErrors)) {
+            setError(k as keyof Values, { message: v[0] });
+          }
+        } else {
+          setError("displayName", { message: r.error });
+        }
         return;
       }
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      setInviteUrl(`${origin}/invite/${result.data.code}`);
+      // Always emit the canonical app URL — trainers may be on stale
+      // preview deployments or wildcard subdomains that don't resolve
+      // for the recipient. APP_URL is the one they can rely on.
+      const fallback =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const origin = process.env.NEXT_PUBLIC_APP_URL || fallback;
+      const pkg = packages.find((p) => p.id === values.packageId) ?? null;
+      setResult({
+        inviteUrl: `${origin}/invite/${r.data.code}`,
+        name: values.displayName,
+        phone: values.phone,
+        packageName: pkg?.name ?? null,
+      });
     });
   }
 
   async function copy() {
-    if (!inviteUrl) return;
-    await navigator.clipboard.writeText(inviteUrl);
+    if (!result) return;
+    await navigator.clipboard.writeText(result.inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
-  if (inviteUrl) {
+  if (result) {
+    const phoneDigits = result.phone.replace(/\D/g, "");
+    const message = `Hey ${result.name.split(" ")[0]} — here's your sign-up link for the studio.${result.packageName ? ` You're set up on ${result.packageName}.` : ""}\n\n${result.inviteUrl}`;
+    const waUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
+
     return (
       <div className="mt-10 flex flex-col gap-6 rise-in">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-moss)]">
             invite ready
           </p>
-          <p className="mt-2 text-[color:var(--color-ink)]/75">
-            Share this link with your client. It works once.
+          <h2 className="mt-2 text-xl font-semibold tracking-tight">
+            Send this to {result.name.split(" ")[0]}.
+          </h2>
+          <p className="mt-2 text-sm text-[color:var(--color-ink)]/70">
+            Single-use link. They open it, sign up{result.packageName ? `, and land on ${result.packageName}` : ""} — pending your payment confirmation.
           </p>
         </div>
+
+        {/* The link itself, copy-able. */}
         <div className="flex items-stretch overflow-hidden rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)]">
           <input
             readOnly
-            value={inviteUrl}
+            value={result.inviteUrl}
             onFocus={(e) => e.currentTarget.select()}
             className="flex-1 bg-transparent px-5 py-3 text-sm text-[color:var(--color-ink)] focus:outline-none"
           />
@@ -71,36 +108,82 @@ export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
             onClick={copy}
             className="border-l border-[color:var(--color-stone-soft)] bg-[color:var(--color-ink)] px-5 text-sm font-medium text-[color:var(--color-canvas)] transition hover:bg-[color:var(--color-moss-deep)]"
           >
-            {copied ? "copied" : "copy"}
+            {copied ? "copied" : "copy link"}
           </button>
         </div>
-        <div className="flex items-center gap-3 pt-2">
+
+        {/* Share shortcuts. WhatsApp works everywhere; the message is
+            pre-filled so the trainer just hits send. */}
+        <div className="flex flex-col gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            share now
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {phoneDigits.length > 0 ? (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-[#25D366] px-5 text-sm font-medium text-white hover:opacity-90"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M20.5 3.5A11.5 11.5 0 0 0 3.6 18.1L2 22l4.1-1.6a11.5 11.5 0 0 0 17.4-9.6 11.4 11.4 0 0 0-3-7.3Zm-8.5 17.6a9.5 9.5 0 0 1-4.8-1.3l-.4-.2-2.5.9.9-2.4-.2-.4a9.5 9.5 0 1 1 6.9 3.4Zm5.5-7c-.3-.2-1.7-.9-2-1s-.4-.1-.6.1l-.8 1c-.2.2-.3.2-.6.1a8 8 0 0 1-3.7-3.4c-.3-.5.3-.5.8-1.5.1-.2 0-.4 0-.5l-.9-2c-.2-.5-.5-.4-.6-.4h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3a10 10 0 0 0 4.2 3.7c.6.2 1 .4 1.4.5.6.2 1.1.1 1.5.1.5-.1 1.5-.6 1.7-1.2.2-.5.2-1 .2-1.1 0-.1-.2-.2-.5-.3Z" />
+                </svg>
+                send via WhatsApp
+              </a>
+            ) : null}
+            {result.phone ? (
+              <a
+                href={`sms:${result.phone}?&body=${encodeURIComponent(message)}`}
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--color-ink)]/15 bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
+              >
+                send via SMS
+              </a>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 pt-2">
           <Button
             variant="outline"
             onClick={() => {
-              setInviteUrl(null);
+              setResult(null);
             }}
           >
-            new invite
+            another invite
           </Button>
-          <Button onClick={() => router.push("/studio/clients")}>done</Button>
+          <Button onClick={() => router.push("/studio/clients")}>back to clients</Button>
         </div>
       </div>
     );
   }
 
+  // Watch the values so the submit button can hint the next step.
+  const liveName = watch("displayName") ?? "";
+  const livePhone = watch("phone") ?? "";
+  const ready = liveName.trim().length > 0 && livePhone.trim().length > 0;
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-6">
-      <Field label="display name (optional)" error={errors.displayName?.message}>
-        <Input {...register("displayName")} placeholder="How you'll refer to them" />
+      <Field label="display name" error={errors.displayName?.message}>
+        <Input
+          {...register("displayName", { required: "Required" })}
+          placeholder="How you&rsquo;ll refer to them"
+        />
       </Field>
-      <Field label="email (optional)">
-        <Input type="email" {...register("email")} placeholder="name@example.com" />
+      <Field label="phone" error={errors.phone?.message}>
+        <Input
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          {...register("phone", { required: "Required" })}
+          placeholder="+961 70 000 000"
+        />
       </Field>
-      <Field label="phone (optional)">
-        <Input {...register("phone")} placeholder="+961 70 000 000" />
+      <Field label="email (optional)" error={errors.email?.message}>
+        <Input type="email" inputMode="email" {...register("email")} placeholder="name@example.com" />
       </Field>
-      <Field label="package they're agreeing to">
+      <Field label="package they&rsquo;re agreeing to">
         {packages.length === 0 ? (
           <p className="text-xs text-[color:var(--color-stone)]">
             Create a package first to attach one to the invite.
@@ -117,12 +200,18 @@ export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
         )}
       </Field>
       <Field label="private notes (optional)">
-        <Textarea {...register("notes")} placeholder="Goals, injuries, anything you want to remember." />
+        <Textarea
+          {...register("notes")}
+          placeholder="Goals, injuries, anything you want to remember."
+        />
       </Field>
       <div className="pt-2">
-        <Button type="submit" disabled={pending} size="lg">
+        <Button type="submit" disabled={pending || !ready} size="lg">
           {pending ? "generating…" : "generate invite link"}
         </Button>
+        <p className="mt-2 text-xs text-[color:var(--color-stone)]">
+          You&rsquo;ll get a copyable link + a WhatsApp share button on the next screen.
+        </p>
       </div>
     </form>
   );

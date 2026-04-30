@@ -114,24 +114,45 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
   );
 }
 
+/**
+ * Client-side teaser for in-person and online-call sessions. Shows
+ * exercise names + the trainer&rsquo;s prescribed sets (sets × reps ×
+ * weight, rest) but deliberately NO video links and NO instructional
+ * URLs. Those live behind the in-app upgrade.
+ */
 function ExerciseTeaser({
   blocks,
 }: {
   blocks: Array<{
+    round_count?: number;
+    round_label?: string | null;
     session_block_exercises: Array<{
       exercises: { name: string } | { name: string }[] | null;
+      session_set_groups?: Array<{
+        order_index: number;
+        label: string | null;
+        sets: number;
+        rep_type: string;
+        rep_value: unknown;
+        weight_type: string;
+        weight_value: unknown;
+        rest_seconds: number | null;
+      }>;
     }>;
   }>;
 }) {
-  const names = blocks
-    .flatMap((b) => b.session_block_exercises ?? [])
-    .map((be) => {
+  const items = blocks.flatMap((b) =>
+    (b.session_block_exercises ?? []).map((be) => {
       const ex = Array.isArray(be.exercises) ? be.exercises[0] : be.exercises;
-      return ex?.name;
-    })
-    .filter(Boolean) as string[];
+      const setGroups = (be.session_set_groups ?? [])
+        .slice()
+        .sort((a, z) => a.order_index - z.order_index);
+      return { name: ex?.name ?? null, setGroups, roundLabel: b.round_label ?? null };
+    }),
+  );
+  const visible = items.filter((it) => it.name);
 
-  if (names.length === 0) {
+  if (visible.length === 0) {
     return (
       <Card>
         <CardContent className="py-4 text-sm text-[color:var(--color-ink)]/70">
@@ -147,22 +168,70 @@ function ExerciseTeaser({
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
           today&rsquo;s plan
         </p>
-        <ul className="mt-3 space-y-2">
-          {names.map((n, i) => (
-            <li key={i} className="flex items-baseline gap-3 text-sm">
-              <span className="text-[color:var(--color-stone)] tabular-nums">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className="font-medium text-[color:var(--color-ink)]">{n}</span>
+        <ul className="mt-4 space-y-4">
+          {visible.map((it, i) => (
+            <li key={i} className="rounded-2xl bg-[color:var(--color-parchment)]/60 p-4">
+              <div className="flex items-baseline gap-3">
+                <span className="text-[11px] font-medium tabular-nums text-[color:var(--color-stone)]">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="font-semibold tracking-tight text-[color:var(--color-ink)]">
+                  {it.name}
+                </span>
+              </div>
+              {it.setGroups.length > 0 ? (
+                <ul className="mt-3 space-y-1.5 pl-7 text-sm tabular-nums text-[color:var(--color-ink)]/85">
+                  {it.setGroups.map((sg) => (
+                    <li key={sg.order_index} className="flex items-baseline gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+                        {sg.label ?? `set ${sg.order_index + 1}`}
+                      </span>
+                      <span>
+                        {sg.sets} × {formatRep(sg.rep_type, sg.rep_value)}
+                        {formatWeightSuffix(sg.weight_type, sg.weight_value)}
+                      </span>
+                      {sg.rest_seconds ? (
+                        <span className="text-[color:var(--color-stone)]">
+                          · rest {sg.rest_seconds}s
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           ))}
         </ul>
         <p className="mt-5 text-xs text-[color:var(--color-stone)]">
-          Sets, reps, and cues come from your trainer in the session.
+          Cues + technique pointers come from your trainer in the session. For the
+          full workout view with videos and step-by-step, request an in-app upgrade.
         </p>
       </CardContent>
     </Card>
   );
+}
+
+function formatRep(type: string, raw: unknown): string {
+  const v = raw as Record<string, unknown> | null;
+  if (!v) return "";
+  if (type === "fixed") return `${v.reps ?? ""}`;
+  if (type === "range") return `${v.min ?? ""}–${v.max ?? ""}`;
+  if (type === "time") return `${v.seconds ?? ""}s`;
+  if (type === "hold") return `hold ${v.seconds ?? ""}s`;
+  if (type === "unilateral") return `${v.per_side ?? ""}/side`;
+  if (type === "amrap") return "amrap";
+  if (type === "single") return "1";
+  return String(type);
+}
+
+function formatWeightSuffix(type: string, raw: unknown): string {
+  const v = raw as Record<string, unknown> | null;
+  if (!v) return "";
+  if (type === "load" && v.kg) return ` · ${v.kg}kg`;
+  if (type === "bw") return " · bw";
+  if (type === "percentage" && v.percent) return ` · ${v.percent}% ${v.of ?? ""}`;
+  if (type === "intensity" && v.descriptor) return ` · ${v.descriptor}`;
+  return "";
 }
 
 /**

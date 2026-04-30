@@ -51,6 +51,21 @@ export async function deleteGroup(id: string): Promise<ActionResult<void>> {
   return runAction(z.string().uuid(), id, async (id) => {
     const trainer = await requireTrainer();
     const admin = createSupabaseAdminClient();
+
+    // Universal (built-in) groups can't be deleted — keep the
+    // canonical organization intact across studios. Trainer-created
+    // groups have is_universal=false and stay deletable.
+    const { data: target } = await admin
+      .from("exercise_groups")
+      .select("id, is_universal")
+      .eq("id", id)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!target) return fail("Group not found.");
+    if ((target as { is_universal?: boolean }).is_universal) {
+      return fail("Built-in groups can&rsquo;t be deleted. Rename it or leave it be.");
+    }
+
     // Exercises referencing this group have group_id set null by FK.
     const { error } = await admin
       .from("exercise_groups")
@@ -236,7 +251,7 @@ export async function seedUniversalLibrary(_raw?: unknown): Promise<
       if (groupByName.has(groupName.toLowerCase())) continue;
       const { data, error } = await admin
         .from("exercise_groups")
-        .insert({ tenant_id: trainer.id, name: groupName })
+        .insert({ tenant_id: trainer.id, name: groupName, is_universal: true })
         .select("id")
         .single();
       if (error) return fail(error.message);
@@ -287,6 +302,31 @@ export async function seedUniversalLibrary(_raw?: unknown): Promise<
 
     revalidatePath("/studio/library");
     return ok({ groupsCreated, exercisesCreated, exercisesSkipped });
+  });
+}
+
+const archiveManySchema = z.object({
+  exerciseIds: z.array(z.string().uuid()).min(1).max(200),
+});
+
+/**
+ * Archive a batch of exercises in one shot. Each id is verified
+ * against the trainer's tenant so the call can't be used to flip
+ * someone else's exercise.
+ */
+export async function archiveExercises(raw: unknown): Promise<ActionResult<{ archived: number }>> {
+  return runAction(archiveManySchema, raw, async ({ exerciseIds }) => {
+    const trainer = await requireTrainer();
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("exercises")
+      .update({ archived: true })
+      .in("id", exerciseIds)
+      .eq("tenant_id", trainer.id)
+      .select("id");
+    if (error) return fail(error.message);
+    revalidatePath("/studio/library");
+    return ok({ archived: data?.length ?? 0 });
   });
 }
 

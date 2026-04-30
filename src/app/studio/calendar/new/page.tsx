@@ -15,7 +15,9 @@ export default async function NewSessionPage({
   const [{ data: clients }, { data: templates }] = await Promise.all([
     admin
       .from("clients")
-      .select("id, display_name, subscriptions(id, sessions_remaining, payment_status, packages(name))")
+      .select(
+        "id, display_name, subscriptions(id, sessions_remaining, payment_status, packages!subscriptions_package_id_fkey(name))",
+      )
       .eq("tenant_id", trainer.id)
       .eq("active", true)
       .order("display_name"),

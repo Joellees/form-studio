@@ -21,7 +21,7 @@ export default async function LibraryPage({ searchParams }: Props) {
     await Promise.all([
       admin
         .from("exercise_groups")
-        .select("id, name, sort_index")
+        .select("id, name, sort_index, is_universal")
         .eq("tenant_id", trainer.id)
         .order("sort_index")
         .order("name"),

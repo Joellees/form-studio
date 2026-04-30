@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Group = { id: string; name: string; sort_index: number };
+type Group = { id: string; name: string; sort_index: number; is_universal?: boolean };
 type LightExercise = { id: string; name: string; group_ids: string[] };
 
 export function GroupsSection({
@@ -76,7 +76,7 @@ export function GroupsSection({
       {groups.length === 0 ? (
         <EmptyState
           title="No groups yet"
-          body="Add one above. You can change or delete them any time."
+          body="Add one above. Built-in groups stay; the ones you add are yours to rename or remove."
         />
       ) : (
         <ul className="space-y-2">
@@ -195,16 +195,22 @@ function GroupRow({
           >
             {editing ? "done" : "rename"}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={remove}
-            disabled={pending}
-            className="text-[color:var(--color-sienna)] hover:bg-[color:var(--color-sienna)]/10"
-          >
-            delete
-          </Button>
+          {group.is_universal ? (
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]/80">
+              built-in
+            </span>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={remove}
+              disabled={pending}
+              className="text-[color:var(--color-sienna)] hover:bg-[color:var(--color-sienna)]/10"
+            >
+              delete
+            </Button>
+          )}
         </div>
       </div>
 

@@ -21,28 +21,20 @@ export const dynamic = "force-dynamic";
 export default async function RootPage() {
   const { userId } = await auth();
 
+  // The body always renders the two-lane CTA (trainers / clients).
+  // The header's "back to my studio/portal" shortcut is auth-aware so
+  // signed-in users still get a one-click jump back into their app.
   let kind: "trainer" | "client" | "pending" | "none" = "none";
-  let trainerSlug: string | null = null;
 
   if (userId) {
     const admin = createSupabaseAdminClient();
-    // Trainers are unique per clerk_id, so maybeSingle is safe.
-    // Clients are NOT unique per clerk_id since the multi-trainer
-    // migration — a Clerk user can be a client of any number of
-    // studios. Probe with `.limit(1)` to detect "is a client" without
-    // throwing on multi-row matches.
     const [{ data: trainer }, { data: clientRows }] = await Promise.all([
-      admin.from("trainers").select("subdomain_slug").eq("clerk_id", userId).maybeSingle(),
+      admin.from("trainers").select("id").eq("clerk_id", userId).maybeSingle(),
       admin.from("clients").select("id").eq("clerk_id", userId).limit(1),
     ]);
-    if (trainer) {
-      kind = "trainer";
-      trainerSlug = trainer.subdomain_slug;
-    } else if (clientRows && clientRows.length > 0) {
-      kind = "client";
-    } else {
-      kind = "pending";
-    }
+    if (trainer) kind = "trainer";
+    else if (clientRows && clientRows.length > 0) kind = "client";
+    else kind = "pending";
   }
 
   return (
@@ -73,12 +65,15 @@ export default async function RootPage() {
       </section>
 
       <section className="mt-10 flex flex-col items-start gap-4 rise-in md:mt-16">
-        <PrimaryCta kind={kind} trainerSlug={trainerSlug} />
-        {kind === "none" ? (
-          <p className="text-xs text-[color:var(--color-stone)]">
-            Clients — don&rsquo;t sign up here. Your trainer will send you an invite link.
-          </p>
-        ) : null}
+        {/* Always show the two-lane CTA (trainers / clients) regardless
+            of auth state — keeps the public-facing landing consistent
+            and lets a signed-in trainer still demo the flow. The
+            "open my studio" / "open my portal" shortcut stays in the
+            header for one-click return. */}
+        <PrimaryCta />
+        <p className="text-xs text-[color:var(--color-stone)]">
+          New clients — your trainer sends you an invite link. You don&rsquo;t need to sign up here.
+        </p>
       </section>
 
       <section className="mt-16 grid gap-10 border-t border-[color:var(--color-stone-soft)] pt-10 md:mt-32 md:grid-cols-3 md:gap-16 md:pt-16">
@@ -137,66 +132,34 @@ function HeaderAction({
   );
 }
 
-function PrimaryCta({
-  kind,
-  trainerSlug,
-}: {
-  kind: "trainer" | "client" | "pending" | "none";
-  trainerSlug: string | null;
-}) {
+function PrimaryCta() {
   const inkBtn =
     "inline-flex h-12 items-center justify-center rounded-full bg-[color:var(--color-ink)] px-7 text-[15px] font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]";
   const outlineBtn =
     "inline-flex h-12 items-center justify-center rounded-full border border-[color:var(--color-ink)]/20 bg-[color:var(--color-canvas)] px-7 text-[15px] font-medium text-[color:var(--color-ink)] hover:border-[color:var(--color-ink)]/40 hover:bg-[color:var(--color-parchment)]";
 
-  if (kind === "trainer") {
-    return (
-      <Link href={trainerSlug ? `/studio/dashboard` : "/me"} className={inkBtn}>
-        open my studio
-      </Link>
-    );
-  }
-  if (kind === "client") {
-    return (
-      <Link href="/client" className={inkBtn}>
-        open my portal
-      </Link>
-    );
-  }
-  if (kind === "pending") {
-    return (
-      <Link href="/onboarding" className={inkBtn}>
-        finish setting up
-      </Link>
-    );
-  }
-  // Signed-out: two distinct entry points so trainers and clients
-  // know exactly which lane is theirs. Trainers get sign-up (Clerk
-  // shows a "sign in" link inside for returning trainers); clients
-  // never sign up here — they always come back via sign-in.
+  // Two distinct entry points so trainers and clients know exactly
+  // which lane is theirs. Trainers get sign-up (Clerk shows a "sign
+  // in" link inside for returning trainers); clients never sign up
+  // here — they always come back via sign-in.
   return (
-    <div className="flex w-full flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-        <div className="flex flex-1 flex-col gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-            trainers
-          </p>
-          <Link href="/sign-up" className={inkBtn}>
-            create or sign in to my studio
-          </Link>
-        </div>
-        <div className="flex flex-1 flex-col gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-            clients
-          </p>
-          <Link href="/sign-in" className={outlineBtn}>
-            client login
-          </Link>
-        </div>
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-stretch">
+      <div className="flex flex-1 flex-col gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          trainers
+        </p>
+        <Link href="/sign-up" className={inkBtn}>
+          create or sign in to my studio
+        </Link>
       </div>
-      <p className="text-xs text-[color:var(--color-stone)]">
-        New clients — your trainer sends you an invite link. You don&rsquo;t need to sign up here.
-      </p>
+      <div className="flex flex-1 flex-col gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          clients
+        </p>
+        <Link href="/sign-in" className={outlineBtn}>
+          client login
+        </Link>
+      </div>
     </div>
   );
 }

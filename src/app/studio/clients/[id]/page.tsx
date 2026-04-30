@@ -56,7 +56,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     admin
       .from("subscriptions")
       .select(
-        "id, payment_status, payment_method, sessions_remaining, start_date, end_date, paid_confirmed_at, created_at, packages(name, session_count, price_usd, duration_days)",
+        "id, payment_status, payment_method, sessions_remaining, start_date, end_date, paid_confirmed_at, created_at, packages!subscriptions_package_id_fkey(name, session_count, price_usd, duration_days)",
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false }),

@@ -189,6 +189,20 @@ export function LibrarySidebar({
                     </option>
                   ))}
                 </select>
+                <p className="text-[11px] text-[color:var(--color-stone)]">
+                  Quick add — name + group only. You can fill in the video,
+                  default sets, and notes from the exercise editor afterward
+                  via the{" "}
+                  <a
+                    href="/studio/library/new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-[color:var(--color-moss-deep)]"
+                  >
+                    full editor
+                  </a>
+                  .
+                </p>
                 {createError ? (
                   <p className="text-xs text-[color:var(--color-sienna)]">{createError}</p>
                 ) : null}
