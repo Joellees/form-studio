@@ -250,7 +250,7 @@ export default async function DashboardPage() {
     : null;
 
   return (
-    <div className="rise-in-stagger space-y-6 md:space-y-8">
+    <div className="rise-in-stagger space-y-5 md:space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">

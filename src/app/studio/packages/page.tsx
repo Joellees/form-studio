@@ -81,7 +81,7 @@ export default async function PackagesPage() {
   }
 
   return (
-    <div className="rise-in-stagger space-y-6 md:space-y-8">
+    <div className="rise-in-stagger space-y-5 md:space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">

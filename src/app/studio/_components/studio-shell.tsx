@@ -42,7 +42,18 @@ export function StudioShell({ trainer, children }: Props) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1200px] px-5 py-6 md:px-8 md:py-12">{children}</main>
+      <main
+        className="mx-auto max-w-[1200px] px-5 py-6 md:px-8 md:py-12"
+        style={{
+          // Reserve space for the iOS home bar / chrome so primary
+          // CTAs at the end of long pages stay reachable. Desktop
+          // gets a flat 3rem bottom padding for footer breathing room.
+          paddingBottom:
+            "calc(env(safe-area-inset-bottom, 0px) + 5rem)",
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 }

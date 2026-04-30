@@ -154,7 +154,7 @@ export default async function CalendarPage({ searchParams }: Props) {
   const nextHref = navHref(view, start, "next");
 
   return (
-    <div className="rise-in-stagger space-y-6 md:space-y-8">
+    <div className="rise-in-stagger space-y-5 md:space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
@@ -226,7 +226,7 @@ function ViewSwitcher({ current, ref }: { current: View; ref: Date }) {
   return (
     <div
       role="tablist"
-      className="inline-flex items-center gap-0.5 rounded-full bg-[color:var(--color-parchment)] p-0.5 text-xs font-medium"
+      className="inline-flex items-center gap-0.5 rounded-full bg-[color:var(--color-parchment)] p-1 text-xs font-medium"
     >
       {items.map((item) => {
         const active = current === item.v;
@@ -237,7 +237,7 @@ function ViewSwitcher({ current, ref }: { current: View; ref: Date }) {
             href={`?${params.toString()}`}
             role="tab"
             aria-selected={active}
-            className={`rounded-full px-3 py-1.5 transition-colors ${
+            className={`inline-flex h-9 items-center rounded-full px-3.5 transition-colors ${
               active
                 ? "bg-[color:var(--color-ink)] text-[color:var(--color-canvas)]"
                 : "text-[color:var(--color-ink)]/65 hover:text-[color:var(--color-ink)]"
@@ -257,7 +257,7 @@ function NavGroup({ prevHref, nextHref }: { prevHref: string; nextHref: string }
       <Link
         href={prevHref}
         aria-label="previous"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 hover:bg-[color:var(--color-parchment)]"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 hover:bg-[color:var(--color-parchment)]"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -266,7 +266,7 @@ function NavGroup({ prevHref, nextHref }: { prevHref: string; nextHref: string }
       <Link
         href={nextHref}
         aria-label="next"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 hover:bg-[color:var(--color-parchment)]"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 hover:bg-[color:var(--color-parchment)]"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

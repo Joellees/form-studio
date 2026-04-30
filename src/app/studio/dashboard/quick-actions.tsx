@@ -29,13 +29,13 @@ export function QuickActions({ studioUrl }: { studioUrl: string | null }) {
     <div className="flex flex-wrap items-center gap-2">
       <Link
         href="/studio/clients/new"
-        className="inline-flex h-9 items-center rounded-full bg-[color:var(--color-ink)] px-3.5 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
+        className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-3.5 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
       >
         invite client
       </Link>
       <Link
         href="/studio/packages/new"
-        className="inline-flex h-9 items-center rounded-full border border-[color:var(--color-ink)]/15 bg-[color:var(--color-canvas)] px-3.5 text-xs font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
+        className="inline-flex h-11 items-center rounded-full border border-[color:var(--color-ink)]/15 bg-[color:var(--color-canvas)] px-3.5 text-xs font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
       >
         new package
       </Link>
@@ -43,7 +43,7 @@ export function QuickActions({ studioUrl }: { studioUrl: string | null }) {
         <button
           type="button"
           onClick={copyStudio}
-          className="inline-flex h-9 items-center rounded-full border border-[color:var(--color-ink)]/15 bg-[color:var(--color-canvas)] px-3.5 text-xs font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
+          className="inline-flex h-11 items-center rounded-full border border-[color:var(--color-ink)]/15 bg-[color:var(--color-canvas)] px-3.5 text-xs font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
         >
           {copied ? "copied" : "share studio link"}
         </button>

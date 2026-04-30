@@ -123,7 +123,7 @@ export default async function ClientPortal({
   const signInUrl = buildSignInUrl(trainer?.subdomain_slug ?? null);
 
   return (
-    <div className="rise-in-stagger space-y-6 md:space-y-8">
+    <div className="rise-in-stagger space-y-5 md:space-y-8">
       {sp.welcome ? <WelcomeBanner trainerName={firstName} signInUrl={signInUrl} /> : null}
 
       <ProfileSection

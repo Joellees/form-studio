@@ -69,7 +69,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
                 type="button"
                 onClick={() => markPaid(item.subscriptionId)}
                 disabled={pending}
-                className="inline-flex h-8 items-center rounded-full bg-[color:var(--color-ink)] px-3.5 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
+                className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
               >
                 mark paid
               </button>
@@ -96,7 +96,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
                 type="button"
                 onClick={() => approve(item.sessionId)}
                 disabled={pending}
-                className="inline-flex h-8 items-center rounded-full bg-[color:var(--color-ink)] px-3.5 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
+                className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
               >
                 approve
               </button>
