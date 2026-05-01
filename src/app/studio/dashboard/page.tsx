@@ -250,13 +250,13 @@ export default async function DashboardPage() {
     : null;
 
   return (
-    <div className="rise-in-stagger space-y-5 md:space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="rise-in-stagger space-y-4 md:space-y-8">
+      <header className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
             overview
           </p>
-          <h1 className="mt-2 font-display text-2xl leading-tight md:text-3xl">
+          <h1 className="mt-1 font-display text-2xl leading-tight md:mt-2 md:text-3xl">
             Hi, {trainer.displayName.split(" ")[0]}.
           </h1>
         </div>

@@ -264,17 +264,21 @@ function ExercisesTab({
       {/* Toolbar — one primary at a time. In normal mode the primary
           is "add exercise"; in select mode it shifts to "add to
           workout" and "add exercise" demotes to outline. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant={selecting ? "outline" : "primary"} size="md" className="shrink-0">
-          <Link href="/studio/library/new">add exercise</Link>
-        </Button>
+      {/* Mobile: search full-width on top, action buttons below. Desktop:
+          everything on one row. */}
+      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         <Input
           value={query}
           placeholder="search exercises"
           onChange={(e) => setQuery(e.target.value)}
-          className="max-w-[260px] flex-1"
+          className="w-full md:order-2 md:max-w-[260px] md:flex-1"
         />
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 md:order-1">
+          <Button asChild variant={selecting ? "outline" : "primary"} size="md" className="shrink-0">
+            <Link href="/studio/library/new">add exercise</Link>
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 md:order-3 md:ml-auto">
           {selecting ? (
             <>
               <Button
@@ -288,7 +292,7 @@ function ExercisesTab({
                 type="button"
                 onClick={exitSelect}
                 aria-label="cancel selection"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)]"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)]"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
                   <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
@@ -542,7 +546,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors",
+        "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-colors md:h-8 md:px-3.5",
         active
           ? "bg-[color:var(--color-ink)] text-[color:var(--color-canvas)]"
           : "bg-[color:var(--color-parchment)]/70 text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]",

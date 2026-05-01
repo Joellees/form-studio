@@ -53,23 +53,25 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
           return (
             <li
               key={`pp-${item.subscriptionId}-${i}`}
-              className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
+              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
             >
-              <KindLabel tone="signal">payment due</KindLabel>
-              <Link
-                href={`/studio/clients/${item.clientId}`}
-                className="min-w-0 flex-1 text-sm hover:text-[color:var(--color-moss-deep)]"
-              >
-                <span className="font-medium">{item.clientName}</span>
-                <span className="text-[color:var(--color-ink)]/65">
-                  {" "}owes ${item.priceUsd.toLocaleString()} for {item.packageName}
-                </span>
-              </Link>
+              <div className="flex min-w-0 items-center gap-3">
+                <KindLabel tone="signal">payment due</KindLabel>
+                <Link
+                  href={`/studio/clients/${item.clientId}`}
+                  className="min-w-0 flex-1 text-sm hover:text-[color:var(--color-moss-deep)]"
+                >
+                  <span className="font-medium">{item.clientName}</span>
+                  <span className="text-[color:var(--color-ink)]/65">
+                    {" "}owes ${item.priceUsd.toLocaleString()} for {item.packageName}
+                  </span>
+                </Link>
+              </div>
               <button
                 type="button"
                 onClick={() => markPaid(item.subscriptionId)}
                 disabled={pending}
-                className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
+                className="inline-flex h-11 shrink-0 items-center self-end rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60 sm:self-auto"
               >
                 mark paid
               </button>
@@ -80,23 +82,25 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
           return (
             <li
               key={`sr-${item.sessionId}-${i}`}
-              className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
+              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
             >
-              <Dot tone="signal" />
-              <Link
-                href={`/studio/sessions/${item.sessionId}`}
-                className="min-w-0 flex-1 text-sm hover:text-[color:var(--color-moss-deep)]"
-              >
-                <span className="font-medium">{item.clientName}</span>
-                <span className="text-[color:var(--color-ink)]/65">
-                  {" "}requested a session — {item.whenLabel}
-                </span>
-              </Link>
+              <div className="flex min-w-0 items-center gap-3">
+                <Dot tone="signal" />
+                <Link
+                  href={`/studio/sessions/${item.sessionId}`}
+                  className="min-w-0 flex-1 text-sm hover:text-[color:var(--color-moss-deep)]"
+                >
+                  <span className="font-medium">{item.clientName}</span>
+                  <span className="text-[color:var(--color-ink)]/65">
+                    {" "}requested a session — {item.whenLabel}
+                  </span>
+                </Link>
+              </div>
               <button
                 type="button"
                 onClick={() => approve(item.sessionId)}
                 disabled={pending}
-                className="inline-flex h-11 items-center rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
+                className="inline-flex h-11 shrink-0 items-center self-end rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60 sm:self-auto"
               >
                 approve
               </button>

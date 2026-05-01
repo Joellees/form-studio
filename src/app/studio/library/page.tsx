@@ -59,12 +59,12 @@ export default async function LibraryPage({ searchParams }: Props) {
   });
 
   return (
-    <div className="rise-in-stagger space-y-5 md:space-y-8">
+    <div className="rise-in-stagger space-y-4 md:space-y-8">
       <div>
         <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
           library
         </p>
-        <h1 className="mt-2 text-3xl md:text-4xl">Everything you coach.</h1>
+        <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">Everything you coach.</h1>
       </div>
 
       <LibraryView

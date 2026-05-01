@@ -22,10 +22,12 @@ const buttonVariants = cva(
         link: "text-[color:var(--color-moss-deep)] underline underline-offset-4 hover:text-[color:var(--color-ink)]",
       },
       size: {
-        sm: "h-8 px-4 text-[13px]",
-        md: "h-10 px-6",
+        // On mobile every size hits the 44px touch-target floor; on
+        // md+ we shrink back to the editorial-tighter desktop sizes.
+        sm: "h-11 px-4 text-[13px] md:h-9",
+        md: "h-11 px-5 md:h-10 md:px-6",
         lg: "h-12 px-8 text-[15px]",
-        icon: "h-9 w-9",
+        icon: "h-11 w-11 md:h-9 md:w-9",
       },
     },
     defaultVariants: {

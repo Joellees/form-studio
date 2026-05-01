@@ -82,41 +82,47 @@ export function ClientsList({
   ).length;
 
   return (
-    <div className="space-y-5">
-      {/* Toolbar: search + sort + needs-attention filter */}
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-4 md:space-y-5">
+      {/* Toolbar: search full-width on mobile, sort + filter inline below.
+          On desktop everything fits on one row. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
         <Input
           value={query}
           placeholder="search by name, email, phone"
           onChange={(e) => setQuery(e.target.value)}
-          className="max-w-[320px] flex-1"
+          className="w-full sm:max-w-[320px] sm:flex-1"
         />
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as Sort)}
-          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm"
-        >
-          <option value="recent">recently added</option>
-          <option value="alphabetical">alphabetical</option>
-          <option value="last_session">last session</option>
-          <option value="attention">needs attention first</option>
-        </select>
-        {attentionCount > 0 ? (
-          <button
-            type="button"
-            onClick={() => setNeedsAttentionOnly((v) => !v)}
-            className={cn(
-              "inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
-              needsAttentionOnly
-                ? "border-[color:var(--color-sienna)] bg-[color:var(--color-sienna)]/10 text-[color:var(--color-sienna)]"
-                : "border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]",
-            )}
+        <div className="flex items-center gap-2">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as Sort)}
+            className="select-pill h-11 flex-1 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm sm:flex-none sm:px-4"
           >
-            <span className="size-1.5 rounded-full bg-[color:var(--color-sienna)]" aria-hidden />
-            needs attention
-            <span className="tabular-nums text-xs opacity-80">{attentionCount}</span>
-          </button>
-        ) : null}
+            <option value="recent">recently added</option>
+            <option value="alphabetical">alphabetical</option>
+            <option value="last_session">last session</option>
+            <option value="attention">needs attention first</option>
+          </select>
+          {attentionCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setNeedsAttentionOnly((v) => !v)}
+              className={cn(
+                "inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
+                needsAttentionOnly
+                  ? "border-[color:var(--color-sienna)] bg-[color:var(--color-sienna)]/10 text-[color:var(--color-sienna)]"
+                  : "border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]",
+              )}
+              aria-pressed={needsAttentionOnly}
+              aria-label={`needs attention (${attentionCount})`}
+            >
+              <span className="size-1.5 rounded-full bg-[color:var(--color-sienna)]" aria-hidden />
+              <span className="hidden sm:inline">needs attention</span>
+              <span className="sm:hidden">attention</span>
+              <span className="tabular-nums text-xs opacity-80">{attentionCount}</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {filtered.length === 0 ? (

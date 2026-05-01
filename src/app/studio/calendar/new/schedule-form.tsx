@@ -72,7 +72,7 @@ export function ScheduleForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="mt-6 flex flex-col gap-4 md:mt-10 md:gap-6">
       <div className="flex flex-col gap-2">
         <Label>client</Label>
         <select

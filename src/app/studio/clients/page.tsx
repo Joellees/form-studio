@@ -159,14 +159,14 @@ export default async function ClientsPage({
   });
 
   return (
-    <div className="rise-in-stagger space-y-5 md:space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="rise-in-stagger space-y-4 md:space-y-8">
+      <header className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
             clients
           </p>
-          <h1 className="mt-2 text-3xl md:text-4xl">Everyone you train.</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
+          <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">Everyone you train.</h1>
+          <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums md:text-sm">
             {showArchived
               ? `${archivedCount ?? 0} archived`
               : `${activeCount ?? 0} active${
@@ -174,7 +174,7 @@ export default async function ClientsPage({
                 }`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {showArchived || (archivedCount && archivedCount > 0) ? (
             <Link
               href={showArchived ? "/studio/clients" : "/studio/clients?archived=1"}

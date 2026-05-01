@@ -154,18 +154,23 @@ export default async function CalendarPage({ searchParams }: Props) {
   const nextHref = navHref(view, start, "next");
 
   return (
-    <div className="rise-in-stagger space-y-5 md:space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="rise-in-stagger space-y-4 md:space-y-8">
+      {/* Mobile layout: title block on its own row, controls below it
+          on a separate row (view-switcher left, prev/next right). At
+          375px, packing title + 5 controls on one row meant the
+          switcher wrapped onto a third line and the nav arrows
+          collided with the date label. */}
+      <div className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
             calendar
           </p>
-          <h1 className="mt-2 text-3xl md:text-4xl">{headline}</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
+          <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">{headline}</h1>
+          <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums md:text-sm">
             {dateLabel} · {prettyTimezone(trainer.timezone)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3 md:justify-end">
           <ViewSwitcher current={view} reference={start} />
           <NavGroup prevHref={prevHref} nextHref={nextHref} />
         </div>

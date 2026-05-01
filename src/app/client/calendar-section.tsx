@@ -62,7 +62,7 @@ export function CalendarSection({ upcoming, past, cycleEnabled }: Props) {
 
   return (
     <section className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <header className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-3 md:space-y-0">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
             calendar
@@ -78,7 +78,7 @@ export function CalendarSection({ upcoming, past, cycleEnabled }: Props) {
             </Button>
           ) : null}
           <Button size="sm" variant="outline" onClick={() => setExtraOpen(true)}>
-            request extra workout · ${EXTRA_INAPP_PRICE_USD}
+            extra workout · ${EXTRA_INAPP_PRICE_USD}
           </Button>
           <Button size="sm" onClick={() => setRequestOpen(true)}>
             request session

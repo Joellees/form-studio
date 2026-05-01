@@ -81,13 +81,13 @@ export default async function PackagesPage() {
   }
 
   return (
-    <div className="rise-in-stagger space-y-5 md:space-y-8">
+    <div className="rise-in-stagger space-y-4 md:space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
             packages
           </p>
-          <h1 className="mt-2 text-3xl md:text-4xl">What clients buy.</h1>
+          <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">What clients buy.</h1>
         </div>
         <Button asChild>
           <Link href="/studio/packages/new">new package</Link>

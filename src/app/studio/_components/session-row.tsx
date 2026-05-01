@@ -91,7 +91,7 @@ export function SessionRow({
         e.stopPropagation();
         setMenuOpen((v) => !v);
       }}
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)]"
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] transition-colors hover:bg-[color:var(--color-ink)]/5 hover:text-[color:var(--color-ink)] md:h-9 md:w-9"
     >
       ⋯
     </button>
