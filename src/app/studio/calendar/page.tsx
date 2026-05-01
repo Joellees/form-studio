@@ -166,7 +166,7 @@ export default async function CalendarPage({ searchParams }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <ViewSwitcher current={view} ref={start} />
+          <ViewSwitcher current={view} reference={start} />
           <NavGroup prevHref={prevHref} nextHref={nextHref} />
         </div>
       </div>
@@ -216,13 +216,17 @@ function addMonths(d: Date, n: number): Date {
   return next;
 }
 
-function ViewSwitcher({ current, ref }: { current: View; ref: Date }) {
+// `reference` (not `ref`) — `ref` is a reserved React prop, JSX
+// strips it from the props object before the component sees it,
+// which manifested as a server-side "Cannot read properties of
+// undefined (reading 'toISOString')" rendering crash.
+function ViewSwitcher({ current, reference }: { current: View; reference: Date }) {
   const items: { v: View; label: string }[] = [
     { v: "week", label: "week" },
     { v: "2weeks", label: "2 weeks" },
     { v: "month", label: "month" },
   ];
-  const date = ref.toISOString().slice(0, 10);
+  const date = reference.toISOString().slice(0, 10);
   return (
     <div
       role="tablist"
