@@ -1,21 +1,9 @@
-# Anthropic crawlers — explicit allow on every path so Claude-in-chat
-# / web_fetch can read the preview-token URLs (used to share the
-# read-only studio preview with Claude). These blocks must come BEFORE
-# the wildcard so the more-specific user-agent match wins.
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
+# Wildcard allow so any crawler (Anthropic's web_fetch / ClaudeBot /
+# anthropic-ai / Claude-Web — UA name is opaque to us) can fetch the
+# preview-token URLs we share into Claude chat. Real access control
+# lives at the middleware level (beta gate + Clerk + the preview
+# token); robots.txt is advisory and shouldn't be the gate.
 User-agent: *
 Allow: /
-Disallow: /studio/
-Disallow: /admin/
-Disallow: /onboarding
-Disallow: /api/
 
 Sitemap: https://formstudio.com/sitemap.xml
