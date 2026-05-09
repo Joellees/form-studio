@@ -1,7 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { StudioShell } from "./_components/studio-shell";
+import { isPreviewActive, PREVIEW_TRAINER_SLUG } from "@/lib/preview";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getTenantKind, getTenantSlug } from "@/lib/tenancy";
 
@@ -18,6 +20,22 @@ import { getTenantKind, getTenantSlug } from "@/lib/tenancy";
  * to /onboarding even though they already have a studio.
  */
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
+  // Preview mode (stateless tooling): resolve the seed trainer
+  // directly. Middleware has already validated `BETA_PREVIEW_TOKEN`
+  // and refused any non-GET methods, so the studio surface is safe
+  // to render against Joelle's data.
+  const h = await headers();
+  if (isPreviewActive(h)) {
+    const admin = createSupabaseAdminClient();
+    const { data: trainer } = await admin
+      .from("trainers")
+      .select("id, display_name, subdomain_slug")
+      .eq("subdomain_slug", PREVIEW_TRAINER_SLUG)
+      .maybeSingle();
+    if (!trainer) redirect("/");
+    return <StudioShell trainer={trainer}>{children}</StudioShell>;
+  }
+
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
