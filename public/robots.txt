@@ -1,3 +1,16 @@
+# Anthropic crawlers — explicit allow on every path so Claude-in-chat
+# / web_fetch can read the preview-token URLs (used to share the
+# read-only studio preview with Claude). These blocks must come BEFORE
+# the wildcard so the more-specific user-agent match wins.
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
 User-agent: *
 Allow: /
 Disallow: /studio/
