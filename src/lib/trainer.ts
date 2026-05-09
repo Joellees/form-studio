@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
+import { isPreviewActive, PREVIEW_TRAINER_SLUG } from "@/lib/preview";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getTenantSlug } from "@/lib/tenancy";
 
@@ -34,6 +35,28 @@ export type TrainerContext = {
  * `tenant_id = trainer.id` explicitly.
  */
 export async function requireTrainer(): Promise<TrainerContext> {
+  // Preview mode (Claude chat / web_fetch tooling): bypass Clerk and
+  // resolve the seed trainer (Joelle) directly. The preview marker is
+  // set by middleware after validating `BETA_PREVIEW_TOKEN`.
+  const h = await headers();
+  if (isPreviewActive(h)) {
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("trainers")
+      .select("id, clerk_id, display_name, subdomain_slug, timezone")
+      .eq("subdomain_slug", PREVIEW_TRAINER_SLUG)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("Preview trainer not found");
+    return {
+      id: data.id,
+      clerkId: data.clerk_id ?? "preview",
+      displayName: data.display_name,
+      subdomainSlug: data.subdomain_slug,
+      timezone: data.timezone,
+    };
+  }
+
   const { userId } = await auth();
   if (!userId) throw new Error("Not authenticated");
 

@@ -2,6 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { BETA_COOKIE, isValidBetaCode, parseBetaCodes } from "@/lib/beta";
+import { isPreviewToken, PREVIEW_HEADER, PREVIEW_QUERY } from "@/lib/preview";
 import { parseHost, TENANT_KIND_HEADER, TENANT_SLUG_HEADER } from "@/lib/tenancy";
 
 const isPublicRoute = createRouteMatcher([
@@ -72,12 +73,28 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   requestHeaders.set(TENANT_KIND_HEADER, kind);
   if (slug) requestHeaders.set(TENANT_SLUG_HEADER, slug);
 
+  // Stateless preview mode for tooling that can't hold cookies (Claude
+  // chat / web_fetch / link previews). A request carrying a valid
+  // `fs_preview` token in either the query string or an `X-Fs-Preview`
+  // header bypasses the beta gate AND Clerk auth, and is treated as
+  // the seed trainer downstream. Mutating verbs are rejected at the
+  // edge so no preview request can change state. See `lib/preview.ts`.
+  const previewQuery = url.searchParams.get(PREVIEW_QUERY);
+  const previewHeader = req.headers.get(PREVIEW_HEADER);
+  const isPreview = isPreviewToken(previewQuery) || isPreviewToken(previewHeader);
+  if (isPreview) {
+    if (!["GET", "HEAD"].includes(req.method)) {
+      return new NextResponse("preview is read-only", { status: 405 });
+    }
+    requestHeaders.set(PREVIEW_HEADER, "1");
+  }
+
   // Beta gate — always on for signed-out visitors hitting a non-exempt
   // path. Closed-by-default: empty / missing BETA_CODES means nobody
   // gets in (the /beta page shows a helpful "no codes configured"
   // message in that case). Until we ship a paywall, the code IS the
   // entitlement.
-  if (!isBetaExempt(url.pathname)) {
+  if (!isPreview && !isBetaExempt(url.pathname)) {
     const { userId } = await auth();
     if (!userId) {
       const betaCodes = parseBetaCodes(process.env.BETA_CODES);
@@ -111,7 +128,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
   }
 
-  if (!isPublicRoute(req)) {
+  if (!isPreview && !isPublicRoute(req)) {
     await auth.protect();
   }
 
