@@ -130,17 +130,25 @@ export function ClientsList({
           No matches. Try clearing the search or filter.
         </p>
       ) : (
-        <ul className="divide-y divide-[color:var(--color-ink)]/5">
+        // Mobile: each client renders as a single compact card —
+        // avatar + name + status pinned top, package + last-seen
+        // line as muted detail below. No 4-row stack with empty
+        // spaces.
+        // Desktop: 4-column grid with package, last seen, status as
+        // separate columns for fast scanning.
+        <ul className="divide-y divide-[color:var(--color-ink)]/5 sm:divide-y">
           {filtered.map((c) => (
             <li key={c.id}>
               <Link
                 href={`/studio/clients/${c.id}`}
-                className="group -mx-2 grid gap-3 rounded-xl px-2 py-3.5 transition-colors hover:bg-[color:var(--color-parchment)]/50 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,7rem)_auto] sm:items-center sm:gap-6"
+                className="group -mx-2 flex flex-col gap-1 rounded-xl px-3 py-3 transition-colors hover:bg-[color:var(--color-parchment)]/50 sm:grid sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,7rem)_auto] sm:items-center sm:gap-6 sm:px-2 sm:py-3.5"
               >
-                {/* Identity */}
+                {/* Row 1 (mobile): avatar + name + status badge.
+                    Desktop: avatar + name only, status moves to its
+                    own column below. */}
                 <div className="flex min-w-0 items-center gap-3">
                   <Avatar name={c.displayName} />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-[color:var(--color-ink)]">
                       {c.displayName}
                     </p>
@@ -150,9 +158,16 @@ export function ClientsList({
                       </p>
                     ) : null}
                   </div>
+                  {/* Mobile-only badge in identity row to keep status
+                      visible without a dedicated row of its own. */}
+                  <span className="sm:hidden">
+                    <StatusBadge status={c.status} />
+                  </span>
                 </div>
 
-                {/* Package + sessions */}
+                {/* Mobile detail line — package + last seen merged
+                    into one muted row. Desktop: this whole block
+                    becomes the package column. */}
                 <div className="min-w-0 text-sm sm:pr-2">
                   {c.packageName ? (
                     <>
@@ -163,22 +178,35 @@ export function ClientsList({
                         <p className="mt-0.5 text-xs tabular-nums text-[color:var(--color-stone)]">
                           {c.sessionsDone}/{c.sessionsTotal} sessions
                           {c.endDate ? ` · ends ${fmtShort(c.endDate)}` : ""}
+                          <span className="sm:hidden">
+                            {" · "}
+                            {c.lastSessionAt
+                              ? `last seen ${fmtRelative(c.lastSessionAt)}`
+                              : "no sessions yet"}
+                          </span>
                         </p>
                       ) : null}
                     </>
                   ) : (
-                    <p className="text-[color:var(--color-stone)]">no plan</p>
+                    <p className="text-xs text-[color:var(--color-stone)]">
+                      no plan
+                      <span className="sm:hidden">
+                        {c.lastSessionAt
+                          ? ` · last seen ${fmtRelative(c.lastSessionAt)}`
+                          : ""}
+                      </span>
+                    </p>
                   )}
                 </div>
 
-                {/* Last session */}
-                <div className="text-xs tabular-nums text-[color:var(--color-stone)] sm:text-right">
-                  <span className="sm:hidden">last seen </span>
+                {/* Desktop-only: last-session column. Mobile already
+                    merged this into the line above. */}
+                <div className="hidden text-xs tabular-nums text-[color:var(--color-stone)] sm:block sm:text-right">
                   {c.lastSessionAt ? fmtRelative(c.lastSessionAt) : "—"}
                 </div>
 
-                {/* Status badge + hover chevron */}
-                <div className="flex items-center justify-end gap-2">
+                {/* Desktop-only: status badge + hover chevron column. */}
+                <div className="hidden items-center justify-end gap-2 sm:flex">
                   <StatusBadge status={c.status} />
                   <span
                     aria-hidden

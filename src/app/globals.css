@@ -58,19 +58,15 @@
     font-feature-settings: "ss01", "cv01", "cv11";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    /* Defensive horizontal overflow guard. Mobile pages with one long
-       unbreakable string (a session name, a URL, a client display
-       name) used to push the body wider than the viewport, causing
-       the whole page to horizontally scroll. `overflow-x: clip` clips
-       the offending child without breaking sticky positioning the
-       way `overflow-x: hidden` would. */
-    overflow-x: clip;
   }
 
   /* Long unbreakable strings (long single-word client names, URLs,
      hashes) wrap to the next line on mobile rather than blowing out
      the layout. Specific cells / inputs / monospace strings that need
-     no-break behavior still get `whitespace-nowrap` explicitly. */
+     no-break behavior still get `whitespace-nowrap` explicitly. The
+     overflow-x clip lives on the per-shell <main>, NOT on body — body
+     clip can interact poorly with `position: sticky` (the studio
+     header ended up cut on some Safari builds). */
   body {
     overflow-wrap: anywhere;
     word-break: break-word;

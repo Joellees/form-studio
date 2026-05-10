@@ -266,6 +266,12 @@ function ExercisesTab({
           workout" and "add exercise" demotes to outline. */}
       {/* Mobile: search full-width on top, action buttons below. Desktop:
           everything on one row. */}
+      {/*
+        Mobile: search on its own row, two action CTAs ("add exercise"
+        + "select" / "add to workout") side by side on the next row —
+        no orphan single-button rows. Desktop: everything on one row,
+        ordered [add exercise] [search] [select / add to workout].
+      */}
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         <Input
           value={query}
@@ -273,37 +279,39 @@ function ExercisesTab({
           onChange={(e) => setQuery(e.target.value)}
           className="w-full md:order-2 md:max-w-[260px] md:flex-1"
         />
-        <div className="flex items-center gap-2 md:order-1">
-          <Button asChild variant={selecting ? "outline" : "primary"} size="md" className="shrink-0">
-            <Link href="/studio/library/new">add exercise</Link>
-          </Button>
-        </div>
-        <div className="flex items-center gap-2 md:order-3 md:ml-auto">
-          {selecting ? (
-            <>
-              <Button
-                size="md"
-                onClick={() => setCreatingWorkout(true)}
-                disabled={selected.size === 0}
-              >
-                add to workout{selected.size > 0 ? ` (${selected.size})` : ""}
-              </Button>
-              <button
-                type="button"
-                onClick={exitSelect}
-                aria-label="cancel selection"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)]"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                  <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                </svg>
-              </button>
-            </>
-          ) : (
-            <Button variant="outline" size="md" onClick={() => setSelecting(true)}>
-              select
+        <div className="flex items-center justify-between gap-2 md:contents">
+          <div className="flex items-center gap-2 md:order-1">
+            <Button asChild variant={selecting ? "outline" : "primary"} size="md" className="shrink-0">
+              <Link href="/studio/library/new">add exercise</Link>
             </Button>
-          )}
+          </div>
+          <div className="flex items-center gap-2 md:order-3 md:ml-auto">
+            {selecting ? (
+              <>
+                <Button
+                  size="md"
+                  onClick={() => setCreatingWorkout(true)}
+                  disabled={selected.size === 0}
+                >
+                  add to workout{selected.size > 0 ? ` (${selected.size})` : ""}
+                </Button>
+                <button
+                  type="button"
+                  onClick={exitSelect}
+                  aria-label="cancel selection"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)]"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                    <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <Button variant="outline" size="md" onClick={() => setSelecting(true)}>
+                select
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
