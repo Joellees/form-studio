@@ -55,7 +55,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
               key={`pp-${item.subscriptionId}-${i}`}
               className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
             >
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-w-0 items-start gap-3 sm:items-center">
                 <KindLabel tone="signal">payment due</KindLabel>
                 <Link
                   href={`/studio/clients/${item.clientId}`}
@@ -84,7 +84,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
               key={`sr-${item.sessionId}-${i}`}
               className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
             >
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-w-0 items-start gap-3 sm:items-center">
                 <Dot tone="signal" />
                 <Link
                   href={`/studio/sessions/${item.sessionId}`}
@@ -187,13 +187,16 @@ function ContextRow({
     <li className="group">
       <Link
         href={href}
-        className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 text-sm transition-colors first:-mt-1 last:-mb-1 hover:bg-[color:var(--color-canvas)]"
+        className="-mx-2 flex items-start gap-3 rounded-xl px-2 py-3 text-sm transition-colors first:-mt-1 last:-mb-1 hover:bg-[color:var(--color-canvas)] sm:items-center"
       >
         {kind ? <KindLabel tone={tone}>{kind}</KindLabel> : <Dot tone={tone} />}
-        <span className="min-w-0 flex-1 truncate">{children}</span>
+        {/* Mobile: wrap freely so the full action message stays
+            readable. Desktop (sm+): dense one-line truncate so the
+            list scans like an inbox. */}
+        <span className="min-w-0 flex-1 break-words sm:truncate">{children}</span>
         <span
           aria-hidden
-          className="text-[color:var(--color-stone)] opacity-0 transition-opacity group-hover:opacity-100"
+          className="hidden text-[color:var(--color-stone)] opacity-0 transition-opacity group-hover:opacity-100 sm:inline"
         >
           →
         </span>

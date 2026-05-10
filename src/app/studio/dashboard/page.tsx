@@ -282,7 +282,7 @@ export default async function DashboardPage() {
                 what needs you
               </h2>
               {feed.length === 0 ? (
-                <div className="rounded-2xl bg-[color:var(--color-parchment)]/55 p-5">
+                <div className="rounded-2xl bg-[color:var(--color-parchment)]/55 p-4 md:p-5">
                   <p className="text-sm text-[color:var(--color-ink)]/75">
                     Inbox zero. Nothing waiting on you.
                   </p>
@@ -292,7 +292,7 @@ export default async function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-[color:var(--color-parchment)]/55 px-5 py-4">
+                <div className="rounded-2xl bg-[color:var(--color-parchment)]/55 px-3 py-3 md:px-5 md:py-4">
                   <ActionFeed items={feed} />
                 </div>
               )}
@@ -340,7 +340,7 @@ function PulseStrip({
 }) {
   if (total === 0) return null;
   return (
-    <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-[color:var(--color-parchment)]/55 px-5 py-3 text-sm tabular-nums">
+    <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-[color:var(--color-parchment)]/55 px-4 py-3 text-sm tabular-nums md:px-5">
       <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
         this week
       </span>
