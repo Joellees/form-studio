@@ -70,7 +70,7 @@ export default async function ClientLayout({ children }: { children: React.React
         </div>
       </header>
       <main
-        className="mx-auto max-w-[1180px] px-5 py-6 md:px-8 md:py-10"
+        className="mx-auto max-w-[1180px] overflow-x-clip px-5 py-6 md:px-8 md:py-10"
         style={{
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)",
         }}

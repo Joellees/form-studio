@@ -43,7 +43,12 @@ export function StudioShell({ trainer, children }: Props) {
         </div>
       </header>
       <main
-        className="mx-auto max-w-[1200px] px-5 py-6 md:px-8 md:py-12"
+        // overflow-x-clip is the per-element belt to body's
+        // overflow-x: clip suspenders — any child page that produces
+        // a too-wide row (long client name, untruncated string,
+        // tabular cell) gets clipped at the main content rail rather
+        // than pushing the whole layout sideways on mobile.
+        className="mx-auto max-w-[1200px] overflow-x-clip px-5 py-6 md:px-8 md:py-12"
         style={{
           // Reserve space for the iOS home bar / chrome so primary
           // CTAs at the end of long pages stay reachable. Desktop
