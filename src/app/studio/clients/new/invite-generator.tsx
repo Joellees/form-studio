@@ -169,6 +169,8 @@ export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
         <Input
           {...register("displayName", { required: "Required" })}
           placeholder="How you&rsquo;ll refer to them"
+          autoComplete="off"
+          autoCapitalize="words"
         />
       </Field>
       <Field label="phone" error={errors.phone?.message}>
@@ -181,7 +183,16 @@ export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
         />
       </Field>
       <Field label="email (optional)" error={errors.email?.message}>
-        <Input type="email" inputMode="email" {...register("email")} placeholder="name@example.com" />
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          {...register("email")}
+          placeholder="name@example.com"
+        />
       </Field>
       <Field label="package they&rsquo;re agreeing to">
         {packages.length === 0 ? (

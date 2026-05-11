@@ -50,7 +50,17 @@ export default async function BetaGatePage({ searchParams }: Props) {
         <input type="hidden" name="next" value={sp.next ?? "/"} />
         <div className="flex flex-col gap-2">
           <Label htmlFor="code">access code</Label>
-          <Input id="code" name="code" autoFocus autoComplete="off" spellCheck={false} required />
+          <Input
+            id="code"
+            name="code"
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            autoCapitalize="none"
+            autoCorrect="off"
+            inputMode="text"
+            required
+          />
           {sp.error ? (
             <p className="text-xs text-[color:var(--color-sienna)]">
               That code isn&rsquo;t valid. Double-check with the person who invited you.

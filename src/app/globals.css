@@ -72,6 +72,51 @@
     word-break: break-word;
   }
 
+  /* ─── Mobile-native primitives ─────────────────────────────────────
+   * These rules are applied app-wide. The component layer is allowed to
+   * override on a per-element basis (e.g. `select` inputs sometimes
+   * want a different tap behavior), but the defaults below make every
+   * interactive element feel like a native app instead of a web page.
+   * ─────────────────────────────────────────────────────────────── */
+
+  /* Kill the iOS Safari 300ms tap delay + the gray flash on tap. The
+     focus-visible ring (defined above) replaces the highlight color as
+     the affordance for keyboard users; touchscreen users get active
+     state via Tailwind's `active:` utilities. */
+  :where(a, button, [role="button"], input, select, textarea, label) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Inputs at < 16px font-size cause iOS Safari to zoom in on focus —
+     the page then sits zoomed until the user manually pinches out.
+     Pin all form controls to >= 16px on mobile to suppress the zoom.
+     Desktop overrides via `md:text-sm` etc. are still respected. */
+  @media (max-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  /* Prevent pull-to-refresh and rubber-band scrolling inside modals /
+     drawers / popovers from propagating to the page below. Each
+     overlay component still sets its own scroll container with
+     overflow-y: auto, this just contains the chain at the body root. */
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  /* Swap `min-h-screen` (100vh) for dynamic-viewport height on Safari
+     iOS where 100vh includes the URL bar and leaves content cut off
+     under the chrome. dvh resizes as the browser chrome shows/hides. */
+  @supports (min-height: 100dvh) {
+    .min-h-screen {
+      min-height: 100dvh;
+    }
+  }
+
   /* Tabular numbers in tables, data cells, and anything with [data-tnum] */
   table,
   [data-tnum],

@@ -57,6 +57,11 @@ export function OnboardingForm({ initialSlug, initialName }: { initialSlug: stri
             className="border-0 text-sm focus-visible:border-0"
             placeholder="joelle"
             aria-describedby="slug-hint"
+            inputMode="text"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
           <span className="flex items-center border-l border-[color:var(--color-stone-soft)] bg-[color:var(--color-parchment)] px-3 text-sm text-[color:var(--color-stone)]">
             .{rootDomain.replace(/:\d+$/, "")}
@@ -70,7 +75,13 @@ export function OnboardingForm({ initialSlug, initialName }: { initialSlug: stri
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="displayName">display name</Label>
-        <Input id="displayName" {...register("displayName", { required: "Tell clients who you are" })} placeholder="Joelle" />
+        <Input
+          id="displayName"
+          {...register("displayName", { required: "Tell clients who you are" })}
+          placeholder="Joelle"
+          autoComplete="name"
+          autoCapitalize="words"
+        />
         {errors.displayName ? <p className="text-xs text-[color:var(--color-sienna)]">{errors.displayName.message}</p> : null}
       </div>
 
