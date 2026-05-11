@@ -140,12 +140,21 @@ export default async function ClientDashboard({
                 packageId: active.package_id ?? "",
                 packageName: activePkg?.name ?? "package",
                 sessionsRemaining: active.sessions_remaining ?? 0,
+                sessionCount: activePkg?.session_count ?? active.sessions_remaining ?? 0,
                 pendingPackageId: active.pending_package_id ?? null,
                 nextRenewal: active.next_renewal_date,
               }
             : null
         }
-        pending={pending ? { packageName: pendingPkg?.name ?? "your package" } : null}
+        pending={
+          pending
+            ? {
+                subscriptionId: pending.id,
+                packageName: pendingPkg?.name ?? "your package",
+                sessionCount: pendingPkg?.session_count ?? 0,
+              }
+            : null
+        }
         packages={(packages ?? []).map((p) => ({
           id: p.id,
           name: p.name,

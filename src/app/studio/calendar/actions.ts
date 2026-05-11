@@ -277,21 +277,12 @@ export async function requestSession(raw: unknown): Promise<ActionResult<{ id: s
       );
     }
 
+    // Per Beta 2 spec: payment status does NOT gate session requests.
+    // Any signed-in client with a valid client row can submit a
+    // 'requested' session — the trainer approves or declines. Money
+    // is settled between trainer and client externally; Form Studio's
+    // role here is bookkeeping, not enforcement.
     const supabase = createSupabaseAdminClient();
-    const { data: subs } = await supabase
-      .from("subscriptions")
-      .select("id, sessions_remaining, payment_status")
-      .eq("client_id", client.id);
-
-    const hasAvailable = (subs ?? []).some(
-      (s) => s.payment_status === "paid" && (s.sessions_remaining ?? 0) > 0,
-    );
-    if (!hasAvailable) {
-      return fail(
-        "Your trainer hasn't activated a package for you yet. Hang tight — they'll be in touch.",
-      );
-    }
-
     const { data, error } = await supabase
       .from("sessions")
       .insert({
@@ -308,6 +299,8 @@ export async function requestSession(raw: unknown): Promise<ActionResult<{ id: s
     if (error) return fail(error.message);
     revalidatePath("/client/dashboard");
     revalidatePath("/client");
+    revalidatePath("/studio/dashboard");
+    revalidatePath("/studio/calendar");
     return ok({ id: data.id });
   });
 }

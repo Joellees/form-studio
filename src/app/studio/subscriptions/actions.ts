@@ -27,9 +27,25 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
       .eq("id", subscriptionId)
       .maybeSingle();
 
-    if (!sub || sub.tenant_id !== trainer.id) return fail("Subscription not found.");
-    if (sub.payment_status === "paid") return ok();
+    console.info("subscription.mark_paid.attempt", {
+      subscriptionId,
+      trainerId: trainer.id,
+      ownerMatch: sub?.tenant_id === trainer.id,
+      fromStatus: sub?.payment_status,
+    });
 
+    if (!sub || sub.tenant_id !== trainer.id) {
+      console.warn("subscription.mark_paid.unauthorized", { subscriptionId, trainerId: trainer.id });
+      return fail("Subscription not found.");
+    }
+    // Idempotent: already paid → return success silently. No
+    // duplicate `payments` row, no overwriting `paid_confirmed_at`.
+    if (sub.payment_status === "paid") {
+      console.info("subscription.mark_paid.already_paid", { subscriptionId });
+      return ok();
+    }
+
+    const fromStatus = sub.payment_status ?? "pending";
     // @ts-expect-error — nested select typings
     const sessionCount: number = sub.packages?.session_count ?? 0;
     // @ts-expect-error — nested select typings
@@ -45,6 +61,19 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
       })
       .eq("id", subscriptionId);
     if (updErr) return fail(updErr.message);
+
+    // Audit row — every status change is recorded. Lightweight log
+    // matters even at Beta 2 scale because trainers and clients
+    // sometimes dispute "I paid you / you marked me unpaid" later;
+    // the history settles it.
+    await supabase.from("subscription_status_log").insert({
+      subscription_id: subscriptionId,
+      tenant_id: trainer.id,
+      from_status: fromStatus,
+      to_status: "paid",
+      changed_by: trainer.id,
+      note: null,
+    });
 
     await supabase.from("payments").insert({
       tenant_id: trainer.id,
@@ -71,12 +100,112 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
       }
     }
 
+    console.info("subscription.mark_paid.success", {
+      subscriptionId,
+      trainerId: trainer.id,
+      clientId: sub.client_id,
+      sessionsRemaining: sessionCount,
+    });
+
     revalidatePath("/studio/dashboard");
     revalidatePath("/studio/clients");
     if (sub.client_id) {
       // Refresh the specific client-detail page so the "awaiting
       // payment" card flips to "current block" without a manual
       // reload after the trainer hits "mark paid" from that page.
+      revalidatePath(`/studio/clients/${sub.client_id}`);
+    }
+    return ok();
+  });
+}
+
+const revertSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  note: z.string().max(280).optional(),
+});
+
+/**
+ * Reverts a paid subscription back to `pending`. Used for the 30-second
+ * undo toast after marking paid, and for the "revert to pending" menu
+ * option beyond that window. Resets `sessions_remaining` to 0,
+ * clears `paid_confirmed_*`, deletes the manual `payments` row
+ * created by `markSubscriptionPaid` (idempotent: deletes any row
+ * matching this subscription + method='manual' + status='paid'),
+ * and writes an audit row.
+ *
+ * Idempotent: if the subscription is already pending, returns ok.
+ */
+export async function revertSubscriptionToPending(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(revertSchema, raw, async ({ subscriptionId, note }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("id, tenant_id, client_id, payment_status")
+      .eq("id", subscriptionId)
+      .maybeSingle();
+
+    console.info("subscription.revert.attempt", {
+      subscriptionId,
+      trainerId: trainer.id,
+      ownerMatch: sub?.tenant_id === trainer.id,
+      fromStatus: sub?.payment_status,
+    });
+
+    if (!sub || sub.tenant_id !== trainer.id) {
+      console.warn("subscription.revert.unauthorized", {
+        subscriptionId,
+        trainerId: trainer.id,
+      });
+      return fail("Subscription not found.");
+    }
+    if (sub.payment_status !== "paid") {
+      // Idempotent — already pending, nothing to do.
+      console.info("subscription.revert.already_pending", { subscriptionId });
+      return ok();
+    }
+
+    const { error: updErr } = await supabase
+      .from("subscriptions")
+      .update({
+        payment_status: "pending",
+        sessions_remaining: 0,
+        paid_confirmed_at: null,
+        paid_confirmed_by: null,
+      })
+      .eq("id", subscriptionId);
+    if (updErr) return fail(updErr.message);
+
+    await supabase.from("subscription_status_log").insert({
+      subscription_id: subscriptionId,
+      tenant_id: trainer.id,
+      from_status: "paid",
+      to_status: "pending",
+      changed_by: trainer.id,
+      note: note ?? null,
+    });
+
+    // Delete the manual payment record so the client's payments row
+    // doesn't claim "paid" while the subscription is back to pending.
+    await supabase
+      .from("payments")
+      .delete()
+      .eq("subscription_id", subscriptionId)
+      .eq("method", "manual")
+      .eq("status", "paid");
+
+    console.info("subscription.revert.success", {
+      subscriptionId,
+      trainerId: trainer.id,
+      clientId: sub.client_id,
+    });
+
+    revalidatePath("/studio/dashboard");
+    revalidatePath("/studio/clients");
+    if (sub.client_id) {
       revalidatePath(`/studio/clients/${sub.client_id}`);
     }
     return ok();

@@ -7,6 +7,7 @@ import { ClientDetailsEditor } from "./client-details-editor";
 import { ClientFieldToggles } from "./client-field-toggles";
 import { MarkPaidButton } from "./mark-paid-button";
 import { ProgressPanel, type LogEntry } from "./progress-panel";
+import { RevertPaidMenu } from "./revert-paid-menu";
 import { SubscriptionEditor } from "./subscription-editor";
 import { SessionRow } from "../../_components/session-row";
 import { Badge } from "@/components/ui/badge";
@@ -152,16 +153,31 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         {activeSub ? (
           <Card className="mt-3">
             <CardContent>
-              <SubscriptionEditor
-                sub={{
-                  id: activeSub.id,
-                  sessions_remaining: activeSub.sessions_remaining,
-                  start_date: activeSub.start_date,
-                  end_date: activeSub.end_date,
-                  package_name: pkgOf(activeSub.packages)?.name ?? null,
-                  package_session_count: pkgOf(activeSub.packages)?.session_count ?? null,
-                }}
-              />
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="moss">
+                    paid
+                    {activeSub.paid_confirmed_at
+                      ? ` · ${fmt(activeSub.paid_confirmed_at)}`
+                      : ""}
+                  </Badge>
+                </div>
+                {/* Less-prominent revert affordance for paid subs that
+                    are past the 30-second undo toast window. */}
+                <RevertPaidMenu subscriptionId={activeSub.id} />
+              </div>
+              <div className="mt-3">
+                <SubscriptionEditor
+                  sub={{
+                    id: activeSub.id,
+                    sessions_remaining: activeSub.sessions_remaining,
+                    start_date: activeSub.start_date,
+                    end_date: activeSub.end_date,
+                    package_name: pkgOf(activeSub.packages)?.name ?? null,
+                    package_session_count: pkgOf(activeSub.packages)?.session_count ?? null,
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
         ) : pendingSub ? (

@@ -24,10 +24,15 @@ type Props = {
     packageId: string;
     packageName: string;
     sessionsRemaining: number;
+    sessionCount: number;
     pendingPackageId: string | null;
     nextRenewal: string | null;
   } | null;
-  pending: { packageName: string } | null;
+  pending: {
+    subscriptionId: string;
+    packageName: string;
+    sessionCount: number;
+  } | null;
   packages: Package[];
 };
 
@@ -89,10 +94,23 @@ export function ProfileSection({
               </p>
             </div>
           ) : pending ? (
-            <p className="rounded-2xl bg-[color:var(--color-canvas)] px-4 py-3 text-sm text-[color:var(--color-ink)]/75">
-              {pending.packageName} — your trainer will mark it paid when they receive your
-              payment.
-            </p>
+            // Pending packages render with the same shape as active —
+            // the client has full access regardless of payment status
+            // (Beta 2 spec). The "payment pending" line is a single
+            // quiet informational note; it never gates anything.
+            <div className="rounded-2xl bg-[color:var(--color-canvas)] px-4 py-3">
+              <p className="text-sm font-medium tracking-tight">
+                {pending.packageName}
+              </p>
+              <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums">
+                {pending.sessionCount} session
+                {pending.sessionCount === 1 ? "" : "s"} per month
+              </p>
+              <p className="mt-2 text-xs text-[color:var(--color-ink)]/55">
+                Payment pending with {trainerName}. They&rsquo;ll mark it as
+                received once it&rsquo;s settled.
+              </p>
+            </div>
           ) : (
             <p className="rounded-2xl bg-[color:var(--color-canvas)] px-4 py-3 text-sm text-[color:var(--color-ink)]/75">
               No active package. Ask {trainerName} for an invite when you&rsquo;re ready.
