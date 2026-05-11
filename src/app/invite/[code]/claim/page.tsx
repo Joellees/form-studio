@@ -43,10 +43,10 @@ export default async function ClaimInvitePage({ params }: Props) {
 
   if (!result.ok) {
     // Hard failure (e.g. invite claimed by a different user). Send to
-    // /client — `requireClient()` will route them to a sane place
-    // (their existing portal, the studio picker, or sign-in).
-    redirect("/client");
+    // /client/dashboard — `requireClient()` will route them to a sane
+    // place (their existing portal, the studio picker, or sign-in).
+    redirect("/client/dashboard");
   }
 
-  redirect("/client?welcome=1");
+  redirect("/client/dashboard?welcome=1");
 }
