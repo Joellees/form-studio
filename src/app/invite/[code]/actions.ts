@@ -25,11 +25,21 @@ const claimSchema = z.object({
  * as claimed. Idempotent: returns ok if the invite was already claimed
  * by this user (no error), so the auto-claim route can retry without
  * surfacing a dead-end.
+ *
+ * Logs at every step so future trainer↔client linkage bugs are
+ * diagnosable from the deployment logs in under a minute.
  */
 export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId: string }>> {
   return runAction(claimSchema, raw, async ({ code, phone }) => {
+    const startedAt = Date.now();
+    const upperCode = String(code ?? "").toUpperCase();
+    console.info("invite.consume.start", { code: upperCode });
+
     const { userId } = await auth();
-    if (!userId) return fail("You need to sign in or sign up first.");
+    if (!userId) {
+      console.warn("invite.consume.unauthenticated", { code: upperCode });
+      return fail("You need to sign in or sign up first.");
+    }
 
     const admin = createSupabaseAdminClient();
 
@@ -38,13 +48,31 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       .select(
         "code, tenant_id, email, display_name, phone, notes, claimed_at, claimed_by_clerk_id, package_id, packages(id, name, session_count, duration_days, price_usd)",
       )
-      .eq("code", code.toUpperCase())
+      .eq("code", upperCode)
       .maybeSingle();
-    if (!invite) return fail("This invite link isn&rsquo;t valid.");
+
+    console.info("invite.consume.lookup", {
+      code: upperCode,
+      userId,
+      found: !!invite,
+      tenantId: invite?.tenant_id ?? null,
+      alreadyClaimed: !!invite?.claimed_at,
+      claimedBy: invite?.claimed_by_clerk_id ?? null,
+    });
+
+    if (!invite) {
+      console.warn("invite.consume.not_found", { code: upperCode });
+      return fail("This invite link isn&rsquo;t valid.");
+    }
     // Idempotent retry: if THIS user already claimed it, return ok
     // pointing at the existing client row. Only surface an error if a
     // *different* user claimed it (link was forwarded or reused).
     if (invite.claimed_at && invite.claimed_by_clerk_id && invite.claimed_by_clerk_id !== userId) {
+      console.warn("invite.consume.claimed_by_other", {
+        code: upperCode,
+        attemptedBy: userId,
+        claimedBy: invite.claimed_by_clerk_id,
+      });
       return fail("This invite has already been used.");
     }
     if (invite.claimed_at && invite.claimed_by_clerk_id === userId) {
@@ -54,7 +82,14 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
         .eq("clerk_id", userId)
         .eq("tenant_id", invite.tenant_id)
         .maybeSingle();
-      if (existingClient) return ok({ clientId: existingClient.id });
+      if (existingClient) {
+        console.info("invite.consume.idempotent_replay", {
+          code: upperCode,
+          clientId: existingClient.id,
+          durationMs: Date.now() - startedAt,
+        });
+        return ok({ clientId: existingClient.id });
+      }
     }
 
     // A Clerk user can be a client of any number of trainers; we only
@@ -79,43 +114,111 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       if (resolvedPhone) {
         await admin.from("clients").update({ phone: resolvedPhone }).eq("id", clientId);
       }
+      console.info("invite.consume.existing_membership", {
+        code: upperCode,
+        clientId,
+        tenantId: invite.tenant_id,
+        userId,
+      });
     } else {
       const user = await currentUser();
       const email = invite.email || user?.primaryEmailAddress?.emailAddress || null;
       const displayName =
         invite.display_name || user?.firstName || user?.fullName || user?.username || "Client";
 
-      const { data: inserted, error } = await admin
-        .from("clients")
-        .insert({
-          tenant_id: invite.tenant_id,
-          clerk_id: userId,
-          display_name: displayName,
-          email,
-          phone: resolvedPhone,
-          notes: invite.notes ?? null,
-        })
-        .select("id")
-        .single();
-      if (error) {
-        // The legacy unique(clerk_id) constraint is gone post-migration
-        // 0003. If we hit it again, it means the migration hasn't been
-        // applied — surface that explicitly so the trainer or admin
-        // knows what to do instead of the raw Postgres message.
-        if (error.message?.includes("clients_clerk_id_key")) {
-          return fail(
-            "Multi-trainer support isn&rsquo;t enabled yet on this database. Ask the admin to run migration 0003.",
-          );
+      // Look up by (tenant_id, email) to handle the trainer-pre-created
+      // placeholder case: if the trainer added the client via the
+      // /studio/clients/new form first (without an invite) and is now
+      // sending an invite to the same email, we update that
+      // placeholder row instead of creating a duplicate.
+      let placeholderId: string | null = null;
+      if (email) {
+        const { data: byEmail } = await admin
+          .from("clients")
+          .select("id, clerk_id")
+          .eq("tenant_id", invite.tenant_id)
+          .ilike("email", email)
+          .limit(2);
+        const placeholderRows = (byEmail ?? []).filter((r) => !r.clerk_id);
+        if (placeholderRows.length === 1) {
+          placeholderId = placeholderRows[0]!.id as string;
         }
-        return fail(error.message);
       }
-      clientId = inserted.id;
 
-      await admin.from("client_profile_fields").insert({
-        client_id: clientId,
-        tenant_id: invite.tenant_id,
-        weight: true,
-      });
+      if (placeholderId) {
+        const { error: updErr } = await admin
+          .from("clients")
+          .update({
+            clerk_id: userId,
+            display_name: displayName,
+            phone: resolvedPhone,
+          })
+          .eq("id", placeholderId);
+        if (updErr) {
+          console.error("invite.consume.placeholder_update_failed", {
+            code: upperCode,
+            placeholderId,
+            error: updErr.message,
+          });
+          return fail(updErr.message);
+        }
+        clientId = placeholderId;
+        console.info("invite.consume.placeholder_match", {
+          code: upperCode,
+          email,
+          clientId,
+          tenantId: invite.tenant_id,
+        });
+      } else {
+        const { data: inserted, error } = await admin
+          .from("clients")
+          .insert({
+            tenant_id: invite.tenant_id,
+            clerk_id: userId,
+            display_name: displayName,
+            email,
+            phone: resolvedPhone,
+            notes: invite.notes ?? null,
+          })
+          .select("id")
+          .single();
+        if (error) {
+          // The legacy unique(clerk_id) constraint is gone post-migration
+          // 0003. If we hit it again, it means the migration hasn't been
+          // applied — surface that explicitly so the trainer or admin
+          // knows what to do instead of the raw Postgres message.
+          if (error.message?.includes("clients_clerk_id_key")) {
+            console.error("invite.consume.migration_missing", {
+              code: upperCode,
+              error: error.message,
+            });
+            return fail(
+              "Multi-trainer support isn&rsquo;t enabled yet on this database. Ask the admin to run migration 0003.",
+            );
+          }
+          console.error("invite.consume.insert_failed", {
+            code: upperCode,
+            userId,
+            tenantId: invite.tenant_id,
+            error: error.message,
+          });
+          return fail(error.message);
+        }
+        clientId = inserted.id;
+
+        await admin.from("client_profile_fields").insert({
+          client_id: clientId,
+          tenant_id: invite.tenant_id,
+          weight: true,
+        });
+
+        console.info("invite.consume.client_created", {
+          code: upperCode,
+          clientId,
+          tenantId: invite.tenant_id,
+          userId,
+        });
+      }
     }
 
     // If the trainer attached a package to this invite, create the
@@ -156,6 +259,14 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       .from("client_invites")
       .update({ claimed_by_clerk_id: userId, claimed_at: new Date().toISOString() })
       .eq("code", invite.code);
+
+    console.info("invite.consume.success", {
+      code: upperCode,
+      clientId,
+      tenantId: invite.tenant_id,
+      userId,
+      durationMs: Date.now() - startedAt,
+    });
 
     const jar = await cookies();
 

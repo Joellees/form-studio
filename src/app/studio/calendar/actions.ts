@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { requireTrainer } from "@/lib/trainer";
+import { requireClient, requireTrainer } from "@/lib/trainer";
 import { canClientCancel } from "@/lib/schedule";
 
 const scheduleSchema = z.object({
@@ -247,24 +247,55 @@ const requestSchema = z.object({
  * Client-initiated request to book FROM the active package. Creates a
  * session in `requested` state; the deduction happens in
  * `approveSessionRequest` once the trainer approves.
+ *
+ * Resolves identity via `requireClient()` — same path every other
+ * client-side action uses. The prior version queried `clients` with
+ * NO user filter and `.maybeSingle()`, which returned null in any
+ * tenant with 2+ clients (because Supabase JS `.maybeSingle()`
+ * errors silently when the result set is > 1). That's why a fresh
+ * signup on Joelle's tenant (13 clients) saw a red "No client
+ * profile." even though the linkage was correct.
  */
 export async function requestSession(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(requestSchema, raw, async (values) => {
-    const supabase = createSupabaseAdminClient();
-    const { data: client } = await supabase
-      .from("clients")
-      .select("id, tenant_id, subscriptions(id, sessions_remaining, payment_status)")
-      .maybeSingle();
-    if (!client) return fail("No client profile.");
+    let client: Awaited<ReturnType<typeof requireClient>>;
+    try {
+      client = await requireClient();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "Not authenticated") {
+        return fail("Sign in to request a session.");
+      }
+      if (msg === "PICK_STUDIO") {
+        return fail("Pick a studio before requesting a session.");
+      }
+      // No client membership exists for this Clerk user. Surfaces the
+      // specific "your profile is loading or missing" copy on the
+      // form rather than the old generic "No client profile."
+      return fail(
+        "We couldn't find your client profile. Try signing out and back in, then refresh. If this keeps happening, contact your trainer.",
+      );
+    }
 
-    const subs = (client.subscriptions ?? []) as Array<{ id: string; sessions_remaining: number; payment_status: string }>;
-    const hasAvailable = subs.some((s) => s.payment_status === "paid" && s.sessions_remaining > 0);
-    if (!hasAvailable) return fail("No remaining sessions. Reserve another block to continue.");
+    const supabase = createSupabaseAdminClient();
+    const { data: subs } = await supabase
+      .from("subscriptions")
+      .select("id, sessions_remaining, payment_status")
+      .eq("client_id", client.id);
+
+    const hasAvailable = (subs ?? []).some(
+      (s) => s.payment_status === "paid" && (s.sessions_remaining ?? 0) > 0,
+    );
+    if (!hasAvailable) {
+      return fail(
+        "Your trainer hasn't activated a package for you yet. Hang tight — they'll be in touch.",
+      );
+    }
 
     const { data, error } = await supabase
       .from("sessions")
       .insert({
-        tenant_id: client.tenant_id,
+        tenant_id: client.tenantId,
         client_id: client.id,
         scheduled_at: values.scheduledAt,
         duration_minutes: values.durationMinutes,
@@ -275,6 +306,7 @@ export async function requestSession(raw: unknown): Promise<ActionResult<{ id: s
       .select("id")
       .single();
     if (error) return fail(error.message);
+    revalidatePath("/client/dashboard");
     revalidatePath("/client");
     return ok({ id: data.id });
   });
