@@ -72,6 +72,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set(TENANT_KIND_HEADER, kind);
   if (slug) requestHeaders.set(TENANT_SLUG_HEADER, slug);
+  // Expose the resolved pathname to server components / layouts so
+  // they can self-exempt from gates (e.g. the /studio/expired page
+  // must NOT trigger the subscription redirect or it'd loop).
+  requestHeaders.set("x-pathname", url.pathname);
 
   // Stateless preview mode for tooling that can't hold cookies (Claude
   // chat / web_fetch / link previews). A request carrying a valid

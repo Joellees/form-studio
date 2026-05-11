@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { StudioShell } from "./_components/studio-shell";
 import { isPreviewActive, PREVIEW_TRAINER_SLUG } from "@/lib/preview";
+import { hasStudioAccess } from "@/lib/subscription";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getTenantKind, getTenantSlug } from "@/lib/tenancy";
 
@@ -42,7 +43,9 @@ export default async function StudioLayout({ children }: { children: React.React
   const admin = createSupabaseAdminClient();
   const { data: trainer } = await admin
     .from("trainers")
-    .select("id, display_name, subdomain_slug")
+    .select(
+      "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort",
+    )
     .eq("clerk_id", userId)
     .maybeSingle();
 
@@ -66,6 +69,30 @@ export default async function StudioLayout({ children }: { children: React.React
     // Using a relative path keeps this safe when NEXT_PUBLIC_APP_URL is
     // unset; the middleware handles the host rewrite afterwards.
     redirect("/");
+  }
+
+  // Subscription gate (Beta 2). Reads the denormalized cache on
+  // `trainers` rather than joining `trainer_subscriptions` — keeps
+  // this fast and side-steps the edge-runtime limitation that the
+  // spec's middleware-level gate would have hit. `/studio/expired`
+  // itself is exempt so trainers can read the welcome / renew copy,
+  // and renders WITHOUT the StudioShell chrome (its own full-screen
+  // editorial layout).
+  const pathname = h.get("x-pathname") ?? "";
+  const isExpiredPage = pathname.startsWith("/studio/expired");
+  const allowed = hasStudioAccess({
+    status: trainer.subscription_status,
+    paidUntil: trainer.paid_until ?? null,
+    softDeletedAt: trainer.soft_deleted_at ?? null,
+  });
+  if (isExpiredPage) {
+    // Always render the expired page bare (no StudioShell). If the
+    // trainer is paid + active and somehow hits /studio/expired, the
+    // page itself redirects back to /studio — keeps both paths sane.
+    return <>{children}</>;
+  }
+  if (!allowed) {
+    redirect("/studio/expired");
   }
 
   return <StudioShell trainer={trainer}>{children}</StudioShell>;

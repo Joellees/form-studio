@@ -60,23 +60,46 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
     return { ok: false, field: "slug", error: "That subdomain is taken." };
   }
 
-  const { error } = await admin.from("trainers").insert({
-    clerk_id: userId,
-    subdomain_slug: slug,
-    display_name: displayName,
-    bio: bio ?? null,
-    email,
-    timezone,
-    locale: "en",
-    subscription_status: "trialing",
-    subscription_tier: "starter",
-  });
+  const { data: inserted, error } = await admin
+    .from("trainers")
+    .insert({
+      clerk_id: userId,
+      subdomain_slug: slug,
+      display_name: displayName,
+      bio: bio ?? null,
+      email,
+      timezone,
+      locale: "en",
+      subscription_status: "expired",
+      subscription_tier: "starter",
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    if (error.code === "23505") {
+  if (error || !inserted) {
+    if (error?.code === "23505") {
       return { ok: false, field: "slug", error: "That subdomain is taken." };
     }
     return { ok: false, error: "Could not create your studio. Please try again." };
+  }
+
+  // Beta-2 access-code redemption. Reads the `fs_beta` cookie set
+  // when the trainer entered their code at /beta, looks up the
+  // matching row in `public.access_codes`, binds it to this new
+  // studio + Clerk user, and seeds the trainer_subscription row
+  // with the cohort defaults. Silent no-op if no cookie or the
+  // code is bound to a different user — middleware would have
+  // bounced them out before this point under normal flow.
+  try {
+    const { bindAccessCodeOnOnboarding } = await import("@/app/beta/actions");
+    await bindAccessCodeOnOnboarding({
+      clerkUserId: userId,
+      studioId: inserted.id,
+    });
+  } catch (err) {
+    console.error("onboarding.bind_access_code_failed", err);
+    // Don't fail onboarding if the bind fails — the trainer can
+    // still sign in and an admin can fix the binding manually.
   }
 
   return { ok: true };

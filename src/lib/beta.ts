@@ -1,16 +1,28 @@
 /**
- * Beta gate — parses `BETA_CODES` from the environment as a list of
- * `code:label` pairs, one per comma-separated entry.
+ * Beta gate — the cookie name + the legacy env-var parser.
  *
- * Example: `BETA_CODES="trainer-joelle:Joelle,friend-rand:Rand"`
+ * Beta-2 phase: the `BETA_CODES` env var is deprecated. Codes now
+ * live in `public.access_codes`. Middleware accepts the cookie if
+ * its value matches a live (non-revoked) access_codes row OR if it
+ * matches the legacy env-var list (kept temporarily for browsers
+ * that have the old cookie set and haven't re-redeemed yet).
  *
- * The `code` is what the visitor types on /beta; the `label` shows up
- * in cookies/logs so we know who entered.
+ * Server-side validation against the DB happens in
+ * `validateBetaCookieAgainstDb` — middleware (edge) can't query
+ * Supabase synchronously, so this helper is called from server
+ * components that need a fresh check.
  */
+
 export type BetaCode = { code: string; label: string };
 
 export const BETA_COOKIE = "fs_beta";
 
+/**
+ * Legacy parser for the `BETA_CODES` env var. Kept for backward
+ * compatibility — existing browsers with cookies set during the
+ * env-var era keep working until their next redemption. New
+ * trainers go through the DB-backed access_codes flow.
+ */
 export function parseBetaCodes(raw: string | undefined): BetaCode[] {
   if (!raw) return [];
   return raw

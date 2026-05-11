@@ -84,6 +84,46 @@ export function subscriptionPaidEmail({ trainerName, sessionsCount }: { trainerN
   };
 }
 
+/**
+ * Sent by the daily cron when a trainer's subscription enters the
+ * 3-day pre-expiry window. Editorial voice, no exclamation marks.
+ * The CTA is "message Joelle on WhatsApp" — no link to a payment
+ * portal because Beta 2 settles externally.
+ */
+export function subscriptionReminderEmail({
+  firstName,
+  expiryFormatted,
+  planLine,
+}: {
+  firstName: string;
+  expiryFormatted: string;
+  planLine: string;
+}) {
+  const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "96170000000";
+  return {
+    subject: "Your Form Studio subscription expires in 3 days",
+    text: [
+      `${firstName},`,
+      "",
+      `Your Form Studio subscription expires on ${expiryFormatted}.`,
+      "",
+      "To continue without interruption, send your renewal payment to Joelle",
+      `(WhatsApp: ${whatsapp}) and she'll mark your account renewed.`,
+      "",
+      `Your current plan: ${planLine}`,
+      "",
+      "— Form Studio",
+    ].join("\n"),
+    html: layout(
+      `<h1 style="font-family:Georgia,serif;font-size:28px;margin:0 0 16px 0">${escape(firstName)},</h1>
+       <p>Your Form Studio subscription expires on <strong>${escape(expiryFormatted)}</strong>.</p>
+       <p>To continue without interruption, send your renewal payment to Joelle
+       (WhatsApp: ${escape(whatsapp)}) and she&rsquo;ll mark your account renewed.</p>
+       <p style="color:#A8A095;font-size:12px;margin-top:24px">Your current plan: ${escape(planLine)}</p>`,
+    ),
+  };
+}
+
 function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }

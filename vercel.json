@@ -17,5 +17,10 @@
       "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }]
     }
   ],
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/cron/daily-sync",
+      "schedule": "0 9 * * *"
+    }
+  ]
 }
