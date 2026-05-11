@@ -45,7 +45,7 @@ export function PickStudio({ memberships }: { memberships: Membership[] }) {
               </span>
               {m.subdomainSlug ? (
                 <span className="mt-0.5 block text-xs text-[color:var(--color-stone)]">
-                  {m.subdomainSlug}.formstudio.com
+                  /s/{m.subdomainSlug}
                 </span>
               ) : null}
             </span>

@@ -6,6 +6,7 @@ import { WelcomeBanner } from "../welcome-banner";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { canClientCancel, formatInTz } from "@/lib/schedule";
 import { requireClient } from "@/lib/trainer";
+import { getSignInUrl } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -179,13 +180,9 @@ function pkgOf(p: unknown): { name?: string; session_count?: number; price_usd?:
 }
 
 function buildSignInUrl(_slug: string | null): string {
-  // Always emit the apex sign-in URL. Per-trainer subdomains aren't
-  // routable on `*.vercel.app` (Vercel only routes registered aliases),
-  // and even with a custom domain we'd need wildcard DNS configured —
-  // until that's in place, sending a "rand.formstudio.com/sign-in"
-  // link to a client just hits a 404. The apex link works everywhere
-  // and post-sign-in routing already lands them on the right portal.
-  const root = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "formstudio.com";
-  const protocol = root.includes("localhost") ? "http" : "https";
-  return `${protocol}://${root}/sign-in`;
+  // Apex sign-in URL — works everywhere; post-sign-in routing lands
+  // the client on the right portal regardless of where they came
+  // from. Goes through `getSignInUrl()` so the domain is a single
+  // env-var change away.
+  return getSignInUrl();
 }

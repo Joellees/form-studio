@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { getInviteUrl } from "@/lib/urls";
 
 type Values = {
   displayName: string;
@@ -53,15 +54,13 @@ export function InviteGenerator({ packages }: { packages: PackageOpt[] }) {
         }
         return;
       }
-      // Always emit the canonical app URL — trainers may be on stale
-      // preview deployments or wildcard subdomains that don't resolve
-      // for the recipient. APP_URL is the one they can rely on.
-      const fallback =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const origin = process.env.NEXT_PUBLIC_APP_URL || fallback;
+      // Always emit the canonical app URL via the helper — trainers
+      // may be on stale preview deployments. The helper reads from
+      // `NEXT_PUBLIC_APP_URL`, which resolves to form-studio.app in
+      // prod, so recipients always get a working link.
       const pkg = packages.find((p) => p.id === values.packageId) ?? null;
       setResult({
-        inviteUrl: `${origin}/invite/${r.data.code}`,
+        inviteUrl: getInviteUrl(r.data.code),
         name: values.displayName,
         phone: values.phone,
         packageName: pkg?.name ?? null,

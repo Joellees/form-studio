@@ -8,6 +8,7 @@ import { FEATURES } from "@/lib/features";
 import { formatInTz } from "@/lib/schedule";
 import { fromZonedTime } from "date-fns-tz";
 import { requireTrainer } from "@/lib/trainer";
+import { getTrainerProfileUrl } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -251,7 +252,7 @@ export default async function DashboardPage() {
 
   const fresh = (clientCount ?? 0) === 0;
   const studioUrl = trainer.subdomainSlug
-    ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/s/${trainer.subdomainSlug}`
+    ? getTrainerProfileUrl(trainer.subdomainSlug)
     : null;
 
   return (

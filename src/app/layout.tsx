@@ -6,6 +6,7 @@ import { Fraunces } from "next/font/google";
 
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { ToastProvider } from "@/components/ui/toast";
+import { getCanonicalUrl } from "@/lib/urls";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -15,6 +16,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getCanonicalUrl()),
   title: {
     default: "Form Studio",
     template: "%s · Form Studio",
@@ -24,9 +26,16 @@ export const metadata: Metadata = {
   icons: {
     icon: "/icons/favicon.svg",
   },
+  alternates: {
+    // Canonical link for SEO — pins every page to the production
+    // origin even when reached via the Vercel preview hostname.
+    // Sub-pages can override via their own `alternates.canonical`.
+    canonical: "/",
+  },
   openGraph: {
     title: "Form Studio",
     description: "The studio software for trainers who think like craftspeople.",
+    url: getCanonicalUrl(),
     type: "website",
   },
 };

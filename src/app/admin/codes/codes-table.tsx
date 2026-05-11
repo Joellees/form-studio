@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 
 import { generateAccessCode, revokeAccessCode } from "../actions";
 import { KNOWN_COHORT_KEYS, cohortLabel } from "@/lib/cohorts";
+import { getBetaGateUrl } from "@/lib/urls";
 
 export type CodeRow = {
   id: string;
@@ -29,13 +30,9 @@ function codeStatus(r: CodeRow): CodeStatus {
   return "available";
 }
 
-const SIGNIN_URL =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL) ||
-  "https://form-studio-beta.vercel.app";
-
 function whatsappMessage(label: string | null, code: string): string {
   const name = label ?? "there";
-  return `Hi ${name}, here's your Form Studio access code: ${code}. Use it to sign up at ${SIGNIN_URL}/beta`;
+  return `Hi ${name}, here's your Form Studio access code: ${code}. Use it to sign up at ${getBetaGateUrl()}`;
 }
 
 export function CodesTable({ rows }: { rows: CodeRow[] }) {

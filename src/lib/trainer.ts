@@ -119,7 +119,7 @@ export async function listClientMemberships(): Promise<ClientMembership[]> {
 
 /**
  * Resolve the *active* client membership. Resolution order:
- *   1. Trainer subdomain in the request (rand.formstudio.com)
+ *   1. Trainer slug in the URL path (e.g. /s/rand on form-studio.app)
  *   2. Active-studio cookie set by the picker
  *   3. Single membership — pick it
  *   4. Throw — caller should redirect to the picker

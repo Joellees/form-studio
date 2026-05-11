@@ -86,6 +86,50 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   const previewQuery = url.searchParams.get(PREVIEW_QUERY);
   const previewHeader = req.headers.get(PREVIEW_HEADER);
   const isPreview = isPreviewToken(previewQuery) || isPreviewToken(previewHeader);
+
+  // Canonical-host redirect — production traffic that lands on the
+  // Vercel preview hostname is permanently moved to the canonical
+  // host (form-studio.app in prod). Preserves path + query.
+  //
+  // Gated behind `ENABLE_CANONICAL_REDIRECT=true` so we can deploy
+  // this code BEFORE DNS for the canonical host is live — flipping
+  // the flag too early would 308 every visit on the Vercel URL to
+  // a domain that doesn't resolve yet.
+  //
+  // After DNS + SSL are verified per `DOMAIN_SETUP.md`, set
+  // `ENABLE_CANONICAL_REDIRECT=true` on Vercel production. Until
+  // then both hostnames serve the app directly.
+  //
+  // Always exempts:
+  //   - fs_preview requests (preview-token tooling must stay
+  //     reachable on the Vercel URL)
+  //   - localhost / 127.0.0.1 (dev)
+  const canonicalRedirectEnabled =
+    process.env.ENABLE_CANONICAL_REDIRECT === "true";
+  const canonicalHostRaw = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  if (canonicalRedirectEnabled && canonicalHostRaw && !isPreview) {
+    try {
+      const canonicalHost = new URL(canonicalHostRaw).host;
+      const isLocal =
+        host.startsWith("localhost") || host.startsWith("127.0.0.1");
+      if (
+        canonicalHost &&
+        host &&
+        host !== canonicalHost &&
+        !isLocal &&
+        host.endsWith(".vercel.app")
+      ) {
+        const target = req.nextUrl.clone();
+        target.host = canonicalHost;
+        target.protocol = "https:";
+        target.port = "";
+        return NextResponse.redirect(target, 308);
+      }
+    } catch {
+      // malformed NEXT_PUBLIC_APP_URL — skip the redirect rather
+      // than crash every request.
+    }
+  }
   if (isPreview) {
     if (!["GET", "HEAD"].includes(req.method)) {
       return new NextResponse("preview is read-only", { status: 405 });

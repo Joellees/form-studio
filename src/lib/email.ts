@@ -27,7 +27,7 @@ export async function sendEmail({ to, subject, html, text }: SendArgs): Promise<
     console.info("[email:dev] would send", { to, subject });
     return;
   }
-  const from = env.RESEND_FROM_EMAIL || "Form Studio <hello@formstudio.com>";
+  const from = env.RESEND_FROM_EMAIL || "Form Studio <hello@form-studio.app>";
   const { error } = await client.emails.send({ from, to, subject, html, text });
   if (error) {
     console.error("[email] send failed", error);

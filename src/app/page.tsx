@@ -7,7 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 /**
- * Root marketing page at formstudio.com.
+ * Root marketing page at form-studio.app.
  *
  * Trainer subdomains are rewritten to /s/[slug] in middleware; this
  * file never renders for those hosts.
