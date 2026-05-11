@@ -73,6 +73,12 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
 
     revalidatePath("/studio/dashboard");
     revalidatePath("/studio/clients");
+    if (sub.client_id) {
+      // Refresh the specific client-detail page so the "awaiting
+      // payment" card flips to "current block" without a manual
+      // reload after the trainer hits "mark paid" from that page.
+      revalidatePath(`/studio/clients/${sub.client_id}`);
+    }
     return ok();
   });
 }

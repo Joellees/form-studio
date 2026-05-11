@@ -5,6 +5,7 @@ import { ArchiveClientButton } from "./archive-button";
 import { AssignPackageButton } from "./assign-package";
 import { ClientDetailsEditor } from "./client-details-editor";
 import { ClientFieldToggles } from "./client-field-toggles";
+import { MarkPaidButton } from "./mark-paid-button";
 import { ProgressPanel, type LogEntry } from "./progress-panel";
 import { SubscriptionEditor } from "./subscription-editor";
 import { SessionRow } from "../../_components/session-row";
@@ -172,7 +173,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   reserved {fmt(pendingSub.created_at)} · ${pkgOf(pendingSub.packages)?.price_usd?.toLocaleString() ?? "—"}
                 </p>
               </div>
-              <Badge tone="signal">awaiting payment</Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge tone="signal">awaiting payment</Badge>
+                <MarkPaidButton
+                  subscriptionId={pendingSub.id}
+                  priceLabel={
+                    pkgOf(pendingSub.packages)?.price_usd
+                      ? `$${pkgOf(pendingSub.packages)!.price_usd.toLocaleString()}`
+                      : null
+                  }
+                />
+              </div>
             </CardContent>
           </Card>
         ) : (
