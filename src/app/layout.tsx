@@ -5,6 +5,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
 
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { ToastProvider } from "@/components/ui/toast";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -71,8 +72,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         </head>
         <body>
-          {children}
-          <RegisterServiceWorker />
+          <ToastProvider>
+            {children}
+            <RegisterServiceWorker />
+          </ToastProvider>
         </body>
       </html>
     </ClerkProvider>

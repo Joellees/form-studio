@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 import { formatReps, formatWeight, type RepValue, type WeightValue } from "@/lib/set-group";
 
 type SetGroupRow = {
@@ -55,12 +56,25 @@ type Props = {
 
 export function TemplateBuilder({ template, blocks, exercises, groups }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
 
   function addExercise(exerciseId: string) {
+    console.info("[add-exercise] clicked", { templateId: template.id, exerciseId });
     startTransition(async () => {
-      await addExerciseToTemplate({ templateId: template.id, exerciseId });
-      router.refresh();
+      try {
+        const result = await addExerciseToTemplate({ templateId: template.id, exerciseId });
+        if (!result.ok) {
+          console.error("[add-exercise] addExerciseToTemplate failed", result);
+          toast.error(result.error || "Couldn't add the exercise. Try again.");
+          return;
+        }
+        toast.success("Exercise added.");
+        router.refresh();
+      } catch (err) {
+        console.error("[add-exercise] addExercise threw", err);
+        toast.error("Something went wrong. Try again.");
+      }
     });
   }
 
@@ -69,26 +83,49 @@ export function TemplateBuilder({ template, blocks, exercises, groups }: Props) 
    * library entry (name + optional group, defaults to a single set
    * of 10 reps × 0kg × 60s rest), then attach it to the workout. The
    * row also lands in the Exercises tab automatically — same row.
+   *
+   * Both actions return ActionResult envelopes; failures surface via
+   * toast so trainers always know whether the click registered.
    */
   async function createAndAddExercise(input: { name: string; groupId: string | null }): Promise<string | null> {
-    const result = await saveExercise({
-      name: input.name,
-      group_id: input.groupId,
-      equipment: null,
-      is_timed: false,
-      default_rep_type: "fixed",
-      default_rep_value: {
-        type: "sets",
-        sets: [{ reps: 10, mode: "reps", kg: 0, rest: 60 }],
-      },
-      default_rest_seconds: 60,
-      notes: null,
-      video_url: null,
-    });
-    if (!result.ok) return null;
-    await addExerciseToTemplate({ templateId: template.id, exerciseId: result.data.id });
-    router.refresh();
-    return result.data.id;
+    try {
+      const result = await saveExercise({
+        name: input.name,
+        group_id: input.groupId,
+        equipment: null,
+        is_timed: false,
+        default_rep_type: "fixed",
+        default_rep_value: {
+          type: "sets",
+          sets: [{ reps: 10, mode: "reps", kg: 0, rest: 60 }],
+        },
+        default_rest_seconds: 60,
+        notes: null,
+        video_url: null,
+      });
+      if (!result.ok) {
+        console.error("[add-exercise] saveExercise failed", result);
+        toast.error(result.error || "Couldn't save the exercise.");
+        return null;
+      }
+      const attach = await addExerciseToTemplate({ templateId: template.id, exerciseId: result.data.id });
+      if (!attach.ok) {
+        console.error("[add-exercise] addExerciseToTemplate failed after create", attach);
+        toast.error(
+          attach.error ||
+            "Exercise saved to your library, but we couldn't attach it to this workout. Try again.",
+        );
+        router.refresh();
+        return result.data.id;
+      }
+      toast.success("Exercise added.");
+      router.refresh();
+      return result.data.id;
+    } catch (err) {
+      console.error("[add-exercise] createAndAddExercise threw", err);
+      toast.error("Something went wrong. Try again.");
+      return null;
+    }
   }
 
   function removeBlock(blockId: string) {

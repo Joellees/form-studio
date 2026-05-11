@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 import { formatReps, formatWeight, type RepValue, type WeightValue } from "@/lib/set-group";
 
 type SetGroup = {
@@ -67,38 +68,76 @@ export function SessionBuilder({
   libraryGroups = [],
 }: SessionBuilderProps) {
   const router = useRouter();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
 
   /**
    * Create a new library exercise + immediately attach it to this
    * session in one click. The new row also appears in the Exercises
    * tab — same source row, multiple references.
+   *
+   * Both server actions return ActionResult envelopes; we surface
+   * any failure via toast so the trainer never wonders "did that
+   * register?" — silent failures were the root cause of the broken
+   * "Add exercise" bug.
    */
   async function createAndAddExercise(input: { name: string; groupId: string | null }): Promise<string | null> {
-    const result = await saveExercise({
-      name: input.name,
-      group_id: input.groupId,
-      equipment: null,
-      is_timed: false,
-      default_rep_type: "fixed",
-      default_rep_value: {
-        type: "sets",
-        sets: [{ reps: 10, mode: "reps", kg: 0, rest: 60 }],
-      },
-      default_rest_seconds: 60,
-      notes: null,
-      video_url: null,
-    });
-    if (!result.ok) return null;
-    await addExerciseToSession({ sessionId, exerciseId: result.data.id });
-    router.refresh();
-    return result.data.id;
+    try {
+      const result = await saveExercise({
+        name: input.name,
+        group_id: input.groupId,
+        equipment: null,
+        is_timed: false,
+        default_rep_type: "fixed",
+        default_rep_value: {
+          type: "sets",
+          sets: [{ reps: 10, mode: "reps", kg: 0, rest: 60 }],
+        },
+        default_rest_seconds: 60,
+        notes: null,
+        video_url: null,
+      });
+      if (!result.ok) {
+        console.error("[add-exercise] saveExercise failed", result);
+        toast.error(result.error || "Couldn't save the exercise.");
+        return null;
+      }
+      const attach = await addExerciseToSession({ sessionId, exerciseId: result.data.id });
+      if (!attach.ok) {
+        console.error("[add-exercise] addExerciseToSession failed after create", attach);
+        toast.error(
+          attach.error ||
+            "Exercise saved to your library, but we couldn't attach it to this session. Try again.",
+        );
+        router.refresh();
+        return result.data.id;
+      }
+      toast.success("Exercise added.");
+      router.refresh();
+      return result.data.id;
+    } catch (err) {
+      console.error("[add-exercise] createAndAddExercise threw", err);
+      toast.error("Something went wrong. Try again.");
+      return null;
+    }
   }
 
   function addExercise(exerciseId: string) {
+    console.info("[add-exercise] clicked", { sessionId, exerciseId });
     startTransition(async () => {
-      await addExerciseToSession({ sessionId, exerciseId });
-      router.refresh();
+      try {
+        const result = await addExerciseToSession({ sessionId, exerciseId });
+        if (!result.ok) {
+          console.error("[add-exercise] addExerciseToSession failed", result);
+          toast.error(result.error || "Couldn't add the exercise. Try again.");
+          return;
+        }
+        toast.success("Exercise added.");
+        router.refresh();
+      } catch (err) {
+        console.error("[add-exercise] addExercise threw", err);
+        toast.error("Something went wrong. Try again.");
+      }
     });
   }
   function removeBlock(id: string) {
