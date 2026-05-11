@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { updateSessionType } from "@/app/studio/calendar/actions";
+import { FEATURES } from "@/lib/features";
 
 type Type = "in_person" | "zoom" | "in_app";
 
@@ -43,8 +44,11 @@ export function SessionTypeEditor({
       }}
     >
       <option value="in_person">in person</option>
-      <option value="zoom">online call</option>
-      <option value="in_app">in app</option>
+      <option value="zoom">online</option>
+      {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
+      {FEATURES.IN_APP_SESSIONS ? (
+        <option value="in_app">in-app</option>
+      ) : null}
     </select>
   );
 }

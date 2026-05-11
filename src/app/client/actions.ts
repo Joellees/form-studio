@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { FEATURES } from "@/lib/features";
 import { EXTRA_INAPP_PRICE_USD } from "@/lib/pricing";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireClient } from "@/lib/trainer";
@@ -71,6 +72,16 @@ const extraInAppSchema = z.object({
  */
 export async function requestExtraInAppSession(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(extraInAppSchema, raw, async ({ scheduledAt, notes }) => {
+    // Guard against direct POSTs while the in-app feature is paused.
+    // The UI surfaces that call this are also gated by
+    // FEATURES.IN_APP_SESSIONS, but a stale form, browser-back, or
+    // direct fetch could still hit the action — return a clear
+    // error rather than silently creating an un-payable session.
+    if (!FEATURES.IN_APP_SESSIONS) {
+      return fail(
+        "Extra in-app workouts are paused for Beta 2. Your trainer can schedule a regular session instead.",
+      );
+    }
     const client = await requireClient();
     const admin = createSupabaseAdminClient();
 

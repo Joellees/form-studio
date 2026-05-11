@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 export type ClientOpt = {
@@ -164,7 +165,10 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
               >
                 <option value="in_person">in person</option>
                 <option value="zoom">online</option>
-                <option value="in_app">in-app</option>
+                {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
+                {FEATURES.IN_APP_SESSIONS ? (
+                  <option value="in_app">in-app</option>
+                ) : null}
               </Select>
               {type === "in_app" && client ? (
                 <p className="mt-1 text-xs text-[color:var(--color-ink)]/65">

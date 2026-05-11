@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FEATURES } from "@/lib/features";
 import { EXTRA_INAPP_PRICE_USD } from "@/lib/pricing";
 import { prettySessionType } from "@/lib/session-type";
 import { cn } from "@/lib/utils";
@@ -47,12 +48,11 @@ type Props = {
  * portal — every action a client can take in v1 lives on a session
  * row or in this section&rsquo;s header.
  *
- * Two distinct request flows live in the header:
+ * Request flows in the header:
  *  - "request session" — books a slot from the existing package
- *    (in-person/zoom, deducts on approval)
- *  - "request extra workout · $3" — out-of-package, one-off in-app
- *    workout the trainer prescribes; charges $3 and does NOT deduct
- *    from the package count
+ *    (in-person/online, deducts on approval). Always available.
+ *  - "extra workout · $3" — gated behind FEATURES.IN_APP_SESSIONS,
+ *    paused for Beta 2 until Stripe is wired.
  */
 export function CalendarSection({ upcoming, past, cycleEnabled }: Props) {
   const [requestOpen, setRequestOpen] = useState(false);
@@ -77,9 +77,12 @@ export function CalendarSection({ upcoming, past, cycleEnabled }: Props) {
               log cycle
             </Button>
           ) : null}
-          <Button size="sm" variant="outline" onClick={() => setExtraOpen(true)}>
-            extra workout · ${EXTRA_INAPP_PRICE_USD}
-          </Button>
+          {/* Extra-workout flow gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
+          {FEATURES.IN_APP_SESSIONS ? (
+            <Button size="sm" variant="outline" onClick={() => setExtraOpen(true)}>
+              extra workout · ${EXTRA_INAPP_PRICE_USD}
+            </Button>
+          ) : null}
           <Button size="sm" onClick={() => setRequestOpen(true)}>
             request session
           </Button>
@@ -123,7 +126,10 @@ export function CalendarSection({ upcoming, past, cycleEnabled }: Props) {
       {requestOpen ? (
         <RequestSessionDialog onClose={() => setRequestOpen(false)} />
       ) : null}
-      {extraOpen ? <ExtraInAppDialog onClose={() => setExtraOpen(false)} /> : null}
+      {/* ExtraInAppDialog gated — should be unreachable while flag is off, but defensive double-gate */}
+      {FEATURES.IN_APP_SESSIONS && extraOpen ? (
+        <ExtraInAppDialog onClose={() => setExtraOpen(false)} />
+      ) : null}
       {cycleOpen ? <CycleDialog onClose={() => setCycleOpen(false)} /> : null}
     </section>
   );
@@ -173,7 +179,8 @@ function SessionItem({ session: s, muted = false }: { session: Session; muted?: 
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Badge tone={pillTone(s.status)}>{s.status}</Badge>
           <Badge tone="stone">{prettySessionType(s.session_type)}</Badge>
-          {isExtraInApp ? (
+          {/* +$3 badge gated by FEATURES.IN_APP_SESSIONS — paused for Beta 2 */}
+          {FEATURES.IN_APP_SESSIONS && isExtraInApp ? (
             <Badge tone="signal">+${EXTRA_INAPP_PRICE_USD}</Badge>
           ) : null}
           {s.zoom_url ? (

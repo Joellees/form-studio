@@ -10,6 +10,7 @@ import {
   updateSessionType,
 } from "@/app/studio/calendar/actions";
 import { Badge } from "@/components/ui/badge";
+import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 export type SessionSummary = {
@@ -79,7 +80,10 @@ export function SessionRow({
     >
       <option value="in_person">in person</option>
       <option value="zoom">online</option>
-      <option value="in_app">in-app</option>
+      {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
+      {FEATURES.IN_APP_SESSIONS ? (
+        <option value="in_app">in-app</option>
+      ) : null}
     </select>
   );
 
@@ -111,17 +115,20 @@ export function SessionRow({
             >
               approve
             </MenuItem>
-            <MenuItem
-              onClick={() => {
-                setMenuOpen(false);
-                runAction(async () => {
-                  await updateSessionType({ sessionId: session.id, sessionType: "in_app" });
-                  await approveSessionRequest(session.id);
-                });
-              }}
-            >
-              approve as in-app
-            </MenuItem>
+            {/* "approve as in-app" gated by FEATURES.IN_APP_SESSIONS */}
+            {FEATURES.IN_APP_SESSIONS ? (
+              <MenuItem
+                onClick={() => {
+                  setMenuOpen(false);
+                  runAction(async () => {
+                    await updateSessionType({ sessionId: session.id, sessionType: "in_app" });
+                    await approveSessionRequest(session.id);
+                  });
+                }}
+              >
+                approve as in-app
+              </MenuItem>
+            ) : null}
           </>
         ) : null}
 

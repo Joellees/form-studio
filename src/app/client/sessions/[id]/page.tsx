@@ -4,7 +4,9 @@ import { SessionBuilder } from "@/app/studio/sessions/[id]/session-builder";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { FEATURES } from "@/lib/features";
 import { formatInTz } from "@/lib/schedule";
+import { isLegacyInApp, prettySessionType, type SessionTypeValue } from "@/lib/session-type";
 import { requireClient } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +71,9 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
       <header className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
-          <h1 className="mt-2 text-3xl md:text-4xl">{session.name ?? prettySessionType(session.session_type)}</h1>
+          <h1 className="mt-2 text-3xl md:text-4xl">
+            {session.name ?? prettySessionType(session.session_type as SessionTypeValue)}
+          </h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(new Date(session.scheduled_at), tz, "EEE, MMM d, yyyy · HH:mm")} · {session.duration_minutes} min
           </p>
@@ -93,7 +97,21 @@ export default async function ClientSessionDetailPage({ params }: { params: Prom
         </Card>
       ) : null}
 
-      {session.session_type === "in_app" ? (
+      {isLegacyInApp(session.session_type as SessionTypeValue) ? (
+        // Legacy seed/test row: trainer originally set this to in-app.
+        // The feature is paused for Beta 2 (FEATURES.IN_APP_SESSIONS),
+        // so we explain the state and fall back to the teaser view
+        // rather than rendering the full prescribed workout.
+        <Card>
+          <CardContent className="py-4 text-sm text-[color:var(--color-ink)]/70">
+            This session was originally set to in-app — that option is
+            paused for Beta 2. Your trainer will walk you through it
+            when you meet.
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {session.session_type === "in_app" && FEATURES.IN_APP_SESSIONS ? (
         // In-app session: client sees the full workout — videos, reps,
         // sets, and the performed-log inputs. This is the paid tier.
         <SessionBuilder
@@ -234,13 +252,12 @@ function formatWeightSuffix(type: string, raw: unknown): string {
   return "";
 }
 
-/**
- * Storage keeps the legacy `zoom` enum value, but every render path
- * maps it to "online" — the user-facing language going forward.
- */
-function prettySessionType(t: string): string {
-  if (t === "in_app") return "in-app";
-  if (t === "in_person") return "in person";
-  if (t === "zoom") return "online";
-  return t.replace("_", " ");
-}
+// Storage keeps the legacy `zoom` enum value, but every render path
+// maps it to "online" — the user-facing language going forward.
+// While FEATURES.IN_APP_SESSIONS is OFF (Beta 2), `in_app` also maps
+// to "online" so the paused option label doesn't surface; the
+// session-detail body shows an explanatory note for those rows.
+//
+// Note: this used to be a local function — replaced with the shared
+// `prettySessionType` from `@/lib/session-type` so the flag is the
+// single source of truth.

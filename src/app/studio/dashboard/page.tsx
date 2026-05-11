@@ -4,6 +4,7 @@ import { ActionFeed, type FeedItem } from "./action-feed";
 import { QuickActions } from "./quick-actions";
 import { TodayRail, type RailSession } from "./today-rail";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { FEATURES } from "@/lib/features";
 import { formatInTz } from "@/lib/schedule";
 import { fromZonedTime } from "date-fns-tz";
 import { requireTrainer } from "@/lib/trainer";
@@ -159,11 +160,15 @@ export default async function DashboardPage() {
   for (const s of requestedSessions ?? []) {
     const c = s.clients as { display_name?: string } | { display_name?: string }[] | null;
     const client = Array.isArray(c) ? c[0] : c;
-    // Client-requested in-app sessions ($3, no deduction) get their own
-    // feed kind so the trainer sees the dollar tag — and so they never
-    // get auto-deducted on approval.
+    // While FEATURES.IN_APP_SESSIONS is OFF (Beta 2), legacy client-
+    // requested in-app rows still surface in the action feed — they
+    // just render as a plain session_request rather than the +$3
+    // in_app_upgrade variant. Re-enabling the feature reinstates the
+    // dollar-tag row automatically.
     const isExtraInApp =
-      s.session_type === "in_app" && s.in_app_origin === "client_requested";
+      FEATURES.IN_APP_SESSIONS &&
+      s.session_type === "in_app" &&
+      s.in_app_origin === "client_requested";
     feed.push({
       kind: isExtraInApp ? "in_app_upgrade" : "session_request",
       sessionId: s.id as string,
@@ -287,8 +292,8 @@ export default async function DashboardPage() {
                     Inbox zero. Nothing waiting on you.
                   </p>
                   <p className="mt-1 text-xs text-[color:var(--color-stone)]">
-                    Pending payments, session requests, in-app upgrade asks, and
-                    renewing-soon subscriptions show up here.
+                    Pending payments, session requests, awaiting-log
+                    sessions, and renewing-soon subscriptions show up here.
                   </p>
                 </div>
               ) : (
@@ -395,8 +400,8 @@ function FirstTimeNudges() {
         <div className="space-y-3 rounded-2xl bg-[color:var(--color-parchment)]/55 p-5">
           <p className="text-sm text-[color:var(--color-ink)]/75">
             Once you&rsquo;ve invited a client, this is where you&rsquo;ll see
-            payment confirmations, session requests, sessions waiting for your
-            log, and in-app upgrade asks — one row, one click to act.
+            payment confirmations, session requests, and sessions waiting
+            for your log — one row, one click to act.
           </p>
           <p className="text-xs italic text-[color:var(--color-stone)]">
             example: &ldquo;Layla owes $400 for 8 sessions · strength&rdquo; with

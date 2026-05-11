@@ -8,6 +8,7 @@ import { scheduleSession } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FEATURES } from "@/lib/features";
 
 type ClientOpt = {
   id: string;
@@ -109,7 +110,10 @@ export function ScheduleForm({
         >
           <option value="in_person">in person</option>
           <option value="zoom">online</option>
-          <option value="in_app">in-app</option>
+          {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
+          {FEATURES.IN_APP_SESSIONS ? (
+            <option value="in_app">in-app</option>
+          ) : null}
         </select>
       </div>
 

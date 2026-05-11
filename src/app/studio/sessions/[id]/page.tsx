@@ -6,6 +6,7 @@ import { SessionTypeEditor } from "./session-type-editor";
 import { Badge } from "@/components/ui/badge";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatInTz } from "@/lib/schedule";
+import { isLegacyInApp, type SessionTypeValue } from "@/lib/session-type";
 import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +99,19 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       </header>
 
       <SessionActions session={session} />
+
+      {isLegacyInApp(session.session_type as SessionTypeValue) ? (
+        // Legacy seed/test row: trainer originally set this to in-app.
+        // The feature is paused for Beta 2 (FEATURES.IN_APP_SESSIONS).
+        // The session-type editor will silently flip it to in-person/
+        // online next time the trainer touches it; until then, surface
+        // the state so it's not confusing.
+        <div className="rounded-2xl border border-dashed border-[color:var(--color-stone-soft)] px-4 py-3 text-sm text-[color:var(--color-ink)]/70">
+          This session was originally set to in-app — that option is
+          paused for Beta 2. Switch the type above to in-person or
+          online and it&rsquo;ll behave normally.
+        </div>
+      ) : null}
 
       <SessionBuilder
         sessionId={session.id}
