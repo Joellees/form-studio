@@ -11,13 +11,20 @@ import { CLIENT_TENANT_COOKIE } from "@/lib/trainer";
 
 const claimSchema = z.object({
   code: z.string().length(6),
-  phone: z.string().min(3).max(40),
+  // Phone is optional. The trainer pre-fills it on the invite if they
+  // know it; otherwise the client gets a one-tap onboarding and the
+  // trainer can collect the phone later from inside the studio. This
+  // is intentional — the invite landing page should not gate on a
+  // form field that adds friction at the point of first impression.
+  phone: z.string().min(3).max(40).nullable().optional(),
 });
 
 /**
- * Claims an unclaimed invite for the signed-in Clerk user. Requires a
- * phone number (enforced client-side too). Creates the `clients` row,
- * seeds default log-field toggles, and marks the invite as claimed.
+ * Claims an unclaimed invite for the signed-in Clerk user. Creates the
+ * `clients` row, seeds default log-field toggles, and marks the invite
+ * as claimed. Idempotent: returns ok if the invite was already claimed
+ * by this user (no error), so the auto-claim route can retry without
+ * surfacing a dead-end.
  */
 export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId: string }>> {
   return runAction(claimSchema, raw, async ({ code, phone }) => {
@@ -29,12 +36,26 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
     const { data: invite } = await admin
       .from("client_invites")
       .select(
-        "code, tenant_id, email, display_name, notes, claimed_at, package_id, packages(id, name, session_count, duration_days, price_usd)",
+        "code, tenant_id, email, display_name, phone, notes, claimed_at, claimed_by_clerk_id, package_id, packages(id, name, session_count, duration_days, price_usd)",
       )
       .eq("code", code.toUpperCase())
       .maybeSingle();
     if (!invite) return fail("This invite link isn&rsquo;t valid.");
-    if (invite.claimed_at) return fail("This invite has already been used.");
+    // Idempotent retry: if THIS user already claimed it, return ok
+    // pointing at the existing client row. Only surface an error if a
+    // *different* user claimed it (link was forwarded or reused).
+    if (invite.claimed_at && invite.claimed_by_clerk_id && invite.claimed_by_clerk_id !== userId) {
+      return fail("This invite has already been used.");
+    }
+    if (invite.claimed_at && invite.claimed_by_clerk_id === userId) {
+      const { data: existingClient } = await admin
+        .from("clients")
+        .select("id")
+        .eq("clerk_id", userId)
+        .eq("tenant_id", invite.tenant_id)
+        .maybeSingle();
+      if (existingClient) return ok({ clientId: existingClient.id });
+    }
 
     // A Clerk user can be a client of any number of trainers; we only
     // dedupe within the same studio. Look up an existing membership
@@ -46,11 +67,18 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       .eq("tenant_id", invite.tenant_id)
       .maybeSingle();
 
+    // Use the invite's pre-filled phone if present; the optional
+    // submitted phone overrides it. Either may be null.
+    const resolvedPhone = (phone ?? invite.phone) || null;
+
     let clientId: string;
     if (existing) {
-      // Same studio — just update phone on the existing row.
+      // Same studio — update phone on the existing row only when we
+      // have a fresh value (don't blank an existing phone).
       clientId = existing.id;
-      await admin.from("clients").update({ phone }).eq("id", clientId);
+      if (resolvedPhone) {
+        await admin.from("clients").update({ phone: resolvedPhone }).eq("id", clientId);
+      }
     } else {
       const user = await currentUser();
       const email = invite.email || user?.primaryEmailAddress?.emailAddress || null;
@@ -64,7 +92,7 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
           clerk_id: userId,
           display_name: displayName,
           email,
-          phone,
+          phone: resolvedPhone,
           notes: invite.notes ?? null,
         })
         .select("id")
