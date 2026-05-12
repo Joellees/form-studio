@@ -50,23 +50,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
-      // Pin clerk-js to an EXACT 6.x version (matches the major of the
-      // server-side `@clerk/nextjs@6.x` resolved from the lockfile).
-      //
-      // Why a pin at all: Clerk's CDN serves the shortname URL
-      // (e.g. `@clerk/clerk-js@6/...`) as a 307 redirect to the exact
-      // versioned build. Browsers refuse to follow that redirect for
-      // cross-origin scripts loaded with `crossorigin="anonymous"`,
-      // which Clerk sets on its loader tag. Result: SignUp/SignIn
-      // widgets never hydrate and auth routes throw.
-      //
-      // Why 6.10.1 specifically: previously pinned to 5.125.10, which
-      // caused a client/server major-version mismatch with
-      // `@clerk/nextjs@6.x`. That mismatch is the most likely cause of
-      // the smart-CAPTCHA widget failing to mount on /sign-up,
-      // surfacing as `captcha_missing_token` on the Clerk API response.
-      // Aligning client to 6.x is the targeted fix.
-      clerkJSVersion="6.10.1"
+      // Pin clerk-js to a specific version. Without this, Clerk serves
+      // the script from a URL that 307s to the pinned build, and modern
+      // browsers refuse to load cross-origin scripts behind redirects
+      // when `crossorigin="anonymous"` is set — which breaks hydration
+      // on sign-in / sign-up.
+      clerkJSVersion="5.125.10"
       appearance={{
         variables: {
           colorPrimary: "#4A5540",
