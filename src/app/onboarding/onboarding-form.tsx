@@ -7,92 +7,113 @@ import { completeOnboarding, type OnboardingResult } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { env } from "@/lib/env";
+import { deriveSlugFromName } from "@/lib/slug";
+import { getDisplayDomain } from "@/lib/urls";
 
 type FormValues = {
-  slug: string;
-  displayName: string;
+  studioName: string;
   bio: string;
   timezone: string;
 };
 
-export function OnboardingForm({ initialSlug, initialName }: { initialSlug: string; initialName: string }) {
+export function OnboardingForm({ initialName }: { initialName: string }) {
   const [pending, startTransition] = useTransition();
   const {
     register,
     handleSubmit,
+    watch,
     setError,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
-      slug: initialSlug,
-      displayName: initialName,
+      studioName: initialName,
       bio: "",
-      timezone: typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
+      timezone:
+        typeof window !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : "UTC",
     },
   });
 
-  const rootDomain = env.NEXT_PUBLIC_ROOT_DOMAIN;
+  // Live previews — both derived from the same source of truth the server
+  // will use, so what the trainer sees is what gets stored.
+  const studioName = watch("studioName") ?? "";
+  const derivedSlug = deriveSlugFromName(studioName);
+  const displayDomain = getDisplayDomain();
 
   function onSubmit(values: FormValues) {
     startTransition(async () => {
-      const result: OnboardingResult = await completeOnboarding(values);
+      const result: OnboardingResult = await completeOnboarding({
+        studioName: values.studioName,
+        bio: values.bio,
+        timezone: values.timezone,
+      });
       if (!result.ok) {
-        setError(result.field ?? "slug", { message: result.error });
+        setError(result.field ?? "studioName", { message: result.error });
         return;
       }
-      // Redirect to the tenant subdomain
-      window.location.href = `${window.location.protocol}//${values.slug}.${rootDomain}/studio/dashboard`;
+      // Same-origin path-based redirect. The previous subdomain-style
+      // target (`{slug}.form-studio.app`) hit NXDOMAIN because there's
+      // no wildcard DNS — trainers were stuck on "site can't be reached"
+      // right after a successful onboarding.
+      window.location.href = "/studio/dashboard";
     });
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-6 rise-in">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="mt-10 flex flex-col gap-6 rise-in"
+    >
       <div className="flex flex-col gap-2">
-        <Label htmlFor="slug">your address</Label>
-        <div className="flex items-stretch overflow-hidden rounded-xl border border-[color:var(--color-stone-soft)] focus-within:border-[color:var(--color-moss)]">
+        <Label htmlFor="studioName">your studio name</Label>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <Input
-            id="slug"
-            {...register("slug", { required: "Pick a subdomain to continue" })}
-            className="border-0 text-sm focus-visible:border-0"
-            placeholder="joelle"
-            aria-describedby="slug-hint"
+            id="studioName"
+            {...register("studioName", { required: "Pick a name to continue" })}
+            placeholder="Joelle"
+            aria-describedby="studio-name-hint"
+            autoFocus
             inputMode="text"
             autoComplete="off"
-            autoCapitalize="none"
+            autoCapitalize="words"
             autoCorrect="off"
             spellCheck={false}
+            className="max-w-[18rem]"
           />
-          <span className="flex items-center border-l border-[color:var(--color-stone-soft)] bg-[color:var(--color-parchment)] px-3 text-sm text-[color:var(--color-stone)]">
-            .{rootDomain.replace(/:\d+$/, "")}
+          <span className="text-sm text-[color:var(--color-ink)]/65">
+            &rsquo;s Form Studio
           </span>
         </div>
-        <p id="slug-hint" className="text-xs text-[color:var(--color-stone)]">
-          Letters only, lowercase. 3&ndash;32 characters.
+        <p className="text-xs text-[color:var(--color-ink)]/45">
+          If your name is common, add your last name to keep your URL clean.
         </p>
-        {errors.slug ? <p className="text-xs text-[color:var(--color-sienna)]">{errors.slug.message}</p> : null}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="displayName">display name</Label>
-        <Input
-          id="displayName"
-          {...register("displayName", { required: "Tell clients who you are" })}
-          placeholder="Joelle"
-          autoComplete="name"
-          autoCapitalize="words"
-        />
-        {errors.displayName ? <p className="text-xs text-[color:var(--color-sienna)]">{errors.displayName.message}</p> : null}
+        <p id="studio-name-hint" className="text-xs text-[color:var(--color-stone)]">
+          Your URL will be{" "}
+          <span className="font-mono text-[color:var(--color-ink)]/80">
+            {displayDomain}/{derivedSlug || "yourname"}
+          </span>
+        </p>
+        {errors.studioName ? (
+          <p className="text-xs text-[color:var(--color-sienna)]">
+            {errors.studioName.message}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="bio">short bio</Label>
         <Textarea
           id="bio"
-          {...register("bio")}
+          {...register("bio", {
+            maxLength: { value: 500, message: "Keep it under 500 characters." },
+          })}
           placeholder="Two sentences about how you train and who you train."
           rows={3}
         />
+        {errors.bio ? (
+          <p className="text-xs text-[color:var(--color-sienna)]">{errors.bio.message}</p>
+        ) : null}
       </div>
 
       <input type="hidden" {...register("timezone")} />

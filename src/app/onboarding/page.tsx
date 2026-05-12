@@ -30,10 +30,10 @@ export default async function OnboardingPage() {
     redirect(`/studio/dashboard`);
   }
 
-  const suggestion = (user?.firstName ?? user?.username ?? "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "")
-    .slice(0, 32);
+  // Suggest the trainer's Clerk first name (raw, with case) so they can
+  // type-confirm or edit. The form derives the URL slug from this on the
+  // client side via the same helper the server uses.
+  const suggestedName = user?.firstName ?? "";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col px-6 py-16">
@@ -46,11 +46,11 @@ export default async function OnboardingPage() {
         </p>
         <h1 className="text-3xl md:text-4xl leading-tight">Name your studio.</h1>
         <p className="mt-3 text-[color:var(--color-ink)]/75">
-          This is the address your clients will know you by. You can change the
-          rest later — the subdomain is permanent for now.
+          This is what your clients will know you by. You can change the
+          rest later — your studio URL is permanent for now.
         </p>
       </section>
-      <OnboardingForm initialSlug={suggestion} initialName={user?.firstName ?? ""} />
+      <OnboardingForm initialName={suggestedName} />
     </main>
   );
 }
