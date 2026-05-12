@@ -44,7 +44,7 @@ export default async function BetaGatePage({ searchParams }: Props) {
       <Wordmark variant="inline-platform" />
       <h1 className="mt-12 text-3xl md:text-4xl leading-tight">Private beta.</h1>
       <p className="mt-3 text-[color:var(--color-ink)]/75">
-        Enter your access code to continue. If you don&rsquo;t have one, message Joelle directly.
+        Enter your access code to continue. If you don&rsquo;t have one, message the Form Studio team directly.
       </p>
       <form action={enterBeta} className="mt-10 flex w-full flex-col gap-4">
         <input type="hidden" name="next" value={sp.next ?? "/"} />

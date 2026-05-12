@@ -69,18 +69,18 @@ export default async function ExpiredPage() {
   const COPY = {
     first_time: {
       headline: "Welcome to Form Studio.",
-      subhead: "To activate your studio, message Joelle to set up payment.",
-      message: `Hi Joelle, I'd like to activate my Form Studio subscription. (${firstName})`,
+      subhead: "To activate your studio, message the Form Studio team to set up payment.",
+      message: `Hi Form Studio, I'd like to activate my subscription. (${firstName})`,
     },
     expired: {
       headline: "Your subscription has expired.",
-      subhead: "To continue using Form Studio, message Joelle to renew.",
-      message: `Hi Joelle, I'd like to renew my Form Studio subscription. (${firstName})`,
+      subhead: "To continue using Form Studio, message the Form Studio team to renew.",
+      message: `Hi Form Studio, I'd like to renew my subscription. (${firstName})`,
     },
     canceled: {
       headline: "Your subscription is paused.",
-      subhead: "Message Joelle to reactivate when you're ready.",
-      message: `Hi Joelle, I'd like to reactivate my Form Studio subscription. (${firstName})`,
+      subhead: "Message the Form Studio team to reactivate when you're ready.",
+      message: `Hi Form Studio, I'd like to reactivate my subscription. (${firstName})`,
     },
   } as const;
 
@@ -131,7 +131,7 @@ export default async function ExpiredPage() {
           rel="noreferrer"
           className="inline-flex h-12 items-center justify-center rounded-full bg-[color:var(--color-ink)] px-7 text-[15px] font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
         >
-          Message Joelle on WhatsApp
+          Message us on WhatsApp
         </a>
         <p className="text-center text-xs text-[color:var(--color-stone)]">
           Once renewed, your account will be reactivated within a few hours.
