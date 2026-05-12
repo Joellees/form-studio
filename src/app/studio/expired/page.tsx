@@ -98,7 +98,7 @@ export default async function ExpiredPage() {
 
   return (
     <main
-      className="mx-auto flex min-h-screen max-w-md flex-col px-5 py-10 rise-in md:px-6 md:py-16"
+      className="mx-auto flex min-h-screen max-w-lg flex-col px-5 py-10 rise-in md:px-6 md:py-16"
       style={{ background: "#F2EDE3" }}
     >
       <p className="font-display text-[20px] leading-none text-[color:var(--color-moss)] md:text-[26px]">
@@ -112,17 +112,60 @@ export default async function ExpiredPage() {
         <p className="mt-3 text-[color:var(--color-ink)]/70">{copy.subhead}</p>
       </section>
 
-      <section className="mt-8 w-full rounded-3xl bg-[color:var(--color-canvas)] p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-          your plan
-        </p>
-        <p className="mt-2 text-base font-semibold tracking-tight">{planLine}</p>
-        {lastActive ? (
-          <p className="mt-1 text-xs text-[color:var(--color-ink)]/55 tabular-nums">
-            Last active through {lastActive}
+      {cohort === "beta_2" ? (
+        // Beta 2 plan comparison — two cards, equal weight, no toggle.
+        // Stacks on mobile (grid-cols-1), side-by-side from md upward
+        // (md:grid-cols-2). Pricing is read from the canonical PRICING
+        // map via `getPrice` so values stay in sync with the admin
+        // "Mark paid" modal and Excel exports.
+        <section className="mt-8 w-full">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            Beta 2 plans
           </p>
-        ) : null}
-      </section>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-3xl bg-[color:var(--color-canvas)] p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+                Monthly
+              </p>
+              <p className="mt-2 text-base font-semibold tracking-tight tabular-nums">
+                {formatPrice(getPrice("beta_2", "monthly", "usd") ?? 0, "usd")}/month
+              </p>
+              <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/65 tabular-nums">
+                {formatPrice(getPrice("beta_2", "monthly", "aed") ?? 0, "aed")}/month
+              </p>
+            </div>
+            <div className="rounded-3xl bg-[color:var(--color-canvas)] p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+                Yearly
+              </p>
+              <p className="mt-2 text-base font-semibold tracking-tight tabular-nums">
+                {formatPrice(getPrice("beta_2", "annual", "usd") ?? 0, "usd")}/year
+              </p>
+              <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/65 tabular-nums">
+                {formatPrice(getPrice("beta_2", "annual", "aed") ?? 0, "aed")}/year
+              </p>
+              <p className="mt-3 text-xs italic text-[color:var(--color-ink)]/55">
+                Pay 10 months instead of 12.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : (
+        // Non-Beta-2 cohorts (rare on this page — founders bypass
+        // hasStudioAccess; mostly defensive). Keep the original single
+        // card so they still see a sensible state.
+        <section className="mt-8 w-full rounded-3xl bg-[color:var(--color-canvas)] p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            your plan
+          </p>
+          <p className="mt-2 text-base font-semibold tracking-tight">{planLine}</p>
+          {lastActive ? (
+            <p className="mt-1 text-xs text-[color:var(--color-ink)]/55 tabular-nums">
+              Last active through {lastActive}
+            </p>
+          ) : null}
+        </section>
+      )}
 
       <div className="mt-8 flex flex-col gap-3">
         <a
@@ -133,6 +176,11 @@ export default async function ExpiredPage() {
         >
           Message us on WhatsApp
         </a>
+        {cohort === "beta_2" ? (
+          <p className="text-center text-xs italic text-[color:var(--color-stone)]">
+            Mention monthly or yearly when you message us.
+          </p>
+        ) : null}
         <p className="text-center text-xs text-[color:var(--color-stone)]">
           Once renewed, your account will be reactivated within a few hours.
         </p>
