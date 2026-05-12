@@ -613,6 +613,10 @@ function HardDeleteModal({
             and all related audit logs. The access codes themselves are
             preserved (their bindings are cleared so they can be reissued).
           </p>
+          <p className="mt-2">
+            The trainer&rsquo;s Clerk account is also deleted, so the same
+            email can be re-used to sign up again.
+          </p>
           <p className="mt-2 text-[color:var(--color-sienna)]">
             There is no undo. Use Soft-delete if you might want them back.
           </p>

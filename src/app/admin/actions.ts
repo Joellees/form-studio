@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
 import { generateAccessCodeValue, formatBeta1Code, formatBeta2Code, nextBeta2Number, sanitizeBeta1Label } from "@/lib/access-codes";
+import { deleteClerkUser } from "@/lib/clerk";
 import { isKnownCohort, type SubscriptionStatus } from "@/lib/cohorts";
 import { isSuperAdmin } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -335,14 +336,27 @@ export async function restoreStudio(raw: unknown): Promise<ActionResult<void>> {
 
 // ─── Hard delete (irreversible) ──────────────────────────────────
 //
-// Calls the `public.hard_delete_trainer(p_studio_id, p_confirm_display_name)`
-// Postgres function, which runs the verify + clear-FKs + DELETE inside a
-// single transaction. See `supabase/migrations/0005_hard_delete_trainer_function.sql`.
+// Two-phase: (1) delete the trainer's Clerk user, then (2) call the
+// `public.hard_delete_trainer` Postgres function which runs the verify
+// + clear-FKs + DELETE inside a single transaction.
+// See `supabase/migrations/0005_hard_delete_trainer_function.sql`.
+//
+// Why Clerk-first abort-on-failure (Path B from the design doc):
+//
+//   - If we DB-deleted first and then Clerk failed, the trainer's email
+//     would be orphaned in Clerk forever (since we lost the clerk_id by
+//     deleting the trainer row) and they couldn't re-sign-up.
+//   - Doing Clerk first means a Clerk failure aborts cleanly — trainer
+//     row stays intact, nothing is lost, admin retries.
+//   - If Clerk succeeds but the SQL function then fails, the partial
+//     state is recoverable: re-running hard-delete is safe because
+//     `deleteClerkUser` treats Clerk's 404 ("user not found") as
+//     idempotent success — the re-run proceeds straight to the SQL.
 //
 // The confirmation string must match the trainer's `display_name` exactly
-// (byte-for-byte) — enforced inside the SQL function so the check can't be
-// bypassed by calling this action directly. The UI also enforces it client
-// side, but that's UX, not security.
+// (byte-for-byte) — enforced inside the SQL function so the check can't
+// be bypassed by calling this action directly. The UI also enforces it
+// client-side, but that's UX, not security.
 //
 // TODO: Storage cleanup
 // For full GDPR-compliant deletion, also delete Supabase Storage objects
@@ -365,9 +379,9 @@ export async function hardDeleteTrainer(
   return runAction(hardDeleteSchema, raw, async ({ studioId, confirmDisplayName }) => {
     const { adminTrainerId, adminName, supabase } = await requireAdminContext();
 
-    // Capture the trainer's identity for the audit log BEFORE the delete
-    // — afterward the row is gone. If the trainer doesn't exist, the RPC
-    // will fail with its own clear error.
+    // Capture the trainer's identity (including clerk_id) BEFORE the
+    // delete — afterward the row is gone. If the trainer doesn't exist
+    // here, abort with a clear error before we ever touch Clerk.
     const { data: target } = await supabase
       .from("trainers")
       .select("display_name, email, subdomain_slug, clerk_id")
@@ -375,14 +389,74 @@ export async function hardDeleteTrainer(
       .maybeSingle();
     if (!target) return fail("Trainer not found.");
 
+    // ── Phase 1: Clerk delete (skip if no clerk_id on the row) ──
+    if (target.clerk_id) {
+      const clerkResult = await deleteClerkUser(target.clerk_id);
+      if (!clerkResult.ok) {
+        console.warn("admin.hard_delete_trainer.clerk_delete_failed", {
+          studioId,
+          displayName: target.display_name,
+          email: target.email,
+          status: clerkResult.status,
+          error: clerkResult.error,
+          adminTrainerId,
+          adminName,
+          at: new Date().toISOString(),
+        });
+        return fail(
+          `Could not delete the trainer's Clerk account: ${clerkResult.error}. ` +
+            `Trainer row was NOT touched. You can retry — Clerk treats 404 as success on the next attempt.`,
+        );
+      }
+      console.warn("admin.hard_delete_trainer.clerk_user_deleted", {
+        studioId,
+        displayName: target.display_name,
+        clerkUserIdPrefix: target.clerk_id.slice(0, 12),
+        alreadyGone: !!clerkResult.alreadyGone,
+        adminTrainerId,
+        adminName,
+        at: new Date().toISOString(),
+      });
+    } else {
+      // Edge case — e.g. a hand-inserted row with no clerk_id. Skip
+      // Phase 1, proceed to DB delete.
+      console.warn("admin.hard_delete_trainer.clerk_id_missing_skipping", {
+        studioId,
+        displayName: target.display_name,
+        at: new Date().toISOString(),
+      });
+    }
+
+    // ── Phase 2: DB delete ──
     const { error } = await supabase.rpc("hard_delete_trainer", {
       p_studio_id: studioId,
       p_confirm_display_name: confirmDisplayName,
     });
     if (error) {
-      // The SQL function returns 'Display-name confirmation failed' on mismatch
-      // and 'Trainer not found' on a missing row — surface verbatim so the UI
-      // can show something useful.
+      // Clerk already gone, but DB delete failed. Log prominently — the
+      // admin needs to re-run hard-delete to finish cleanup. Clerk's
+      // idempotent 404 path will make the re-run safe.
+      console.error(
+        "admin.hard_delete_trainer.db_delete_failed_after_clerk_delete",
+        {
+          studioId,
+          displayName: target.display_name,
+          clerkAlreadyDeleted: !!target.clerk_id,
+          dbError: error.message,
+          adminTrainerId,
+          adminName,
+          at: new Date().toISOString(),
+        },
+      );
+      if (target.clerk_id) {
+        return fail(
+          `Clerk user was deleted but the DB delete failed: ${error.message}. ` +
+            `Re-run hard-delete on this trainer to finish cleanup — Clerk deletion is idempotent.`,
+        );
+      }
+      // The SQL function returns 'Display-name confirmation failed' on
+      // mismatch and 'Trainer not found' on a missing row — surface
+      // verbatim so the UI can show something useful.
       return fail(error.message);
     }
 
