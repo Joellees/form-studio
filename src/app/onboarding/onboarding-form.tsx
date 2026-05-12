@@ -85,15 +85,18 @@ export function OnboardingForm({ initialName }: { initialName: string }) {
             &rsquo;s Form Studio
           </span>
         </div>
-        <p className="text-xs text-[color:var(--color-ink)]/45">
+        <p className="text-xs italic text-[color:var(--color-ink)]/45">
           If your name is common, add your last name to keep your URL clean.
         </p>
-        <p id="studio-name-hint" className="text-xs text-[color:var(--color-stone)]">
-          Your URL will be{" "}
-          <span className="font-mono text-[color:var(--color-ink)]/80">
-            {displayDomain}/{derivedSlug || "yourname"}
+        {/* URL preview — labelled section, distinct from the inline guidance above. */}
+        <div className="mt-3 flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            your url
           </span>
-        </p>
+          <p id="studio-name-hint" className="font-mono text-sm text-[color:var(--color-ink)]/80">
+            {displayDomain}/{derivedSlug || "yourname"}
+          </p>
+        </div>
         {errors.studioName ? (
           <p className="text-xs text-[color:var(--color-sienna)]">
             {errors.studioName.message}
@@ -101,7 +104,10 @@ export function OnboardingForm({ initialName }: { initialName: string }) {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2">
+      {/* Extra breathing room between the studio-name moment and the bio moment.
+          `mt-4` stacks on top of the parent form's `gap-6` to make this a deliberate
+          section break, not just another field. */}
+      <div className="mt-4 flex flex-col gap-2">
         <Label htmlFor="bio">short bio</Label>
         <Textarea
           id="bio"
