@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
-import { generateAccessCode, revokeAccessCode } from "../actions";
+import { generateAccessCode, previewNextAccessCode, revokeAccessCode } from "../actions";
+import { formatBeta1Code, sanitizeBeta1Label } from "@/lib/access-codes";
 import { KNOWN_COHORT_KEYS, cohortLabel } from "@/lib/cohorts";
 import { getBetaGateUrl } from "@/lib/urls";
 
@@ -293,31 +294,57 @@ function MenuItem({
   );
 }
 
+// Cohorts that can be generated from the admin UI. Launch is
+// intentionally excluded — it doesn't use codes. KNOWN_COHORT_KEYS
+// is still used elsewhere (filtering, table display) but the
+// generation modal only offers Beta 1 and Beta 2.
+const GENERATABLE_COHORTS: Array<"beta_1" | "beta_2"> = ["beta_1", "beta_2"];
+
 function GenerateCodeModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
-  const [cohort, setCohort] = useState<string>(KNOWN_COHORT_KEYS[0] ?? "beta_2");
-  const [custom, setCustom] = useState("");
+  const [cohort, setCohort] = useState<"beta_1" | "beta_2">("beta_1");
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
   const [generated, setGenerated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Beta 2 preview ("B2-052") — fetched from server when cohort flips.
+  // Beta 1 preview is computed client-side from the sanitized label.
+  const [b2Preview, setB2Preview] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Refresh Beta 2 preview whenever cohort flips to beta_2.
+  useEffect(() => {
+    if (cohort !== "beta_2") return;
+    let cancelled = false;
+    setPreviewLoading(true);
+    void (async () => {
+      const r = await previewNextAccessCode({ cohort: "beta_2" });
+      if (cancelled) return;
+      setPreviewLoading(false);
+      setB2Preview(r.ok ? r.data.preview : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cohort]);
+
+  const b1Sanitized = cohort === "beta_1" ? sanitizeBeta1Label(label) : "";
+  // Suffix lives in COHORT_CODE_FORMATS.beta_1.suffix — formatBeta1Code
+  // reads from there so the preview stays in sync with the actual code
+  // generated on submit.
+  const b1Preview = b1Sanitized ? formatBeta1Code(b1Sanitized) : formatBeta1Code("{LABEL}");
 
   function submit() {
-    const target = cohort === "__custom" ? custom.trim() : cohort;
-    if (!target) {
-      setError("Pick a cohort or type a custom one.");
-      return;
-    }
-    if (!label.trim()) {
-      setError("Label is required (used in the code).");
+    if (cohort === "beta_1" && !b1Sanitized) {
+      setError("Label is required and must contain at least one letter or digit.");
       return;
     }
     setError(null);
     startTransition(async () => {
       const r = await generateAccessCode({
-        cohort: target,
-        label: label.trim(),
+        cohort,
+        label: cohort === "beta_1" ? label.trim() : undefined,
         note: note.trim() || undefined,
       });
       if (!r.ok) {
@@ -386,46 +413,49 @@ function GenerateCodeModal({ onClose }: { onClose: () => void }) {
               </span>
               <select
                 value={cohort}
-                onChange={(e) => setCohort(e.target.value)}
+                onChange={(e) => setCohort(e.target.value as "beta_1" | "beta_2")}
                 className="select-pill h-10 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
               >
-                {KNOWN_COHORT_KEYS.map((k) => (
+                {GENERATABLE_COHORTS.map((k) => (
                   <option key={k} value={k}>
-                    {k}
+                    {cohortLabel(k)}
                   </option>
                 ))}
-                <option value="__custom">+ type a custom cohort</option>
               </select>
             </div>
-            {cohort === "__custom" ? (
+
+            {cohort === "beta_1" ? (
               <div className="flex flex-col gap-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                  custom cohort key
+                  label
                 </span>
                 <input
                   type="text"
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value)}
-                  placeholder="e.g. beta_3"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="Joelle"
+                  autoFocus
                   className="h-10 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm"
                 />
+                <p className="text-[11px] text-[color:var(--color-stone)]">
+                  Spaces and special chars are stripped. Preview:{" "}
+                  <span className="font-mono tabular-nums">{b1Preview}</span>
+                </p>
               </div>
-            ) : null}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                label
-              </span>
-              <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Sarah Khalil"
-                className="h-10 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm"
-              />
-              <p className="text-[11px] text-[color:var(--color-stone)]">
-                Used in the generated code, e.g. SARAH-BETA2-X4K2
-              </p>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+                  next code
+                </span>
+                <div className="h-10 rounded-full bg-[color:var(--color-parchment)] px-4 text-sm leading-10 font-mono tabular-nums">
+                  {previewLoading ? "…" : b2Preview ?? "B2-???"}
+                </div>
+                <p className="text-[11px] text-[color:var(--color-stone)]">
+                  Numbers increment forever; revoked codes never free up their number.
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
                 internal note (optional)

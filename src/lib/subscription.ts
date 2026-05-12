@@ -84,29 +84,7 @@ export function cohortDefaults(cohort: string): {
   return { status: "expired", cadence: "monthly", currency: "usd" };
 }
 
-/**
- * Generate an access code following the documented pattern:
- *   <LABEL>-<COHORT>-<RANDOM4>
- * e.g. SARAH-BETA2-X4K2.
- *
- * LABEL = uppercase alphanumeric slug of the human label (max 12
- * chars so the full code stays readable).
- * COHORT = BETA1 / BETA2 / LAUNCH / fallback to uppercased cohort.
- * RANDOM4 = 4 chars from an unambiguous alphabet (no 0/O/1/I to
- * keep handed-over codes legible).
- */
-const RANDOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-export function buildAccessCode(label: string, cohort: string): string {
-  const labelSlug =
-    label
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 12) || "CODE";
-  const cohortSlug = cohort.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  let random = "";
-  for (let i = 0; i < 4; i++) {
-    random += RANDOM_ALPHABET[Math.floor(Math.random() * RANDOM_ALPHABET.length)];
-  }
-  return `${labelSlug}-${cohortSlug}-${random}`;
-}
+// Access-code value generation lives in `src/lib/access-codes.ts`
+// since it's cohort-format-aware and needs a Supabase client to
+// look up collisions and the next sequential number. Keeping
+// subscription.ts pure (no DB dependencies).

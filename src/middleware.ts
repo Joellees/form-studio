@@ -142,7 +142,13 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // gets in (the /beta page shows a helpful "no codes configured"
   // message in that case). Until we ship a paywall, the code IS the
   // entitlement.
-  if (!isPreview && !isBetaExempt(url.pathname)) {
+  //
+  // Bypass: when `PUBLIC_SIGNUPS_OPEN=true` (Launch cohort live), the
+  // gate is off entirely and anyone can reach signup. Beta 1 / Beta 2
+  // codes still work for those who have them — only the *gate* goes
+  // away, not the redemption flow.
+  const publicSignupsOpen = process.env.PUBLIC_SIGNUPS_OPEN === "true";
+  if (!publicSignupsOpen && !isPreview && !isBetaExempt(url.pathname)) {
     const { userId } = await auth();
     if (!userId) {
       const betaCodes = parseBetaCodes(process.env.BETA_CODES);

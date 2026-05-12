@@ -25,6 +25,10 @@ const serverOnlySchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().optional(),
   SUPER_ADMIN_CLERK_IDS: z.string().optional(),
+  // Public-signups switch — when "true", the /beta gate is bypassed
+  // entirely and visitors can sign up directly. Off by default so the
+  // beta gate stays in force; flipped when Launch cohort opens.
+  PUBLIC_SIGNUPS_OPEN: z.string().optional(),
 });
 
 function parse() {
@@ -48,6 +52,7 @@ function parse() {
       RESEND_API_KEY: undefined,
       RESEND_FROM_EMAIL: undefined,
       SUPER_ADMIN_CLERK_IDS: undefined,
+      PUBLIC_SIGNUPS_OPEN: undefined,
     };
   }
 
@@ -57,6 +62,7 @@ function parse() {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     SUPER_ADMIN_CLERK_IDS: process.env.SUPER_ADMIN_CLERK_IDS,
+    PUBLIC_SIGNUPS_OPEN: process.env.PUBLIC_SIGNUPS_OPEN,
   });
   if (!serverResult.success) {
     const issues = serverResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n  ");
@@ -78,4 +84,15 @@ export const superAdminClerkIds = new Set(
 export function isSuperAdmin(clerkId: string | null | undefined): boolean {
   if (!clerkId) return false;
   return superAdminClerkIds.has(clerkId);
+}
+
+/**
+ * Whether the /beta gate is bypassed in middleware. When this
+ * returns true, visitors can reach any non-auth-gated route
+ * without a beta cookie + can sign up directly (the Launch cohort
+ * flow). Beta 1 / Beta 2 access codes still work — flipping this
+ * doesn't disable redemption, only the gate.
+ */
+export function publicSignupsOpen(): boolean {
+  return env.PUBLIC_SIGNUPS_OPEN === "true";
 }

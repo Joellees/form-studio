@@ -50,6 +50,25 @@ export function isKnownCohort(value: string | null | undefined): value is Cohort
 }
 
 /**
+ * How the admin-generated access-code string is shaped for each
+ * cohort. Drives `generateAccessCodeValue` in `lib/access-codes.ts`
+ * and the modal UI on `/admin/codes`.
+ *
+ *   - `label_dash_suffix`: `{LABEL}-{suffix}` (e.g. `JOELLE-FS1`)
+ *   - `sequential`: `{prefix}-{NNN}` zero-padded, never-reused
+ *   - `null`: this cohort doesn't use access codes (Launch)
+ */
+export type CodeFormat =
+  | { kind: "label_dash_suffix"; suffix: string }
+  | { kind: "sequential"; prefix: string; digits: number };
+
+export const COHORT_CODE_FORMATS: Record<CohortKey, CodeFormat | null> = {
+  beta_1: { kind: "label_dash_suffix", suffix: "FS1" },
+  beta_2: { kind: "sequential", prefix: "B2", digits: 3 },
+  launch: null,
+};
+
+/**
  * Friendly label for a cohort string, including unknown / custom
  * cohorts (which fall back to titlecased value). The admin tool
  * allows typing custom cohorts; this keeps the UI graceful.

@@ -5,10 +5,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { generateAccessCodeValue, formatBeta1Code, formatBeta2Code, nextBeta2Number, sanitizeBeta1Label } from "@/lib/access-codes";
 import { isKnownCohort, type SubscriptionStatus } from "@/lib/cohorts";
 import { isSuperAdmin } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { buildAccessCode, extendPaidUntil } from "@/lib/subscription";
+import { extendPaidUntil } from "@/lib/subscription";
 
 /**
  * Server actions for the /admin tool — every trainer-state mutation
@@ -333,10 +334,20 @@ export async function restoreStudio(raw: unknown): Promise<ActionResult<void>> {
 }
 
 // ─── Access code: generate ───────────────────────────────────────
+//
+// Format per cohort:
+//   beta_1 → {LABEL}-FS1    (suffix from COHORT_CODE_FORMATS; admin-typed label, sanitized, unique)
+//   beta_2 → B2-NNN          (sequential, never reused — see lib/access-codes.ts)
+//   launch → rejected        (Launch cohort doesn't use codes)
+//
+// `label` is required for beta_1 (and any cohort whose format is
+// label_dash_suffix) and ignored for beta_2 (the system generates
+// the number). The Zod schema accepts an optional label and the
+// dispatch logic enforces per-cohort presence.
 
 const generateCodeSchema = z.object({
   cohort: z.string().min(1).max(40),
-  label: z.string().min(1).max(80),
+  label: z.string().max(80).optional(),
   note: z.string().max(280).optional(),
 });
 
@@ -346,37 +357,51 @@ export async function generateAccessCode(
   return runAction(generateCodeSchema, raw, async ({ cohort, label, note }) => {
     const { adminTrainerId, supabase } = await requireAdminContext();
 
-    // Cap collision retries at 5 — RANDOM_ALPHABET has 32^4 ≈ 1M
-    // possibilities per (label, cohort) prefix; collisions are
-    // vanishingly rare, but cap regardless to avoid a runaway loop.
-    let code = "";
-    let attempt = 0;
-    let inserted: { id: string; code: string } | null = null;
-    while (attempt < 5 && !inserted) {
-      code = buildAccessCode(label, cohort);
+    // Beta 2 may lose a race against a concurrent generator (two
+    // requests computing max(num) at the same time). Retry up to 5
+    // times on UNIQUE-constraint violations; the next call recomputes
+    // `max(num) + 1` and lands on a fresh number.
+    let inserted: { id: string; code: string; storedLabel: string | null } | null = null;
+    let lastError = "";
+    for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
+      const gen = await generateAccessCodeValue(supabase, {
+        cohort,
+        ...(label !== undefined ? { rawLabel: label } : {}),
+      });
+      if (!gen.ok) return fail(gen.error);
+
+      const storedLabel =
+        gen.sanitizedLabel ?? (label && label.trim().length > 0 ? label.trim() : null);
+
       const { data, error } = await supabase
         .from("access_codes")
         .insert({
-          code,
+          code: gen.code,
           cohort,
-          label,
+          label: storedLabel,
           note: note ?? null,
           created_by: adminTrainerId,
         })
         .select("id, code")
         .single();
       if (!error) {
-        inserted = data;
+        inserted = { id: data.id, code: data.code, storedLabel };
         break;
       }
-      // Unique-violation on `code` → retry with a fresh random suffix.
-      if (error.message?.includes("access_codes_code")) {
-        attempt++;
+      // UNIQUE on `code` → almost certainly a B2 race; retry. For B1
+      // this would mean the label collided despite our pre-check, also
+      // safe to retry — though `generateAccessCodeValue` will short-
+      // circuit with a clear error on the next attempt.
+      if (error.message?.toLowerCase().includes("access_codes_code") ||
+          error.message?.toLowerCase().includes("duplicate key")) {
+        lastError = error.message;
         continue;
       }
       return fail(error.message);
     }
-    if (!inserted) return fail("Couldn't generate a unique code after 5 tries.");
+    if (!inserted) {
+      return fail(`Couldn't generate a unique code after 5 tries. Last error: ${lastError}`);
+    }
 
     await supabase.from("access_code_events").insert({
       access_code_id: inserted.id,
@@ -387,6 +412,43 @@ export async function generateAccessCode(
 
     revalidatePath("/admin/codes");
     return ok({ id: inserted.id, code: inserted.code });
+  });
+}
+
+// ─── Access code: preview (no INSERT) ────────────────────────────
+//
+// Used by the Generate-Code modal to show "next code: B2-052"
+// before the admin commits. The actual generation re-computes the
+// number on submit — if a concurrent generator slips in between
+// preview and submit, the committed code will differ by 1 and the
+// admin's preview was just stale UI. No correctness issue.
+
+const previewCodeSchema = z.object({
+  cohort: z.string().min(1).max(40),
+  label: z.string().max(80).optional(),
+});
+
+export async function previewNextAccessCode(
+  raw: unknown,
+): Promise<ActionResult<{ preview: string }>> {
+  return runAction(previewCodeSchema, raw, async ({ cohort, label }) => {
+    const { supabase } = await requireAdminContext();
+
+    if (cohort === "launch") {
+      return fail("Launch cohort signups don't use access codes.");
+    }
+    if (cohort === "beta_1") {
+      const sanitized = sanitizeBeta1Label(label ?? "");
+      // formatBeta1Code reads the suffix from COHORT_CODE_FORMATS so this
+      // stays in sync with code generation automatically.
+      if (!sanitized) return ok({ preview: formatBeta1Code("{LABEL}") });
+      return ok({ preview: formatBeta1Code(sanitized) });
+    }
+    if (cohort === "beta_2") {
+      const n = await nextBeta2Number(supabase);
+      return ok({ preview: formatBeta2Code(n) });
+    }
+    return fail(`Unsupported cohort "${cohort}".`);
   });
 }
 
