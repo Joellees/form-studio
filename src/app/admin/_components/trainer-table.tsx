@@ -8,6 +8,7 @@ import {
   cancelTrainerSubscription,
   changeCohort,
   grantFounding,
+  hardDeleteTrainer,
   markTrainerPaid,
   reactivateTrainerSubscription,
   restoreStudio,
@@ -39,6 +40,7 @@ export function AdminTrainerTable({ rows }: { rows: TrainerRow[] }) {
     | null
     | { kind: "mark_paid"; row: TrainerRow }
     | { kind: "change_cohort"; row: TrainerRow }
+    | { kind: "hard_delete"; row: TrainerRow }
   >(null);
 
   if (rows.length === 0) {
@@ -145,6 +147,9 @@ export function AdminTrainerTable({ rows }: { rows: TrainerRow[] }) {
       {modal?.kind === "change_cohort" ? (
         <ChangeCohortModal row={modal.row} onClose={() => setModal(null)} />
       ) : null}
+      {modal?.kind === "hard_delete" ? (
+        <HardDeleteModal row={modal.row} onClose={() => setModal(null)} />
+      ) : null}
     </div>
   );
 }
@@ -215,7 +220,7 @@ function RowMenu({
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
-  onModal: (kind: "mark_paid" | "change_cohort") => void;
+  onModal: (kind: "mark_paid" | "change_cohort" | "hard_delete") => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -300,6 +305,11 @@ function RowMenu({
                 Soft-delete
               </MenuItem>
             )}
+            {/* Visual divider between reversible actions and the irreversible one. */}
+            <div className="my-1 h-px bg-[color:var(--color-stone-soft)]" aria-hidden />
+            <MenuItem danger onClick={() => onModal("hard_delete")}>
+              Permanently delete trainer
+            </MenuItem>
           </div>
         </>
       ) : null}
@@ -538,6 +548,114 @@ function ChangeCohortModal({
             className="inline-flex h-9 items-center rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60"
           >
             {pending ? "saving…" : "change cohort"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Hard-delete modal (irreversible) ────────────────────────────
+//
+// Requires the admin to type the trainer's display_name exactly before
+// the destroy button enables. Cancel is the default focused control.
+// The server action also re-checks the typed name inside the SQL
+// function — the client-side gate is UX, not security.
+
+function HardDeleteModal({
+  row,
+  onClose,
+}: {
+  row: TrainerRow;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [typed, setTyped] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const matches = typed === row.displayName;
+
+  function submit() {
+    if (!matches) return;
+    setError(null);
+    startTransition(async () => {
+      const r = await hardDeleteTrainer({
+        studioId: row.id,
+        confirmDisplayName: typed,
+      });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      onClose();
+      router.refresh();
+    });
+  }
+
+  return (
+    <Modal onClose={onClose} title="Permanently delete trainer">
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-[color:var(--color-sienna)]/10 px-4 py-3">
+          <p className="text-[15px] font-semibold tracking-tight text-[color:var(--color-ink)]">
+            {row.displayName}
+          </p>
+          <p className="text-xs text-[color:var(--color-ink)]/65">
+            {row.email ?? "—"}
+            {row.subdomainSlug ? ` · /s/${row.subdomainSlug}` : null}
+          </p>
+        </div>
+
+        <div className="text-sm text-[color:var(--color-ink)]/80 leading-relaxed">
+          <p>
+            This permanently deletes every record owned by this trainer:
+            clients, sessions, packages, exercises, templates, subscriptions,
+            and all related audit logs. The access codes themselves are
+            preserved (their bindings are cleared so they can be reissued).
+          </p>
+          <p className="mt-2 text-[color:var(--color-sienna)]">
+            There is no undo. Use Soft-delete if you might want them back.
+          </p>
+        </div>
+
+        <Field label={`type "${row.displayName}" to confirm`}>
+          <input
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={row.displayName}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            className="h-9 w-full rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm"
+          />
+        </Field>
+
+        <p className="text-[11px] italic text-[color:var(--color-ink)]/55">
+          Note: Uploaded files in storage are not deleted by this action.
+        </p>
+
+        {error ? (
+          <p className="text-xs text-[color:var(--color-sienna)]">{error}</p>
+        ) : null}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={pending}
+            autoFocus
+            className="inline-flex h-9 items-center rounded-full px-4 text-xs text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)] disabled:opacity-60"
+          >
+            cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!matches || pending}
+            className="inline-flex h-9 items-center rounded-full bg-[color:var(--color-sienna)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:opacity-90 disabled:opacity-40"
+          >
+            {pending ? "deleting…" : "Permanently delete"}
           </button>
         </div>
       </div>

@@ -333,6 +333,77 @@ export async function restoreStudio(raw: unknown): Promise<ActionResult<void>> {
   });
 }
 
+// ─── Hard delete (irreversible) ──────────────────────────────────
+//
+// Calls the `public.hard_delete_trainer(p_studio_id, p_confirm_display_name)`
+// Postgres function, which runs the verify + clear-FKs + DELETE inside a
+// single transaction. See `supabase/migrations/0005_hard_delete_trainer_function.sql`.
+//
+// The confirmation string must match the trainer's `display_name` exactly
+// (byte-for-byte) — enforced inside the SQL function so the check can't be
+// bypassed by calling this action directly. The UI also enforces it client
+// side, but that's UX, not security.
+//
+// TODO: Storage cleanup
+// For full GDPR-compliant deletion, also delete Supabase Storage objects
+// under the tenant's prefix paths (exercise-videos/<tenant_id>/*,
+// client-progress/<tenant_id>/*, etc). Currently skipped because:
+// - Cleanup runs outside the SQL transaction, can fail asymmetrically
+// - Test-trainer use case has minimal/no uploads
+// - Real deletion requests are rare and can be handled case-by-case
+// When implementing, use supabase.storage.from(bucket).remove([paths])
+// after the DB delete commits.
+
+const hardDeleteSchema = z.object({
+  studioId: z.string().uuid(),
+  confirmDisplayName: z.string().min(1).max(120),
+});
+
+export async function hardDeleteTrainer(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(hardDeleteSchema, raw, async ({ studioId, confirmDisplayName }) => {
+    const { adminTrainerId, adminName, supabase } = await requireAdminContext();
+
+    // Capture the trainer's identity for the audit log BEFORE the delete
+    // — afterward the row is gone. If the trainer doesn't exist, the RPC
+    // will fail with its own clear error.
+    const { data: target } = await supabase
+      .from("trainers")
+      .select("display_name, email, subdomain_slug, clerk_id")
+      .eq("id", studioId)
+      .maybeSingle();
+    if (!target) return fail("Trainer not found.");
+
+    const { error } = await supabase.rpc("hard_delete_trainer", {
+      p_studio_id: studioId,
+      p_confirm_display_name: confirmDisplayName,
+    });
+    if (error) {
+      // The SQL function returns 'Display-name confirmation failed' on mismatch
+      // and 'Trainer not found' on a missing row — surface verbatim so the UI
+      // can show something useful.
+      return fail(error.message);
+    }
+
+    // Application-log the destruction. No DB-side audit row possible: the
+    // most natural home (`trainer_subscription_events`) cascade-deletes
+    // with the trainer, so any row written there would vanish.
+    console.warn("admin.hard_delete_trainer", {
+      studioId,
+      displayName: target.display_name,
+      email: target.email,
+      subdomainSlug: target.subdomain_slug,
+      adminTrainerId,
+      adminName,
+      at: new Date().toISOString(),
+    });
+
+    revalidatePath("/admin");
+    return ok();
+  });
+}
+
 // ─── Access code: generate ───────────────────────────────────────
 //
 // Format per cohort:
@@ -489,6 +560,61 @@ export async function revokeAccessCode(raw: unknown): Promise<ActionResult<void>
     return ok();
   });
 }
+// ─── Access code: hard delete (irreversible) ─────────────────────
+//
+// Counterpart to `hardDeleteTrainer`. Calls the
+// `public.hard_delete_access_code(p_access_code_id, p_confirm_code)`
+// Postgres function — atomic verify + bound-trainer-active check +
+// DELETE. The events table cascades via its FK so this single action
+// removes the code AND its full audit history.
+//
+// Refuses to delete codes bound to a trainer who still has an active
+// (not-soft-deleted) `trainers` row — the function returns a clear
+// error which we pass through to the UI.
+
+const hardDeleteCodeSchema = z.object({
+  accessCodeId: z.string().uuid(),
+  confirmCode: z.string().min(1).max(80),
+});
+
+export async function hardDeleteAccessCode(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(hardDeleteCodeSchema, raw, async ({ accessCodeId, confirmCode }) => {
+    const { adminTrainerId, adminName, supabase } = await requireAdminContext();
+
+    // Capture identity BEFORE the delete for the audit log.
+    const { data: target } = await supabase
+      .from("access_codes")
+      .select("code, cohort, label, revoked, redemption_count, bound_to_studio_id")
+      .eq("id", accessCodeId)
+      .maybeSingle();
+    if (!target) return fail("Access code not found.");
+
+    const { error } = await supabase.rpc("hard_delete_access_code", {
+      p_access_code_id: accessCodeId,
+      p_confirm_code: confirmCode,
+    });
+    if (error) return fail(error.message);
+
+    console.warn("admin.hard_delete_access_code", {
+      accessCodeId,
+      code: target.code,
+      cohort: target.cohort,
+      label: target.label,
+      wasRevoked: target.revoked,
+      redemptionCount: target.redemption_count,
+      wasBound: !!target.bound_to_studio_id,
+      adminTrainerId,
+      adminName,
+      at: new Date().toISOString(),
+    });
+
+    revalidatePath("/admin/codes");
+    return ok();
+  });
+}
+
 // Silence the unused-import warning on `isKnownCohort` — it's
 // re-exported via cohorts but only referenced here in TS comments
 // for now; keeping the import for future validation work without

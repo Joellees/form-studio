@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
-import { generateAccessCode, previewNextAccessCode, revokeAccessCode } from "../actions";
+import { generateAccessCode, hardDeleteAccessCode, previewNextAccessCode, revokeAccessCode } from "../actions";
 import { formatBeta1Code, sanitizeBeta1Label } from "@/lib/access-codes";
 import { KNOWN_COHORT_KEYS, cohortLabel } from "@/lib/cohorts";
 import { getBetaGateUrl } from "@/lib/urls";
@@ -31,15 +31,69 @@ function codeStatus(r: CodeRow): CodeStatus {
   return "available";
 }
 
-function whatsappMessage(label: string | null, code: string): string {
-  const name = label ?? "there";
-  return `Hi ${name}, here's your Form Studio access code: ${code}. Use it to sign up at ${getBetaGateUrl()}`;
+/**
+ * WhatsApp handoff message — cohort-aware copy. The admin clicks "copy
+ * WhatsApp message" and gets a ready-to-paste body with the right tone for
+ * the trainer's cohort.
+ *
+ *   beta_1 (founders) — warm welcome, "free for life" line
+ *   beta_2            — $29/mo or AED 109/mo, "price stays yours forever"
+ *   other             — generic short fallback
+ *
+ * `name` is the personalized greeting target. Caller passes:
+ *   - the bound trainer's `display_name` for already-claimed codes
+ *   - the admin-typed `label` for freshly generated codes in the modal
+ *   - `null` for unbound codes in the table where we have no name
+ * When `name` is null we fall back to "Hey there".
+ */
+function whatsappMessage({
+  cohort,
+  code,
+  name,
+}: {
+  cohort: string;
+  code: string;
+  name: string | null;
+}): string {
+  const greeting = name && name.trim() ? `Hey ${name.trim()}` : "Hey there";
+  const url = getBetaGateUrl();
+
+  if (cohort === "beta_1") {
+    return [
+      `${greeting} — welcome to Form Studio.`,
+      ``,
+      `So happy to have you from day one.`,
+      ``,
+      `Your access code: ${code}`,
+      `Sign up here: ${url}`,
+      ``,
+      `Founders are free for life. No charge, no surprises. The studio is yours.`,
+      ``,
+      `Please tell me everything — what works, what doesn't, what's missing. All of it matters.`,
+    ].join("\n");
+  }
+
+  if (cohort === "beta_2") {
+    return [
+      `${greeting} — welcome to Form Studio Beta 2. Thanks for trusting us this early.`,
+      ``,
+      `Your access code: ${code}`,
+      `Sign up here: ${url}`,
+      ``,
+      `Your subscription is $29/month or AED 109/month — and this price stays yours forever, even after public launch.`,
+      ``,
+      `If you spot something or have an idea, the door's open.`,
+    ].join("\n");
+  }
+
+  return `${greeting} — here's your Form Studio access code: ${code}. Use it to sign up at ${url}`;
 }
 
 export function CodesTable({ rows }: { rows: CodeRow[] }) {
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CodeRow | null>(null);
   const [filter, setFilter] = useState<{ cohort: string; status: string; q: string }>({
     cohort: "all",
     status: "all",
@@ -213,7 +267,7 @@ export function CodesTable({ rows }: { rows: CodeRow[] }) {
                           </MenuItem>
                           <MenuItem
                             onClick={() =>
-                              copy(whatsappMessage(r.label, r.code), `w-${r.id}`)
+                              copy(whatsappMessage({ cohort: r.cohort, code: r.code, name: r.boundTrainerName }), `w-${r.id}`)
                             }
                           >
                             {copied === `w-${r.id}`
@@ -244,6 +298,17 @@ export function CodesTable({ rows }: { rows: CodeRow[] }) {
                               Revoke
                             </MenuItem>
                           ) : null}
+                          {/* Hairline divider before the irreversible action. */}
+                          <div className="my-1 h-px bg-[color:var(--color-stone-soft)]" aria-hidden />
+                          <MenuItem
+                            danger
+                            onClick={() => {
+                              setOpen(null);
+                              setDeleteTarget(r);
+                            }}
+                          >
+                            Permanently delete code
+                          </MenuItem>
                         </div>
                       </>
                     ) : null}
@@ -266,6 +331,12 @@ export function CodesTable({ rows }: { rows: CodeRow[] }) {
       </div>
 
       {generating ? <GenerateCodeModal onClose={() => setGenerating(false)} /> : null}
+      {deleteTarget ? (
+        <HardDeleteCodeModal
+          row={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -299,6 +370,157 @@ function MenuItem({
 // is still used elsewhere (filtering, table display) but the
 // generation modal only offers Beta 1 and Beta 2.
 const GENERATABLE_COHORTS: Array<"beta_1" | "beta_2"> = ["beta_1", "beta_2"];
+
+// ─── Hard-delete-code modal (irreversible) ───────────────────────
+//
+// Requires the admin to type the code value exactly. Cancel has
+// autoFocus (default keyboard target). The server action re-checks
+// the typed value inside the SQL function, and also refuses codes
+// bound to an active trainer — that error surfaces inline here.
+
+function HardDeleteCodeModal({
+  row,
+  onClose,
+}: {
+  row: CodeRow;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [typed, setTyped] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const matches = typed === row.code;
+  // Surface the active-binding warning prominently. The server still has the
+  // final word — a soft-deleted trainer's code is deletable but we can't tell
+  // that from the client without an extra query, so we just warn on any
+  // binding and let the server return a clear error if needed.
+  const isBound = !!row.boundStudioId;
+
+  function submit() {
+    if (!matches) return;
+    setError(null);
+    startTransition(async () => {
+      const r = await hardDeleteAccessCode({
+        accessCodeId: row.id,
+        confirmCode: typed,
+      });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      onClose();
+      router.refresh();
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-3xl bg-[color:var(--color-canvas)] p-5 pb-7 shadow-[0_24px_64px_-12px_rgba(31,30,27,0.35)] md:rounded-3xl md:p-6 md:pb-6"
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          admin
+        </p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight">
+          Permanently delete code
+        </h2>
+
+        <div className="mt-5 space-y-4">
+          <div className="rounded-2xl bg-[color:var(--color-sienna)]/10 px-4 py-3">
+            <p className="font-mono text-base font-semibold tabular-nums">
+              {row.code}
+            </p>
+            <p className="mt-1 text-xs text-[color:var(--color-ink)]/70">
+              {cohortLabel(row.cohort)}
+              {row.revoked ? " · revoked" : ""}
+              {row.redemptionCount > 0
+                ? ` · ${row.redemptionCount} redemption${row.redemptionCount === 1 ? "" : "s"}`
+                : " · never redeemed"}
+            </p>
+            <p className="mt-1 text-xs text-[color:var(--color-ink)]/70">
+              {isBound
+                ? `Bound to: ${row.boundTrainerName ?? "(unknown trainer)"}`
+                : "Not bound to any trainer"}
+            </p>
+          </div>
+
+          <div className="text-sm text-[color:var(--color-ink)]/80 leading-relaxed">
+            <p>
+              This permanently removes the code row and every entry in the
+              audit-log (`access_code_events`). The code can&apos;t be re-used,
+              re-issued under the same value, or shown in history.
+            </p>
+            {isBound ? (
+              <p className="mt-2 text-[color:var(--color-sienna)]">
+                Heads-up: this code is bound to a trainer. If their account is
+                still active, the server will refuse the delete (would orphan
+                their access). Soft-deleted trainers&apos; codes are deletable.
+              </p>
+            ) : null}
+            <p className="mt-2 text-[color:var(--color-sienna)]">
+              There is no undo. Use Revoke if you only want to block redemption.
+            </p>
+          </div>
+
+          <Field label={`type "${row.code}" to confirm`}>
+            <input
+              type="text"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={row.code}
+              spellCheck={false}
+              autoComplete="off"
+              autoCorrect="off"
+              className="h-9 w-full rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm font-mono"
+            />
+          </Field>
+
+          {error ? (
+            <p className="text-xs text-[color:var(--color-sienna)]">{error}</p>
+          ) : null}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              autoFocus
+              className="inline-flex h-9 items-center rounded-full px-4 text-xs text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)] disabled:opacity-60"
+            >
+              cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!matches || pending}
+              className="inline-flex h-9 items-center rounded-full bg-[color:var(--color-sienna)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:opacity-90 disabled:opacity-40"
+            >
+              {pending ? "deleting…" : "Permanently delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── tiny shared primitives ──────────────────────────────────────
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
 
 function GenerateCodeModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -377,12 +599,27 @@ function GenerateCodeModal({ onClose }: { onClose: () => void }) {
             <p className="rounded-2xl bg-[color:var(--color-parchment)] px-4 py-3 font-mono text-base tabular-nums">
               {generated}
             </p>
+            {/* WhatsApp message preview — read-only, multi-line, copy via button below. */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+                WhatsApp message
+              </p>
+              <textarea
+                readOnly
+                value={whatsappMessage({ cohort, code: generated, name: label || null })}
+                rows={9}
+                className="w-full resize-none rounded-2xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 py-3 text-xs leading-relaxed text-[color:var(--color-ink)]/85"
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() =>
                   navigator.clipboard.writeText(
-                    whatsappMessage(label || null, generated),
+                    // Fresh code is unbound by definition — but the admin
+                    // just typed `label` for this specific person, so use it
+                    // as the personalization target.
+                    whatsappMessage({ cohort, code: generated, name: label || null }),
                   )
                 }
                 className="inline-flex h-10 items-center justify-center rounded-full bg-[color:var(--color-ink)] px-4 text-sm font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)]"
