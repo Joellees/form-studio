@@ -8,11 +8,13 @@ export default function SignInPage() {
       <div className="mb-10 rise-in">
         <Wordmark variant="inline-platform" />
       </div>
-      <SignIn
-        fallbackRedirectUrl="/me"
-        signUpUrl="/sign-up"
-        appearance={{ elements: { card: "shadow-none bg-transparent" } }}
-      />
+      {/*
+        `appearance.elements.card` was a v5-era override. See the
+        matching comment in `/sign-up/page.tsx` — removed for v6
+        compatibility after the override crashed the prebuilt
+        component at render time.
+      */}
+      <SignIn fallbackRedirectUrl="/me" signUpUrl="/sign-up" />
     </main>
   );
 }

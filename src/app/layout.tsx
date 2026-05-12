@@ -70,7 +70,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       appearance={{
         variables: {
           colorPrimary: "#4A5540",
-          colorBackground: "#F6F2EB",
+          // TODO(clerk-v6): `colorBackground` was a v5 key that's been
+          // deprecated/removed in the v6 appearance API. Commented out
+          // pre-emptively while we verify the v6 SDK doesn't object to
+          // it. Re-add via the v6 equivalent (`colorNeutral` or a
+          // component-specific override) once sign-up/sign-in confirmed
+          // working with 6.x.
+          // colorBackground: "#F6F2EB",
           colorText: "#1F1E1B",
           colorInputBackground: "#F6F2EB",
           fontFamily: "var(--font-sans), system-ui, sans-serif",
