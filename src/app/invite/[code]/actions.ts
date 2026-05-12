@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { BETA_COOKIE, parseBetaCodes } from "@/lib/beta";
+// `BETA_COOKIE` no longer set from this flow — see comment below.
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { CLIENT_TENANT_COOKIE } from "@/lib/trainer";
 
@@ -281,22 +281,19 @@ export async function claimInvite(raw: unknown): Promise<ActionResult<{ clientId
       maxAge: 60 * 60 * 24 * 60,
     });
 
-    // Grant beta-gate access. The invite IS the beta pass — dropping a
-    // valid code cookie lets the user navigate the rest of the app
-    // after claiming without needing a separately-shared beta code.
-    const validCodes = parseBetaCodes(process.env.BETA_CODES);
-    if (validCodes.length > 0) {
-      const anyCode = validCodes[0]?.code;
-      if (anyCode) {
-        jar.set(BETA_COOKIE, anyCode, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 60 * 60 * 24 * 30,
-        });
-      }
-    }
+    // Beta-gate cookie is intentionally NOT stamped here.
+    //
+    // This action runs after a Clerk sign-in, so the user is
+    // authenticated. The middleware beta gate is signed-out-only
+    // (`if (!userId)`), so the cookie is redundant in the immediate
+    // post-claim flow. If the user signs out later and returns,
+    // `/sign-in` is gate-exempt — they sign in and middleware lets
+    // them through.
+    //
+    // The previous implementation stamped the cookie with "the first
+    // value from the BETA_CODES env var" — which was empty in
+    // production and was the trigger for the middleware ↔ /beta
+    // redirect loop fixed alongside this change.
 
     return ok({ clientId });
   });

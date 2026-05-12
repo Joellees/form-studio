@@ -1,8 +1,9 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { BETA_COOKIE, isValidBetaCode, parseBetaCodes } from "@/lib/beta";
+import { BETA_COOKIE } from "@/lib/beta";
 import { isPreviewToken, PREVIEW_HEADER, PREVIEW_QUERY } from "@/lib/preview";
+import { createSupabaseEdgeClient } from "@/lib/supabase/edge";
 import { parseHost, TENANT_KIND_HEADER, TENANT_SLUG_HEADER } from "@/lib/tenancy";
 
 const isPublicRoute = createRouteMatcher([
@@ -138,23 +139,53 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // Beta gate — always on for signed-out visitors hitting a non-exempt
-  // path. Closed-by-default: empty / missing BETA_CODES means nobody
-  // gets in (the /beta page shows a helpful "no codes configured"
-  // message in that case). Until we ship a paywall, the code IS the
-  // entitlement.
+  // path. Cookie value is validated against `public.access_codes` via
+  // the `is_access_code_valid` RPC (SECURITY DEFINER, anon-callable).
+  // The DB is the single source of truth — the older `BETA_CODES`
+  // env-var system was removed in this commit because it drifted from
+  // the redemption flow and caused a redirect loop between this gate
+  // and `/beta` (which has always validated against the DB).
   //
   // Bypass: when `PUBLIC_SIGNUPS_OPEN=true` (Launch cohort live), the
-  // gate is off entirely and anyone can reach signup. Beta 1 / Beta 2
-  // codes still work for those who have them — only the *gate* goes
-  // away, not the redemption flow.
+  // gate is off entirely. Beta 1 / Beta 2 codes still work for those
+  // who have them — only the gate goes away, not redemption.
+  //
+  // Fail mode: on RPC error (network, transient DB, schema cache miss)
+  // we LET THE REQUEST THROUGH with a console.warn. Failing closed
+  // would recreate the loop in the failure path — the `/beta` page
+  // uses a different client (service-role admin) and might still
+  // succeed, causing it to redirect through while we keep rejecting.
+  // Letting through is safe because every access-gated route below
+  // the gate has its own auth check (Clerk for /studio /client /admin,
+  // tenancy resolution for /s/[slug]).
   const publicSignupsOpen = process.env.PUBLIC_SIGNUPS_OPEN === "true";
   if (!publicSignupsOpen && !isPreview && !isBetaExempt(url.pathname)) {
     const { userId } = await auth();
     if (!userId) {
-      const betaCodes = parseBetaCodes(process.env.BETA_CODES);
       const cookieValue = req.cookies.get(BETA_COOKIE)?.value;
-      const hasValidCode =
-        cookieValue && betaCodes.length > 0 ? !!isValidBetaCode(cookieValue, betaCodes) : false;
+      let hasValidCode = false;
+      if (cookieValue) {
+        try {
+          const sb = createSupabaseEdgeClient();
+          const { data, error } = await sb.rpc("is_access_code_valid", {
+            p_code: cookieValue,
+          });
+          if (error) {
+            console.warn("middleware.beta_gate.rpc_error_fail_open", {
+              code: error.code,
+              message: error.message,
+            });
+            hasValidCode = true; // fail open — see comment block above
+          } else {
+            hasValidCode = data === true;
+          }
+        } catch (err) {
+          console.warn("middleware.beta_gate.rpc_throw_fail_open", {
+            message: err instanceof Error ? err.message : String(err),
+          });
+          hasValidCode = true; // fail open
+        }
+      }
       if (!hasValidCode) {
         const gate = req.nextUrl.clone();
         gate.pathname = "/beta";
