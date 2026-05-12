@@ -11,7 +11,9 @@
 // scripts under `tsc --noEmit`.
 export {};
 
-const PAT = process.env.SUPABASE_ACCESS_TOKEN ?? "sbp_f81b12d01ff9deae96a1e08257f3653ee1b46691";
+const PAT = process.env.SUPABASE_ACCESS_TOKEN ?? (() => {
+  throw new Error("SUPABASE_ACCESS_TOKEN env var is required to run this script");
+})();
 const PROJECT = process.env.SUPABASE_PROJECT_REF ?? "rcjuqgvvpnjzifrvvsbq";
 const TENANT_SLUG = "joelle";
 
