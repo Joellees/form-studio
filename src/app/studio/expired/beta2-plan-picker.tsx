@@ -58,19 +58,18 @@ export function Beta2PlanPicker({
   return (
     <>
       <section className="mt-8 w-full">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-            Beta 2 plans
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+          Beta 2 plans
+        </p>
+        {/* Hint sits on its own line under the section heading at
+          * every viewport size — sets expectation BEFORE the cards
+          * rather than after the disabled button. Hides once a plan
+          * is picked. */}
+        {selected ? null : (
+          <p className="mt-1 text-xs text-[color:var(--color-stone)]">
+            Select a plan to continue.
           </p>
-          {/* Hint sits next to the section heading instead of under
-            * the CTA — sets expectation BEFORE the cards rather than
-            * after the disabled button. Hides once a plan is picked. */}
-          {selected ? null : (
-            <p className="text-[11px] text-[color:var(--color-stone)]">
-              Select a plan to continue.
-            </p>
-          )}
-        </div>
+        )}
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <button
             type="button"
