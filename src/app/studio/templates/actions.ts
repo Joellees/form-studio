@@ -338,3 +338,142 @@ export async function updateSetGroup(raw: unknown): Promise<ActionResult<void>> 
     return ok();
   });
 }
+
+const reorderBlocksSchema = z.object({
+  templateId: z.string().uuid(),
+  blockIds: z.array(z.string().uuid()).max(200),
+});
+
+/**
+ * Atomically reorders the blocks in a template by writing the
+ * `order_index` of each block to match its position in `blockIds`.
+ * Used by the drag-and-drop UI in `template-builder.tsx` and by the
+ * bulk Save Workout action below for the combined save path.
+ *
+ * Verifies every passed block belongs to the trainer's template
+ * before any UPDATE so a malicious caller can't reorder someone
+ * else's rows. Sequential UPDATEs because the supabase client has
+ * no single primitive for "set order_index per id" in one round
+ * trip; typical workouts have ≤ 20 blocks so latency is well under
+ * a second.
+ */
+export async function reorderTemplateBlocks(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(reorderBlocksSchema, raw, async ({ templateId, blockIds }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    const { data: tpl } = await supabase
+      .from("session_templates")
+      .select("id")
+      .eq("id", templateId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!tpl) return fail("That workout isn't yours.");
+
+    if (blockIds.length === 0) return ok();
+
+    const { data: owned } = await supabase
+      .from("template_blocks")
+      .select("id")
+      .eq("template_id", templateId)
+      .eq("tenant_id", trainer.id)
+      .in("id", blockIds);
+    if ((owned ?? []).length !== blockIds.length) {
+      return fail("Some blocks don't belong to this workout.");
+    }
+
+    for (let i = 0; i < blockIds.length; i++) {
+      const { error } = await supabase
+        .from("template_blocks")
+        .update({ order_index: i })
+        .eq("id", blockIds[i]!)
+        .eq("tenant_id", trainer.id);
+      if (error) return fail(error.message);
+    }
+
+    revalidatePath(`/studio/templates/${templateId}`);
+    return ok();
+  });
+}
+
+const saveTemplateChangesSchema = z.object({
+  templateId: z.string().uuid(),
+  setGroups: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        sets: z.number().int().positive().optional(),
+        rep_type: z.string().optional(),
+        rep_value: z.unknown().optional(),
+        weight_type: z.string().optional(),
+        weight_value: z.unknown().optional(),
+        rest_seconds: z.number().int().nullable().optional(),
+        label: z.string().nullable().optional(),
+      }),
+    )
+    .max(500),
+  blockOrder: z.array(z.string().uuid()).max(200).optional(),
+});
+
+/**
+ * Bulk-save endpoint for the explicit "Save workout" button in the
+ * template builder. Combines what was previously per-field
+ * autosave-on-blur into a single user-initiated commit.
+ *
+ * Receives the full set of edited `set_groups` plus an optional new
+ * `blockOrder` and persists both in a single trainer-bound action.
+ * Authorization is enforced by joining each id back to the trainer's
+ * tenant before writing — same defense as `updateSetGroup` and
+ * `reorderTemplateBlocks`.
+ */
+export async function saveTemplateChanges(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(saveTemplateChangesSchema, raw, async ({ templateId, setGroups, blockOrder }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    const { data: tpl } = await supabase
+      .from("session_templates")
+      .select("id")
+      .eq("id", templateId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!tpl) return fail("That workout isn't yours.");
+
+    for (const sg of setGroups) {
+      const { id, ...fields } = sg;
+      const { error } = await supabase
+        .from("template_set_groups")
+        .update(fields)
+        .eq("id", id)
+        .eq("tenant_id", trainer.id);
+      if (error) return fail(error.message);
+    }
+
+    if (blockOrder && blockOrder.length > 0) {
+      const { data: owned } = await supabase
+        .from("template_blocks")
+        .select("id")
+        .eq("template_id", templateId)
+        .eq("tenant_id", trainer.id)
+        .in("id", blockOrder);
+      if ((owned ?? []).length !== blockOrder.length) {
+        return fail("Some blocks don't belong to this workout.");
+      }
+      for (let i = 0; i < blockOrder.length; i++) {
+        const { error } = await supabase
+          .from("template_blocks")
+          .update({ order_index: i })
+          .eq("id", blockOrder[i]!)
+          .eq("tenant_id", trainer.id);
+        if (error) return fail(error.message);
+      }
+    }
+
+    revalidatePath(`/studio/templates/${templateId}`);
+    return ok();
+  });
+}

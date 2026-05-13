@@ -145,6 +145,61 @@ export async function updateSessionSetGroup(raw: unknown): Promise<ActionResult<
   });
 }
 
+const reorderSessionBlocksSchema = z.object({
+  sessionId: z.string().uuid(),
+  blockIds: z.array(z.string().uuid()).max(200),
+});
+
+/**
+ * Persists the new order of `session_blocks` after a drag-and-drop
+ * reorder in the session builder. Mirrors `reorderTemplateBlocks` in
+ * the templates action set — same authorisation pattern (verify
+ * session ownership + verify every passed block belongs to it before
+ * writing). Sequential UPDATEs because there's no single-shot bulk
+ * primitive on the supabase client for "set order_index per id".
+ */
+export async function reorderSessionBlocks(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(reorderSessionBlocksSchema, raw, async ({ sessionId, blockIds }) => {
+    const trainer = await requireTrainer();
+    const admin = createSupabaseAdminClient();
+
+    const { data: session } = await admin
+      .from("sessions")
+      .select("id")
+      .eq("id", sessionId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!session) return fail("Session not found.");
+
+    if (blockIds.length === 0) return ok();
+
+    const { data: owned } = await admin
+      .from("session_blocks")
+      .select("id")
+      .eq("session_id", sessionId)
+      .eq("tenant_id", trainer.id)
+      .in("id", blockIds);
+    if ((owned ?? []).length !== blockIds.length) {
+      return fail("Some blocks don't belong to this session.");
+    }
+
+    for (let i = 0; i < blockIds.length; i++) {
+      const { error } = await admin
+        .from("session_blocks")
+        .update({ order_index: i })
+        .eq("id", blockIds[i]!)
+        .eq("tenant_id", trainer.id);
+      if (error) return fail(error.message);
+    }
+
+    revalidatePath(`/studio/sessions/${sessionId}`);
+    revalidatePath(`/client/sessions/${sessionId}`);
+    return ok();
+  });
+}
+
 /**
  * Saves trainer-facing session notes. Stored on sessions.notes and
  * visible to the client too.

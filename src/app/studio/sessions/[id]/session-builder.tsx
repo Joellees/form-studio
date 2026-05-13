@@ -1,12 +1,29 @@
 "use client";
 
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import {
   addExerciseToSession,
   logPerformedSet,
   removeSessionBlock,
+  reorderSessionBlocks,
   updateSessionNotes,
   updateSessionSetGroup,
 } from "./actions";
@@ -59,11 +76,28 @@ type SessionBuilderProps = {
   libraryGroups?: LibraryGroup[];
 };
 
+/**
+ * Calendar session builder.
+ *
+ * Mirrors `template-builder.tsx` for drag-and-drop reorder via
+ * dnd-kit, but keeps autosave-on-blur for set-group field edits and
+ * the performed-set log row. The trainer's mental model in the
+ * calendar surface is different: they're recording what happened in
+ * a live session, so each input should commit the moment focus
+ * leaves it — no risk of losing a logged rep count if the trainer
+ * forgets to hit save before navigating away. Workout templates, by
+ * contrast, are draft documents that benefit from an explicit save.
+ *
+ * Reorder is applied to local state immediately on drag-end and
+ * persisted via `reorderSessionBlocks`. If the server write fails,
+ * the next `router.refresh()` (issued by autosave or a subsequent
+ * mutation) snaps local state back to truth.
+ */
 export function SessionBuilder({
   sessionId,
   sessionNotes,
   canEdit,
-  blocks,
+  blocks: initialBlocks,
   library,
   libraryGroups = [],
 }: SessionBuilderProps) {
@@ -71,16 +105,54 @@ export function SessionBuilder({
   const toast = useToast();
   const [pending, startTransition] = useTransition();
 
-  /**
-   * Create a new library exercise + immediately attach it to this
-   * session in one click. The new row also appears in the Exercises
-   * tab — same source row, multiple references.
-   *
-   * Both server actions return ActionResult envelopes; we surface
-   * any failure via toast so the trainer never wonders "did that
-   * register?" — silent failures were the root cause of the broken
-   * "Add exercise" bug.
-   */
+  /* Local block order, lifted out of props so a drag preview mutates
+   * instantly. Synced down whenever the server data changes. */
+  const [order, setOrder] = useState<string[]>(() => initialBlocks.map((b) => b.id));
+  useEffect(() => setOrder(initialBlocks.map((b) => b.id)), [initialBlocks]);
+
+  /* Pointer + touch sensors with the same activation thresholds as
+   * the template builder for consistent feel across surfaces. */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const newOrder = (() => {
+      const oldIndex = order.indexOf(String(active.id));
+      const newIndex = order.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return order;
+      return arrayMove(order, oldIndex, newIndex);
+    })();
+    setOrder(newOrder);
+    startTransition(async () => {
+      const res = await reorderSessionBlocks({ sessionId, blockIds: newOrder });
+      if (!res.ok) {
+        toast.error(res.error || "Couldn't save the new order.");
+        router.refresh();
+      }
+    });
+  }
+
+  const orderedBlocks = useMemo(() => {
+    const byId = new Map(initialBlocks.map((b) => [b.id, b]));
+    const used = new Set<string>();
+    const out: Block[] = [];
+    for (const id of order) {
+      const row = byId.get(id);
+      if (row) {
+        out.push(row);
+        used.add(id);
+      }
+    }
+    for (const b of initialBlocks) {
+      if (!used.has(b.id)) out.push(b);
+    }
+    return out;
+  }, [order, initialBlocks]);
+
   async function createAndAddExercise(input: { name: string; groupId: string | null }): Promise<string | null> {
     try {
       const result = await saveExercise({
@@ -98,13 +170,11 @@ export function SessionBuilder({
         video_url: null,
       });
       if (!result.ok) {
-        console.error("[add-exercise] saveExercise failed", result);
         toast.error(result.error || "Couldn't save the exercise.");
         return null;
       }
       const attach = await addExerciseToSession({ sessionId, exerciseId: result.data.id });
       if (!attach.ok) {
-        console.error("[add-exercise] addExerciseToSession failed after create", attach);
         toast.error(
           attach.error ||
             "Exercise saved to your library, but we couldn't attach it to this session. Try again.",
@@ -115,31 +185,28 @@ export function SessionBuilder({
       toast.success("Exercise added.");
       router.refresh();
       return result.data.id;
-    } catch (err) {
-      console.error("[add-exercise] createAndAddExercise threw", err);
+    } catch {
       toast.error("Something went wrong. Try again.");
       return null;
     }
   }
 
   function addExercise(exerciseId: string) {
-    console.info("[add-exercise] clicked", { sessionId, exerciseId });
     startTransition(async () => {
       try {
         const result = await addExerciseToSession({ sessionId, exerciseId });
         if (!result.ok) {
-          console.error("[add-exercise] addExerciseToSession failed", result);
           toast.error(result.error || "Couldn't add the exercise. Try again.");
           return;
         }
         toast.success("Exercise added.");
         router.refresh();
-      } catch (err) {
-        console.error("[add-exercise] addExercise threw", err);
+      } catch {
         toast.error("Something went wrong. Try again.");
       }
     });
   }
+
   function removeBlock(id: string) {
     if (!confirm("Remove this exercise from the session?")) return;
     startTransition(async () => {
@@ -155,61 +222,43 @@ export function SessionBuilder({
         <NotesBlock sessionId={sessionId} initial={sessionNotes} canEdit={canEdit} />
 
         {/* Blocks */}
-        {blocks.length === 0 ? (
+        {orderedBlocks.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] px-6 py-10 text-center">
             <p className="text-sm font-semibold">No exercises yet</p>
             <p className="mt-1 text-sm text-[color:var(--color-ink)]/70">
               {canEdit ? "Pick from your library on the right." : "Your trainer hasn&rsquo;t prescribed a workout yet."}
             </p>
           </div>
+        ) : canEdit ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={order} strategy={verticalListSortingStrategy}>
+              <div className="space-y-6">
+                {orderedBlocks.map((block, i) => (
+                  <SortableSessionBlock
+                    key={block.id}
+                    block={block}
+                    index={i}
+                    canEdit={canEdit}
+                    pending={pending}
+                    onRemove={() => removeBlock(block.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         ) : (
-          blocks.map((block, i) => {
-            const be = block.session_block_exercises[0];
-            if (!be) return null;
-            return (
-              <Card key={block.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                        exercise {String(i + 1).padStart(2, "0")}
-                      </p>
-                      <CardTitle className="mt-1">{be.exercises?.name ?? "Exercise"}</CardTitle>
-                      {be.exercises?.default_descriptor ? (
-                        <p className="mt-1 text-xs text-[color:var(--color-ink)]/70">
-                          {be.exercises.default_descriptor}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {be.exercises?.video_url ? (
-                        <a
-                          href={be.exercises.video_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs underline underline-offset-4 text-[color:var(--color-moss-deep)] hover:text-[color:var(--color-ink)]"
-                        >
-                          watch video
-                        </a>
-                      ) : null}
-                      {canEdit ? (
-                        <Button variant="ghost" size="sm" onClick={() => removeBlock(block.id)} disabled={pending}>
-                          remove
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {[...be.session_set_groups]
-                    .sort((a, b) => a.order_index - b.order_index)
-                    .map((sg) => (
-                      <SetGroupRow key={sg.id} setGroup={sg} canEdit={canEdit} />
-                    ))}
-                </CardContent>
-              </Card>
-            );
-          })
+          /* Read-only path for clients viewing — no DnD, no handle. */
+          orderedBlocks.map((block, i) => (
+            <BlockCardInner
+              key={block.id}
+              block={block}
+              index={i}
+              canEdit={false}
+              pending={false}
+              onRemove={() => {}}
+              dragHandle={null}
+            />
+          ))
         )}
       </div>
 
@@ -225,6 +274,126 @@ export function SessionBuilder({
         />
       ) : null}
     </div>
+  );
+}
+
+/* ─── Sortable wrapper around an editable block card ─────────────── */
+
+function SortableSessionBlock({
+  block,
+  index,
+  canEdit,
+  pending,
+  onRemove,
+}: {
+  block: Block;
+  index: number;
+  canEdit: boolean;
+  pending: boolean;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: block.id,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <BlockCardInner
+        block={block}
+        index={index}
+        canEdit={canEdit}
+        pending={pending}
+        onRemove={onRemove}
+        dragHandle={
+          <button
+            type="button"
+            aria-label="drag to reorder"
+            {...attributes}
+            {...listeners}
+            className="cursor-grab touch-none rounded-md p-1 text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)] active:cursor-grabbing"
+          >
+            <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden>
+              <circle cx="3" cy="3" r="1.4" />
+              <circle cx="9" cy="3" r="1.4" />
+              <circle cx="3" cy="8" r="1.4" />
+              <circle cx="9" cy="8" r="1.4" />
+              <circle cx="3" cy="13" r="1.4" />
+              <circle cx="9" cy="13" r="1.4" />
+            </svg>
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
+function BlockCardInner({
+  block,
+  index,
+  canEdit,
+  pending,
+  onRemove,
+  dragHandle,
+}: {
+  block: Block;
+  index: number;
+  canEdit: boolean;
+  pending: boolean;
+  onRemove: () => void;
+  dragHandle: React.ReactNode;
+}) {
+  const be = block.session_block_exercises[0];
+  if (!be) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {dragHandle}
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+                exercise {String(index + 1).padStart(2, "0")}
+              </p>
+              <CardTitle className="mt-1">{be.exercises?.name ?? "Exercise"}</CardTitle>
+              {be.exercises?.default_descriptor ? (
+                <p className="mt-1 text-xs text-[color:var(--color-ink)]/70">
+                  {be.exercises.default_descriptor}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {be.exercises?.video_url ? (
+              <a
+                href={be.exercises.video_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs underline underline-offset-4 text-[color:var(--color-moss-deep)] hover:text-[color:var(--color-ink)]"
+              >
+                watch video
+              </a>
+            ) : null}
+            {canEdit ? (
+              <Button variant="ghost" size="sm" onClick={onRemove} disabled={pending}>
+                remove
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {[...be.session_set_groups]
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((sg) => (
+            <SetGroupRow key={sg.id} setGroup={sg} canEdit={canEdit} />
+          ))}
+      </CardContent>
+    </Card>
   );
 }
 
