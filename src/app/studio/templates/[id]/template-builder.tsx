@@ -611,6 +611,16 @@ function SortableBlockCard({
                   exercise {String(index).padStart(2, "0")}
                 </p>
                 <CardTitle className="mt-1">{be.exercises?.name ?? "Exercise"}</CardTitle>
+                {/* Reassurance line so the trainer trusts the
+                  * scoping: editing these fields writes to this
+                  * workout's `template_set_groups` row only — the
+                  * library exercise stays untouched, and other
+                  * workouts using the same exercise see their own
+                  * values. */}
+                <p className="mt-1 text-[11px] italic text-[color:var(--color-ink)]/60">
+                  Edits below apply to this workout only — your library exercise
+                  doesn&rsquo;t change.
+                </p>
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={onRemove} disabled={disabled}>

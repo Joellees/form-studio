@@ -365,6 +365,19 @@ function BlockCardInner({
                   {be.exercises.default_descriptor}
                 </p>
               ) : null}
+              {/* Reassurance line — same scoping pattern as the
+                * template builder. Both the prescribed-set edits
+                * (sets/reps/weight/rest) and the performed-set log
+                * (done/notes) write to this session's
+                * `session_set_groups` row only. The library
+                * exercise + any workout templates that include it
+                * stay untouched. Hidden in read-only client view. */}
+              {canEdit ? (
+                <p className="mt-1 text-[11px] italic text-[color:var(--color-ink)]/60">
+                  Edits below apply to this session only — your library exercise
+                  and workout templates stay the same.
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
