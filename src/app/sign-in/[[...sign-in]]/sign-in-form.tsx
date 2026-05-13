@@ -197,6 +197,32 @@ export function SignInForm({ signUpUrl = "/sign-up" }: { signUpUrl?: string }) {
         router.push("/me");
         return;
       }
+      /* Clerk's risk scorer returns `needs_client_trust` when it
+       * wants a Turnstile CAPTCHA token before completing the
+       * password sign-in. clerk-js 5.x literally has "not supported
+       * yet" baked into its bundle for this state — there's no API
+       * to satisfy the challenge from the client. Auto-pivot to the
+       * email-code factor (which doesn't trip the same scorer)
+       * rather than leave the trainer on a dead-end error. */
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      if ((res.status as any) === "needs_client_trust" && emailCodeFactor) {
+        await signIn.prepareFirstFactor({
+          strategy: "email_code",
+          emailAddressId: emailCodeFactor.emailAddressId,
+        });
+        const currentEmail =
+          step.kind === "password" ? step.email : email.trim();
+        setStep({
+          kind: "email_code",
+          email: currentEmail,
+          emailAddressId: emailCodeFactor.emailAddressId,
+        });
+        setError(
+          "Password sign-in needs a security check we can't complete here yet. " +
+            "We sent you a 6-digit code instead — paste it below.",
+        );
+        return;
+      }
       setError(`Unexpected state after password: ${res.status}.`);
     } catch (err) {
       setError(clerkError(err) ?? "That password didn't work. Try again, or use email code.");
