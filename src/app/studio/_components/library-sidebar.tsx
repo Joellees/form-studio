@@ -1,5 +1,7 @@
 "use client";
 
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -144,20 +146,12 @@ export function LibrarySidebar({
                   {open ? (
                     <ul className="mt-1 space-y-0.5 pl-5">
                       {section.items.map((ex) => (
-                        <li
+                        <DraggableExerciseRow
                           key={ex.id}
-                          className="flex items-center justify-between gap-2 rounded-xl px-2 py-1 hover:bg-[color:var(--color-parchment)]/60"
-                        >
-                          <p className="min-w-0 truncate text-sm">{ex.name}</p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onAdd(ex.id)}
-                            disabled={pending}
-                          >
-                            add
-                          </Button>
-                        </li>
+                          exercise={ex}
+                          onAdd={() => onAdd(ex.id)}
+                          pending={pending}
+                        />
                       ))}
                     </ul>
                   ) : null}
@@ -258,6 +252,74 @@ export function LibrarySidebar({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * One row in the library list. Draggable (via `useDraggable`) so the
+ * surrounding builder can catch a drop and call its own
+ * "add this exercise" path; also keeps the literal "add" button so
+ * keyboard / no-DnD users (and mobile inside the bottom-sheet
+ * drawer) can still attach without touch-and-drag.
+ *
+ * Two coexistence tricks:
+ *
+ *   1. The row's drag listeners are bound to a label-wrapper, not
+ *      the whole `<li>`. The "add" button has its OWN pointer
+ *      handlers and stops propagation on pointerdown so a tap on
+ *      it doesn't initiate a drag.
+ *
+ *   2. dnd-kit's `PointerSensor` activation distance (set by the
+ *      parent template-builder context to 6px) means a click that
+ *      doesn't move past that threshold is just a click. So the
+ *      button keeps working even though its container is draggable.
+ */
+function DraggableExerciseRow({
+  exercise,
+  onAdd,
+  pending,
+}: {
+  exercise: LibrarySidebarExercise;
+  onAdd: () => void;
+  pending?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `library-${exercise.id}`,
+    data: { type: "library-exercise", exerciseId: exercise.id },
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.5 : 1,
+        /* When draggable, the row floats over neighbors during drag.
+         * z-index keeps the drag preview above the list. */
+        zIndex: isDragging ? 10 : undefined,
+      }}
+      className="flex items-center justify-between gap-2 rounded-xl px-2 py-1 hover:bg-[color:var(--color-parchment)]/60"
+    >
+      <span
+        {...attributes}
+        {...listeners}
+        className="min-w-0 flex-1 cursor-grab truncate text-sm select-none active:cursor-grabbing"
+      >
+        {exercise.name}
+      </span>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onAdd}
+        /* Block the drag from starting on this button. Without
+         * stopPropagation, the parent's pointerdown listener would
+         * still register the press and PointerSensor would arm. */
+        onPointerDown={(e) => e.stopPropagation()}
+        disabled={pending}
+      >
+        add
+      </Button>
+    </li>
   );
 }
 

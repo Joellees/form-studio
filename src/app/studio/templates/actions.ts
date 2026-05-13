@@ -477,3 +477,120 @@ export async function saveTemplateChanges(
     return ok();
   });
 }
+
+const addSetGroupSchema = z.object({
+  templateId: z.string().uuid(),
+  blockExerciseId: z.string().uuid(),
+});
+
+/**
+ * Appends a new set group to an existing exercise (block_exercise) in
+ * a template. Used by the "+ add set" button under each exercise card
+ * in `template-builder.tsx`. Defaults match what `addExerciseToTemplate`
+ * seeds for the first set group, so a freshly-added set is editable
+ * straight away with sensible numbers (3 sets × 10 reps × 0 kg × 90s).
+ *
+ * Authorization: walks back to the template via `block_exercise →
+ * block → template` and checks tenant_id at every step.
+ */
+export async function addSetGroupToBlockExercise(
+  raw: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(addSetGroupSchema, raw, async ({ templateId, blockExerciseId }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    /* Verify the block_exercise belongs to this trainer AND lives
+     * under the named template — both guards in one query. */
+    const { data: be } = await supabase
+      .from("template_block_exercises")
+      .select(
+        "id, tenant_id, template_blocks!inner(template_id)",
+      )
+      .eq("id", blockExerciseId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!be) return fail("That exercise isn't yours.");
+    const block = (be as { template_blocks?: { template_id?: string } | { template_id?: string }[] })
+      .template_blocks;
+    const beTemplateId = Array.isArray(block) ? block[0]?.template_id : block?.template_id;
+    if (beTemplateId !== templateId) return fail("Exercise doesn't belong to that workout.");
+
+    /* Next order_index after the last existing set group on this
+     * exercise. Default sets / reps / weight / rest match the
+     * first-set defaults used by `addExerciseToTemplate`. */
+    const { data: last } = await supabase
+      .from("template_set_groups")
+      .select("order_index")
+      .eq("block_exercise_id", blockExerciseId)
+      .order("order_index", { ascending: false })
+      .limit(1);
+    const nextOrder = (last?.[0]?.order_index ?? -1) + 1;
+
+    const { data, error } = await supabase
+      .from("template_set_groups")
+      .insert({
+        block_exercise_id: blockExerciseId,
+        tenant_id: trainer.id,
+        order_index: nextOrder,
+        label: nextOrder === 0 ? "Working" : null,
+        sets: 3,
+        rep_type: "fixed",
+        rep_value: { type: "fixed", reps: 10 },
+        weight_type: "load",
+        weight_value: { type: "load", kg: 0 },
+        rest_seconds: 90,
+      })
+      .select("id")
+      .single();
+    if (error) return fail(error.message);
+
+    revalidatePath(`/studio/templates/${templateId}`);
+    return ok({ id: data.id });
+  });
+}
+
+const removeSetGroupSchema = z.object({
+  templateId: z.string().uuid(),
+  setGroupId: z.string().uuid(),
+});
+
+/**
+ * Removes a single set group from an exercise. Refuses to delete the
+ * last remaining set group — every exercise in a template has to
+ * carry at least one (the renderer assumes it). Trainer should
+ * remove the exercise itself if they want a clean slate.
+ */
+export async function removeSetGroup(raw: unknown): Promise<ActionResult<void>> {
+  return runAction(removeSetGroupSchema, raw, async ({ templateId, setGroupId }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    const { data: sg } = await supabase
+      .from("template_set_groups")
+      .select("id, block_exercise_id")
+      .eq("id", setGroupId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!sg) return fail("That set group isn't yours.");
+
+    const blockExerciseId = (sg as { block_exercise_id: string }).block_exercise_id;
+    const { data: siblings } = await supabase
+      .from("template_set_groups")
+      .select("id")
+      .eq("block_exercise_id", blockExerciseId);
+    if ((siblings ?? []).length <= 1) {
+      return fail("Each exercise needs at least one set group. Remove the exercise instead.");
+    }
+
+    const { error } = await supabase
+      .from("template_set_groups")
+      .delete()
+      .eq("id", setGroupId)
+      .eq("tenant_id", trainer.id);
+    if (error) return fail(error.message);
+
+    revalidatePath(`/studio/templates/${templateId}`);
+    return ok();
+  });
+}

@@ -5,6 +5,7 @@ import {
   PointerSensor,
   TouchSensor,
   closestCenter,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -22,7 +23,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 
 import {
   addExerciseToTemplate,
+  addSetGroupToBlockExercise,
   archiveTemplate,
+  removeSetGroup,
   removeTemplateBlock,
   saveTemplateChanges,
 } from "../actions";
@@ -333,12 +336,68 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
+
+    /* Cross-area drag: a library exercise was dropped on the workout
+     * zone (or on one of its child block cards). Active's data.current
+     * carries `{ type: "library-exercise", exerciseId }` thanks to the
+     * `useDraggable` wrapper inside LibrarySidebar. We trust that
+     * marker rather than parsing the id prefix because it's typed and
+     * keeps the source of truth next to the producer. */
+    const activeData = active.data.current as
+      | { type?: string; exerciseId?: string }
+      | undefined;
+    if (activeData?.type === "library-exercise" && activeData.exerciseId) {
+      const dropTargetId = String(over.id);
+      /* Accept the drop if the user landed on the zone or on any
+       * existing block inside it — both signal "add this here". */
+      if (dropTargetId === "workout-zone" || order.includes(dropTargetId)) {
+        addExercise(activeData.exerciseId);
+      }
+      return;
+    }
+
+    /* Reorder path: same as before. Both ids are block UUIDs. */
+    if (active.id === over.id) return;
     setOrder((prev) => {
       const oldIndex = prev.indexOf(String(active.id));
       const newIndex = prev.indexOf(String(over.id));
       if (oldIndex < 0 || newIndex < 0) return prev;
       return arrayMove(prev, oldIndex, newIndex);
+    });
+  }
+
+  function onAddSetGroup(blockExerciseId: string) {
+    startTransition(async () => {
+      const res = await addSetGroupToBlockExercise({
+        templateId: template.id,
+        blockExerciseId,
+      });
+      if (!res.ok) {
+        toast.error(res.error || "Couldn't add a set group. Try again.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  function onRemoveSetGroup(setGroupId: string) {
+    if (!confirm("Remove this set group?")) return;
+    /* Drop any pending draft entries for this set group so a save
+     * doesn't try to write to a deleted row. */
+    setDrafts((prev) => {
+      if (!(setGroupId in prev)) return prev;
+      const next = { ...prev };
+      delete next[setGroupId];
+      return next;
+    });
+    startTransition(async () => {
+      const res = await removeSetGroup({ templateId: template.id, setGroupId });
+      if (!res.ok) {
+        toast.error(res.error || "Couldn't remove the set group.");
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -393,16 +452,21 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
         </Button>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-        <section className="space-y-6">
-          {orderedBlocks.length === 0 ? (
-            <EmptyState
-              bordered
-              title="Add the first exercise"
-              body="Tap the library button to pick one. You&rsquo;ll configure sets and reps per exercise."
-            />
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      {/* Single DndContext wraps BOTH the workout list and the library
+       * aside so a drag started in the library can drop onto the
+       * workout. handleDragEnd inspects active.data.current to
+       * distinguish "library-exercise → workout zone" (add) from
+       * "block → block" (reorder). */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+          <WorkoutDropZone>
+            {orderedBlocks.length === 0 ? (
+              <EmptyState
+                bordered
+                title="Add the first exercise"
+                body="Drag one from the library, or tap the library button to pick one. You&rsquo;ll configure sets and reps per exercise."
+              />
+            ) : (
               <SortableContext items={order} strategy={verticalListSortingStrategy}>
                 <div className="space-y-6">
                   {orderedBlocks.map((block, i) => (
@@ -413,23 +477,25 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
                       drafts={drafts}
                       onChange={setDraftField}
                       onRemove={() => removeBlock(block.id)}
+                      onAddSetGroup={onAddSetGroup}
+                      onRemoveSetGroup={onRemoveSetGroup}
                       disabled={pending || saving}
                     />
                   ))}
                 </div>
               </SortableContext>
-            </DndContext>
-          )}
-        </section>
+            )}
+          </WorkoutDropZone>
 
-        <LibraryDock
-          exercises={exercises}
-          groups={groups}
-          onAdd={addExercise}
-          onCreate={createAndAddExercise}
-          pending={pending}
-        />
-      </div>
+          <LibraryDock
+            exercises={exercises}
+            groups={groups}
+            onAdd={addExercise}
+            onCreate={createAndAddExercise}
+            pending={pending}
+          />
+        </div>
+      </DndContext>
 
       {/* Sticky save bar — only visible while there are unsaved
        * changes, so a trainer reading the workout isn't distracted
@@ -450,6 +516,35 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
   );
 }
 
+/* ─── Workout Drop Zone ─────────────────────────────────────────── */
+
+/**
+ * Wraps the workout list with a `useDroppable` so a library exercise
+ * dragged from the aside can land anywhere inside the column — not
+ * just on an existing block card. `isOver` lights the column with a
+ * dashed moss outline + a tinted background so the trainer sees the
+ * target before releasing.
+ *
+ * The droppable id is a constant string ("workout-zone") that
+ * handleDragEnd checks against. Block ids inside the SortableContext
+ * use UUIDs, so the two namespaces don't collide.
+ */
+function WorkoutDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "workout-zone" });
+  return (
+    <section
+      ref={setNodeRef}
+      className={`space-y-6 rounded-3xl transition-colors ${
+        isOver
+          ? "bg-[color:var(--color-parchment)]/40 ring-2 ring-dashed ring-[color:var(--color-moss)]/50"
+          : ""
+      }`}
+    >
+      {children}
+    </section>
+  );
+}
+
 /* ─── Sortable Block Card ───────────────────────────────────────── */
 
 function SortableBlockCard({
@@ -458,6 +553,8 @@ function SortableBlockCard({
   drafts,
   onChange,
   onRemove,
+  onAddSetGroup,
+  onRemoveSetGroup,
   disabled,
 }: {
   index: number;
@@ -465,6 +562,8 @@ function SortableBlockCard({
   drafts: Record<string, Partial<SetGroupDraft>>;
   onChange: <K extends keyof SetGroupDraft>(setGroupId: string, key: K, value: SetGroupDraft[K]) => void;
   onRemove: () => void;
+  onAddSetGroup: (blockExerciseId: string) => void;
+  onRemoveSetGroup: (setGroupId: string) => void;
   disabled: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -479,6 +578,9 @@ function SortableBlockCard({
   const be = block.template_block_exercises[0];
   if (!be) return null;
   const setGroups = [...be.template_set_groups].sort((a, b) => a.order_index - b.order_index);
+  /* Only allow removing a set group when there's more than one —
+   * matches the server-side guard in `removeSetGroup`. */
+  const canRemoveSet = setGroups.length > 1;
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -517,19 +619,34 @@ function SortableBlockCard({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {setGroups.length === 0 ? (
-            <p className="text-sm text-[color:var(--color-ink)]/70">
-              A default set group was created. Edit the values below.
-            </p>
-          ) : null}
-          {setGroups.map((sg) => (
+          {setGroups.map((sg, i) => (
             <SetGroupEditor
               key={sg.id}
               setGroup={sg}
               draft={drafts[sg.id] ?? {}}
               onChange={(k, v) => onChange(sg.id, k, v)}
+              index={i + 1}
+              total={setGroups.length}
+              canRemove={canRemoveSet}
+              onRemove={() => onRemoveSetGroup(sg.id)}
             />
           ))}
+          {/* "+ add set" button — appends another set group to this
+            * exercise. Inserts a default 3×10 @ 0 kg / 90s rest so the
+            * trainer has something to tune immediately. The server
+            * round-trip happens behind `pending`; the visible state
+            * updates after `router.refresh()` returns. */}
+          <div className="flex justify-start pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onAddSetGroup(be.id)}
+              disabled={disabled}
+            >
+              + add set
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -542,10 +659,22 @@ function SetGroupEditor({
   setGroup,
   draft,
   onChange,
+  index,
+  total,
+  canRemove,
+  onRemove,
 }: {
   setGroup: SetGroupRow;
   draft: Partial<SetGroupDraft>;
   onChange: <K extends keyof SetGroupDraft>(key: K, value: SetGroupDraft[K]) => void;
+  /* When more than one set group exists on an exercise, render a
+   * tiny header line ("set 2 of 3") and a remove affordance. For a
+   * single set group the header is silent and remove is hidden —
+   * matches the server's guard against deleting the last set. */
+  index?: number;
+  total?: number;
+  canRemove?: boolean;
+  onRemove?: () => void;
 }) {
   /* Effective values for display: draft wins, else server. */
   const sets = draft.sets ?? setGroup.sets;
@@ -555,8 +684,26 @@ function SetGroupEditor({
   const weightVal = (draft.weight_value ?? (setGroup.weight_value as WeightValue)) as WeightValue;
   const rest = draft.rest_seconds !== undefined ? draft.rest_seconds : setGroup.rest_seconds;
 
+  const showHeader = (total ?? 1) > 1 && typeof index === "number";
+
   return (
     <div className="rounded-xl border border-[color:var(--color-stone-soft)]/60 p-4">
+      {showHeader ? (
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
+            set {index} of {total}
+          </p>
+          {canRemove && onRemove ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-[11px] text-[color:var(--color-stone)] underline underline-offset-4 hover:text-[color:var(--color-sienna)]"
+            >
+              remove
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label>sets</Label>
