@@ -99,7 +99,7 @@ export function subscriptionReminderEmail({
   expiryFormatted: string;
   planLine: string;
 }) {
-  const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "96170000000";
+  const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "971507305023";
   return {
     subject: "Your Form Studio subscription expires in 3 days",
     text: [

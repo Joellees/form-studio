@@ -8,7 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "96170000000";
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "971507305023";
 
 /**
  * The blocked-trainer landing screen. Three variants:
@@ -87,6 +87,24 @@ export default async function ExpiredPage() {
   const copy = COPY[variant];
   const waUrl = `https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(copy.message)}`;
 
+  /**
+   * Per-plan WhatsApp deep-links for the Beta 2 cohort. Each card on
+   * the expired page becomes a tappable link with the cadence baked
+   * into the pre-filled message body — no more "mention monthly or
+   * yearly when you message us" tip below the CTA.
+   *
+   * Built only when the cohort is `beta_2`; other cohorts keep the
+   * existing single-card layout + a single generic Message-us button.
+   */
+  function planWaUrl(cadenceLabel: "monthly" | "yearly", usdPrice: number, aedPrice: number): string {
+    const msg =
+      `Hi Form Studio, I'd like to activate my Beta 2 ${cadenceLabel} subscription ` +
+      `($${usdPrice}/${cadenceLabel === "yearly" ? "year" : "month"} or AED ${aedPrice}/${
+        cadenceLabel === "yearly" ? "year" : "month"
+      }). (${firstName})`;
+    return `https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(msg)}`;
+  }
+
   const lastActive =
     sub?.paid_until && variant === "expired"
       ? new Date(sub.paid_until).toLocaleDateString("en-US", {
@@ -113,17 +131,30 @@ export default async function ExpiredPage() {
       </section>
 
       {cohort === "beta_2" ? (
-        // Beta 2 plan comparison — two cards, equal weight, no toggle.
-        // Stacks on mobile (grid-cols-1), side-by-side from md upward
-        // (md:grid-cols-2). Pricing is read from the canonical PRICING
-        // map via `getPrice` so values stay in sync with the admin
-        // "Mark paid" modal and Excel exports.
+        // Beta 2 plan comparison — two CLICKABLE cards, each opens
+        // WhatsApp with a pre-filled message that names the cadence
+        // so the trainer doesn't have to type it (or the trainer-
+        // facing tip "Mention monthly or yearly when you message
+        // us" that used to live below the CTA). Stacks on mobile
+        // (grid-cols-1), side-by-side from md upward (md:grid-cols-2).
+        // Pricing is read from the canonical PRICING map via
+        // `getPrice` so values stay in sync with the admin "Mark
+        // paid" modal and Excel exports.
         <section className="mt-8 w-full">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-            Beta 2 plans
+            Beta 2 plans — tap to activate
           </p>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-3xl bg-[color:var(--color-canvas)] p-5">
+            <a
+              href={planWaUrl(
+                "monthly",
+                getPrice("beta_2", "monthly", "usd") ?? 0,
+                getPrice("beta_2", "monthly", "aed") ?? 0,
+              )}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex flex-col rounded-3xl bg-[color:var(--color-canvas)] p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-12px_rgba(31,30,27,0.35)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_12px_28px_-12px_rgba(31,30,27,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]/15"
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
                 Monthly
               </p>
@@ -133,8 +164,20 @@ export default async function ExpiredPage() {
               <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/65 tabular-nums">
                 {formatPrice(getPrice("beta_2", "monthly", "aed") ?? 0, "aed")}/month
               </p>
-            </div>
-            <div className="rounded-3xl bg-[color:var(--color-canvas)] p-5">
+              <p className="mt-4 text-xs font-medium text-[color:var(--color-moss-deep)]">
+                WhatsApp us to activate →
+              </p>
+            </a>
+            <a
+              href={planWaUrl(
+                "yearly",
+                getPrice("beta_2", "annual", "usd") ?? 0,
+                getPrice("beta_2", "annual", "aed") ?? 0,
+              )}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex flex-col rounded-3xl bg-[color:var(--color-canvas)] p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-12px_rgba(31,30,27,0.35)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_12px_28px_-12px_rgba(31,30,27,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]/15"
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
                 Yearly
               </p>
@@ -147,7 +190,10 @@ export default async function ExpiredPage() {
               <p className="mt-3 text-xs italic text-[color:var(--color-ink)]/55">
                 Pay 10 months instead of 12.
               </p>
-            </div>
+              <p className="mt-3 text-xs font-medium text-[color:var(--color-moss-deep)]">
+                WhatsApp us to activate →
+              </p>
+            </a>
           </div>
         </section>
       ) : (
@@ -168,21 +214,21 @@ export default async function ExpiredPage() {
       )}
 
       <div className="mt-8 flex flex-col gap-3">
-        <a
-          href={waUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-12 items-center justify-center rounded-full bg-[color:var(--color-ink)] px-7 text-[15px] font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
-        >
-          Message us on WhatsApp
-        </a>
-        {cohort === "beta_2" ? (
-          <p className="text-center text-xs italic text-[color:var(--color-stone)]">
-            Mention monthly or yearly when you message us.
-          </p>
+        {cohort !== "beta_2" ? (
+          // Non-Beta-2 path keeps the single generic "Message us"
+          // button — there's no cadence to pre-select for those
+          // trainers so a one-shot CTA still makes sense.
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-12 items-center justify-center rounded-full bg-[color:var(--color-ink)] px-7 text-[15px] font-medium text-[color:var(--color-canvas)] shadow-[0_1px_0_rgba(31,30,27,0.15),0_6px_18px_-8px_rgba(31,30,27,0.35)] hover:bg-[color:var(--color-moss-deep)]"
+          >
+            WhatsApp us to activate your account
+          </a>
         ) : null}
         <p className="text-center text-xs text-[color:var(--color-stone)]">
-          Once renewed, your account will be reactivated within a few hours.
+          Once paid, your account will be reactivated within a few hours.
         </p>
       </div>
     </main>

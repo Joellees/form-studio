@@ -353,17 +353,27 @@ export function SignInForm({ signUpUrl = "/sign-up" }: { signUpUrl?: string }) {
           <Button type="submit" size="lg" disabled={busy || !password}>
             {busy ? "signing in…" : "sign in"}
           </Button>
+
+          {/* "Use email code instead" is promoted into its own
+            * bordered chip below the sign-in button — subtly more
+            * visible than the other secondary links because it's
+            * the practical fallback when Clerk's risk scorer
+            * blocks the password attempt with `needs_client_trust`
+            * (auto-pivots in submitPassword, but discoverable here
+            * too). `forgot password?` and `use a different email`
+            * stay as smaller text links beneath. */}
+          {emailCodeFactor ? (
+            <button
+              type="button"
+              onClick={useEmailCodeInstead}
+              disabled={busy}
+              className="mt-1 inline-flex h-10 items-center justify-center rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-ink)] transition-colors hover:border-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              email me a code instead
+            </button>
+          ) : null}
+
           <div className="flex flex-col gap-2 text-center text-xs text-[color:var(--color-stone)]">
-            {emailCodeFactor ? (
-              <button
-                type="button"
-                onClick={useEmailCodeInstead}
-                disabled={busy}
-                className="font-medium text-[color:var(--color-moss-deep)] underline underline-offset-4 disabled:opacity-60"
-              >
-                use email code instead
-              </button>
-            ) : null}
             {resetFactor ? (
               <button
                 type="button"
