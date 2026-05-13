@@ -2,19 +2,32 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 
 import { archivePackage, savePackage } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+type Currency = "usd" | "aed" | "sar";
+
 type FormValues = {
   name: string;
   session_count: number;
   duration_days: number;
   price_usd: number;
-  delivery_method_mix: "strength" | "strength_mobility";
+  /**
+   * Currency the `price_usd` field is denominated in. Legacy column
+   * name on the DB side; here it's just "the price in this currency".
+   */
+  currency: Currency;
+  /**
+   * Was previously named `delivery_method_mix` here — a bug that
+   * silently broke `savePackage` because Zod expected
+   * `session_type_mix`. Renamed to match the server-side schema, so
+   * Create no longer fails with an invisible field error.
+   */
+  session_type_mix: "strength" | "strength_mobility";
   delivery_method: "in_person" | "online";
   payment_mode: "manual" | "online";
   cancellation_policy: "credited" | "lost";
@@ -22,21 +35,51 @@ type FormValues = {
 
 type Initial = Partial<FormValues> & { id?: string; active?: boolean };
 
+/* Currency-suffix helper for the price input placeholder. The user
+ * sees "$0" / "0 AED" / "0 SAR" depending on the picker; the input's
+ * default value is 0 so trainers don't have to clear a magic number
+ * before typing their own. */
+function pricePlaceholder(currency: Currency): string {
+  if (currency === "aed") return "0 AED";
+  if (currency === "sar") return "0 SAR";
+  return "$0";
+}
+
+function currencyLabel(currency: Currency): string {
+  if (currency === "aed") return "AED";
+  if (currency === "sar") return "SAR";
+  return "USD ($)";
+}
+
 export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initial?: Initial }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const { register, handleSubmit, formState: { errors }, setError } = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+    setError,
+  } = useForm<FormValues>({
     defaultValues: {
       name: initial?.name ?? "",
       session_count: initial?.session_count ?? 12,
-      duration_days: initial?.duration_days ?? 60,
-      price_usd: initial?.price_usd ?? 1200,
-      delivery_method_mix: (initial?.delivery_method_mix as FormValues["delivery_method_mix"]) ?? "strength",
-      delivery_method: (initial?.delivery_method as FormValues["delivery_method"]) ?? "in_person",
+      duration_days: initial?.duration_days ?? 30,
+      price_usd: initial?.price_usd ?? 0,
+      currency: (initial?.currency as Currency) ?? "usd",
+      session_type_mix:
+        (initial?.session_type_mix as FormValues["session_type_mix"]) ?? "strength",
+      delivery_method:
+        (initial?.delivery_method as FormValues["delivery_method"]) ?? "in_person",
       payment_mode: (initial?.payment_mode as FormValues["payment_mode"]) ?? "manual",
-      cancellation_policy: (initial?.cancellation_policy as FormValues["cancellation_policy"]) ?? "credited",
+      cancellation_policy:
+        (initial?.cancellation_policy as FormValues["cancellation_policy"]) ?? "credited",
     },
   });
+
+  /* Watch currency so the price input's placeholder + label suffix
+   * update live as the trainer picks a different currency. */
+  const currency = (useWatch({ control, name: "currency" }) as Currency) ?? "usd";
 
   function onSubmit(values: FormValues) {
     startTransition(async () => {
@@ -78,6 +121,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
             type="number"
             min={1}
             inputMode="numeric"
+            placeholder="12"
             {...register("session_count", { valueAsNumber: true, required: true, min: 1 })}
           />
         </Field>
@@ -86,23 +130,40 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
             type="number"
             min={1}
             inputMode="numeric"
+            placeholder="30"
             {...register("duration_days", { valueAsNumber: true, required: true, min: 1 })}
           />
         </Field>
-        <Field label="price (usd)" error={errors.price_usd?.message}>
+        <Field label={`price (${currencyLabel(currency)})`} error={errors.price_usd?.message}>
           <Input
             type="number"
             step="0.01"
             min={0}
             inputMode="decimal"
+            placeholder={pricePlaceholder(currency)}
             {...register("price_usd", { valueAsNumber: true, required: true, min: 0 })}
           />
         </Field>
       </div>
 
+      <Field label="currency">
+        <select
+          {...register("currency")}
+          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
+        >
+          <option value="usd">USD ($)</option>
+          <option value="aed">AED</option>
+          <option value="sar">SAR</option>
+        </select>
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
+          The currency the price above is in. Existing packages stay in their
+          original currency.
+        </p>
+      </Field>
+
       <Field label="session mix">
         <select
-          {...register("delivery_method_mix")}
+          {...register("session_type_mix")}
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
           <option value="strength">strength</option>
@@ -118,7 +179,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           <option value="in_person">in person</option>
           <option value="online">online (zoom)</option>
         </select>
-        <p className="mt-2 text-xs text-[color:var(--color-ink)]/65">
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
           The default delivery for this package. You can still log a session as the
           other type per-week (e.g. one zoom while travelling). Clients can request
           additional in-app workouts anytime for $3 — those don&rsquo;t affect this
@@ -144,7 +205,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           <option value="credited">reschedule</option>
           <option value="lost">counted session</option>
         </select>
-        <p className="mt-2 text-xs text-[color:var(--color-ink)]/65">
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
           Either way, clients can only cancel up until midnight the day before. Same-day
           cancellations are blocked.
         </p>

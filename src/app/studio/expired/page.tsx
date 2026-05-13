@@ -147,7 +147,7 @@ export default async function ExpiredPage() {
             >
               WhatsApp us to activate your account
             </a>
-            <p className="text-center text-xs text-[color:var(--color-stone)]">
+            <p className="text-center text-xs text-[color:var(--color-ink)]/65">
               Once paid, your account will be reactivated within a few hours.
             </p>
           </div>

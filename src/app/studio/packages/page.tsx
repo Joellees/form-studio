@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatPrice } from "@/lib/pricing";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -33,11 +34,31 @@ export default async function PackagesPage() {
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
   const [{ data: packages }, { data: subscriptions }] = await Promise.all([
-    admin
-      .from("packages")
-      .select("id, name, session_type_mix, session_count, duration_days, price_usd, payment_mode, cancellation_policy, active")
-      .eq("tenant_id", trainer.id)
-      .order("created_at", { ascending: false }),
+    /* `currency` was added by migration 0011. Until that's applied
+     * on prod the column doesn't exist and a select that names it
+     * fails with PostgREST 42703. Two-step pattern: try the wide
+     * select first, fall back to the legacy column list on missing-
+     * column. Display layer then defaults to USD when the field is
+     * absent. */
+    (async () => {
+      const wide = await admin
+        .from("packages")
+        .select(
+          "id, name, session_type_mix, session_count, duration_days, price_usd, currency, payment_mode, cancellation_policy, active",
+        )
+        .eq("tenant_id", trainer.id)
+        .order("created_at", { ascending: false });
+      if (wide.error && wide.error.code === "42703") {
+        return admin
+          .from("packages")
+          .select(
+            "id, name, session_type_mix, session_count, duration_days, price_usd, payment_mode, cancellation_policy, active",
+          )
+          .eq("tenant_id", trainer.id)
+          .order("created_at", { ascending: false });
+      }
+      return wide;
+    })(),
     admin
       .from("subscriptions")
       .select("id, package_id, client_id, payment_status, sessions_remaining, end_date, clients(display_name)")
@@ -131,7 +152,7 @@ export default async function PackagesPage() {
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm tabular-nums">
                     <Stat label="sessions" value={String(p.session_count)} />
                     <Stat label="window" value={`${p.duration_days}d`} />
-                    <Stat label="price" value={`$${p.price_usd.toLocaleString()}`} />
+                    <Stat label="price" value={formatPrice(p.price_usd, (p as { currency?: string }).currency ?? "usd")} />
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
                     <span>{p.payment_mode}</span>
@@ -177,7 +198,7 @@ export default async function PackagesPage() {
                         <TableCell className="text-right tabular-nums">{p.session_count}</TableCell>
                         <TableCell className="text-right tabular-nums">{p.duration_days}d</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          ${p.price_usd.toLocaleString()}
+                          {formatPrice(p.price_usd, (p as { currency?: string }).currency ?? "usd")}
                         </TableCell>
                         <TableCell className="capitalize">{p.payment_mode}</TableCell>
                         <TableCell>{prettyPolicy(p.cancellation_policy)}</TableCell>

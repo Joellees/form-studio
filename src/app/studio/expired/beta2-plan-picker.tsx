@@ -66,7 +66,7 @@ export function Beta2PlanPicker({
           * rather than after the disabled button. Hides once a plan
           * is picked. */}
         {selected ? null : (
-          <p className="mt-1 text-xs text-[color:var(--color-stone)]">
+          <p className="mt-1 text-xs text-[color:var(--color-ink)]/65">
             Select a plan to continue.
           </p>
         )}
@@ -83,7 +83,7 @@ export function Beta2PlanPicker({
             <p className="mt-2 text-base font-semibold tracking-tight tabular-nums">
               $29/month
             </p>
-            <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/65 tabular-nums">
+            <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/75 tabular-nums">
               AED 109/month
             </p>
           </button>
@@ -99,10 +99,10 @@ export function Beta2PlanPicker({
             <p className="mt-2 text-base font-semibold tracking-tight tabular-nums">
               $290/year
             </p>
-            <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/65 tabular-nums">
+            <p className="mt-0.5 text-sm text-[color:var(--color-ink)]/75 tabular-nums">
               AED 1,090/year
             </p>
-            <p className="mt-3 text-xs italic text-[color:var(--color-ink)]/55">
+            <p className="mt-3 text-xs italic text-[color:var(--color-ink)]/70">
               Pay 10 months instead of 12.
             </p>
           </button>
@@ -129,12 +129,12 @@ export function Beta2PlanPicker({
             type="button"
             disabled
             aria-disabled="true"
-            className="inline-flex h-12 cursor-not-allowed items-center justify-center rounded-full bg-[color:var(--color-stone-soft)] px-7 text-[15px] font-medium text-[color:var(--color-ink)]/55"
+            className="inline-flex h-12 cursor-not-allowed items-center justify-center rounded-full bg-[color:var(--color-stone-soft)] px-7 text-[15px] font-medium text-[color:var(--color-ink)]/70"
           >
             WhatsApp us to activate
           </button>
         )}
-        <p className="text-center text-xs text-[color:var(--color-stone)]">
+        <p className="text-center text-xs text-[color:var(--color-ink)]/65">
           Once paid, your account will be reactivated within a few hours.
         </p>
       </div>
