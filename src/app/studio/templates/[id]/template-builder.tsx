@@ -31,14 +31,13 @@ import {
 } from "../actions";
 import { saveExercise } from "@/app/studio/library/actions";
 import { LibraryDock } from "@/app/studio/_components/library-dock";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
-import { formatReps, formatWeight, type RepValue, type WeightValue } from "@/lib/set-group";
+import type { RepValue, WeightValue } from "@/lib/set-group";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 
@@ -423,7 +422,7 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
   }, [order, blocks]);
 
   return (
-    <div className="space-y-8 pb-28">
+    <div className="space-y-8">
       <Link
         href="/studio/library?tab=workouts"
         className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)] hover:text-[color:var(--color-moss-deep)]"
@@ -447,9 +446,18 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
             <p className="mt-2 max-w-2xl text-[color:var(--color-ink)]/75">{template.description}</p>
           ) : null}
         </div>
-        <Button variant="outline" onClick={archive} disabled={pending || saving}>
-          archive
-        </Button>
+        {/* Save (primary) sits next to archive (outline). Always
+         * visible so the trainer doesn't have to scroll for it;
+         * disabled — visibly inert via the Button's default
+         * disabled:opacity styles — until there are unsaved changes. */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={archive} disabled={pending || saving}>
+            archive
+          </Button>
+          <Button onClick={save} disabled={!dirty || saving}>
+            {saving ? "saving…" : "save workout"}
+          </Button>
+        </div>
       </header>
 
       {/* Single DndContext wraps BOTH the workout list and the library
@@ -497,21 +505,6 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
         </div>
       </DndContext>
 
-      {/* Sticky save bar — only visible while there are unsaved
-       * changes, so a trainer reading the workout isn't distracted
-       * by an empty action bar. */}
-      {dirty ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[color:var(--color-stone-soft)]/60 bg-[color:var(--color-canvas)]/95 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--color-canvas)]/85">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-3 md:px-6">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-              unsaved changes
-            </p>
-            <Button onClick={save} disabled={saving} size="sm">
-              {saving ? "saving…" : "save workout"}
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -694,25 +687,21 @@ function SetGroupEditor({
   const weightVal = (draft.weight_value ?? (setGroup.weight_value as WeightValue)) as WeightValue;
   const rest = draft.rest_seconds !== undefined ? draft.rest_seconds : setGroup.rest_seconds;
 
-  const showHeader = (total ?? 1) > 1 && typeof index === "number";
-
   return (
-    <div className="rounded-xl border border-[color:var(--color-stone-soft)]/60 p-4">
-      {showHeader ? (
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
-            set {index} of {total}
-          </p>
-          {canRemove && onRemove ? (
-            <button
-              type="button"
-              onClick={onRemove}
-              className="text-[11px] text-[color:var(--color-stone)] underline underline-offset-4 hover:text-[color:var(--color-sienna)]"
-            >
-              remove
-            </button>
-          ) : null}
-        </div>
+    <div className="relative rounded-xl border border-[color:var(--color-stone-soft)]/60 p-4">
+      {/* When more than one set group exists, surface a tiny corner
+       * remove link — no "set N of M" prefix any more. The server's
+       * guard still refuses to delete the last set group, so the
+       * affordance is gated by `canRemove` from the parent. */}
+      {canRemove && onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute right-3 top-3 text-[11px] text-[color:var(--color-stone)] underline underline-offset-4 hover:text-[color:var(--color-sienna)]"
+          aria-label="remove this set group"
+        >
+          remove
+        </button>
       ) : null}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
@@ -743,7 +732,7 @@ function SetGroupEditor({
               onChange("rep_type", next);
               onChange("rep_value", defaults[next] ?? ({ type: next } as RepValue));
             }}
-            className="h-9 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm"
           >
             <option value="fixed">fixed</option>
             <option value="range">range</option>
@@ -853,7 +842,7 @@ function SetGroupEditor({
               onChange("weight_type", next);
               onChange("weight_value", defaults[next] ?? ({ type: next } as WeightValue));
             }}
-            className="h-9 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            className="h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm"
           >
             <option value="load">kg</option>
             <option value="bw">bw</option>
@@ -892,11 +881,6 @@ function SetGroupEditor({
             onChange={(e) => onChange("rest_seconds", Number(e.target.value) || null)}
             className="w-24"
           />
-        </div>
-
-        <div className="ml-auto flex items-center gap-2 pb-1">
-          <Badge tone="stone">{formatReps(repVal)}</Badge>
-          <Badge tone="stone">{formatWeight(weightVal)}</Badge>
         </div>
       </div>
     </div>

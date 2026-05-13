@@ -48,7 +48,7 @@ function pricePlaceholder(currency: Currency): string {
 function currencyLabel(currency: Currency): string {
   if (currency === "aed") return "AED";
   if (currency === "sar") return "SAR";
-  return "USD ($)";
+  return "USD";
 }
 
 export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initial?: Initial }) {
@@ -145,32 +145,33 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
             {...register("duration_days", { valueAsNumber: true, required: true, min: 1 })}
           />
         </Field>
-        <Field label={`price (${currencyLabel(currency)})`} error={errors.price_usd?.message}>
-          <Input
-            type="number"
-            step="0.01"
-            min={0}
-            inputMode="decimal"
-            placeholder={pricePlaceholder(currency)}
-            {...register("price_usd", { valueAsNumber: true, required: true, min: 0 })}
-          />
+        <Field label="price" error={errors.price_usd?.message}>
+          {/* Currency lives inline on the price field instead of its
+            * own block — keeps the form compact and ties the dropdown
+            * to the value it's labelling. Both controls share h-11
+            * + rounded-full so they read as a single composite field. */}
+          <div className="flex items-stretch gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              min={0}
+              inputMode="decimal"
+              placeholder={pricePlaceholder(currency)}
+              {...register("price_usd", { valueAsNumber: true, required: true, min: 0 })}
+              className="flex-1"
+            />
+            <select
+              {...register("currency")}
+              aria-label="currency"
+              className="select-pill h-11 shrink-0 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 text-sm"
+            >
+              <option value="usd">{currencyLabel("usd")}</option>
+              <option value="aed">{currencyLabel("aed")}</option>
+              <option value="sar">{currencyLabel("sar")}</option>
+            </select>
+          </div>
         </Field>
       </div>
-
-      <Field label="currency">
-        <select
-          {...register("currency")}
-          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
-        >
-          <option value="usd">USD ($)</option>
-          <option value="aed">AED</option>
-          <option value="sar">SAR</option>
-        </select>
-        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
-          The currency the price above is in. Existing packages stay in their
-          original currency.
-        </p>
-      </Field>
 
       <Field label="how sessions are delivered">
         <select
