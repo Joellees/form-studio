@@ -58,9 +58,19 @@ export function Beta2PlanPicker({
   return (
     <>
       <section className="mt-8 w-full">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-          Beta 2 plans
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            Beta 2 plans
+          </p>
+          {/* Hint sits next to the section heading instead of under
+            * the CTA — sets expectation BEFORE the cards rather than
+            * after the disabled button. Hides once a plan is picked. */}
+          {selected ? null : (
+            <p className="text-[11px] text-[color:var(--color-stone)]">
+              Select a plan to continue.
+            </p>
+          )}
+        </div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <button
             type="button"
@@ -111,19 +121,19 @@ export function Beta2PlanPicker({
             WhatsApp us to activate
           </a>
         ) : (
+          /* Disabled state — solid stone-soft surface with ink-base
+           * text so the copy stays legible (the earlier ink/30
+           * variant rendered cream-on-cream and was unreadable).
+           * Still clearly inert: muted background, no shadow, no
+           * hover state, not-allowed cursor. */
           <button
             type="button"
             disabled
             aria-disabled="true"
-            className="inline-flex h-12 cursor-not-allowed items-center justify-center rounded-full bg-[color:var(--color-ink)]/30 px-7 text-[15px] font-medium text-[color:var(--color-canvas)]"
+            className="inline-flex h-12 cursor-not-allowed items-center justify-center rounded-full bg-[color:var(--color-stone-soft)] px-7 text-[15px] font-medium text-[color:var(--color-ink)]/55"
           >
             WhatsApp us to activate
           </button>
-        )}
-        {selected ? null : (
-          <p className="text-center text-xs text-[color:var(--color-stone)]">
-            Select a plan to continue.
-          </p>
         )}
         <p className="text-center text-xs text-[color:var(--color-stone)]">
           Once paid, your account will be reactivated within a few hours.
