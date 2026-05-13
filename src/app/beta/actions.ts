@@ -1,12 +1,13 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
 import { BETA_COOKIE } from "@/lib/beta";
+import { setOnboardingWarning } from "@/lib/onboarding-warning";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { cohortDefaults } from "@/lib/subscription";
 
@@ -224,6 +225,14 @@ export async function bindAccessCodeOnOnboarding(args: {
       userId: args.clerkUserId,
       studioId: args.studioId,
     });
+    // Without a cookie we can't infer the cohort. Surface a clear
+    // recovery path instead of letting the trainer get bounced to
+    // /studio/expired with the wrong cohort defaults.
+    await setOnboardingWarning(
+      supabase,
+      args.studioId,
+      "We couldn't find your access code in this session. Message the Form Studio team and we'll finish your setup by hand.",
+    );
     return;
   }
   const { data: codeRow } = await supabase
@@ -233,18 +242,74 @@ export async function bindAccessCodeOnOnboarding(args: {
     .maybeSingle();
   if (!codeRow || codeRow.revoked) {
     console.warn("access_code.bind.bad_code", { cookieCode, studioId: args.studioId });
+    await setOnboardingWarning(
+      supabase,
+      args.studioId,
+      codeRow?.revoked
+        ? "Your access code is no longer valid. Message the Form Studio team to get a fresh one."
+        : "We couldn't match your access code to an active invite. Message the Form Studio team and we'll sort it out.",
+    );
     return;
   }
   if (
     codeRow.bound_to_clerk_user_id &&
     codeRow.bound_to_clerk_user_id !== args.clerkUserId
   ) {
-    console.warn("access_code.bind.wrong_owner", {
+    // Same-human override: if the trainer the code is bound to has
+    // the same email as the current Clerk user, this is an identity
+    // change (e.g. Clerk instance reissued IDs), not theft. Fall
+    // through to the rebind block below — it will re-point
+    // `bound_to_clerk_user_id` to the current user.
+    //
+    // We can only run this check when the code has a bound studio_id
+    // (i.e. the previous bind reached onboarding). Codes bound at
+    // /beta to a Clerk user but never finalized through onboarding
+    // have no studio_id; in that case we reject conservatively.
+    let sameHuman = false;
+    let boundEmail: string | null = null;
+    let currentEmail: string | null = null;
+    if (codeRow.bound_to_studio_id) {
+      const [boundTrainerRes, clerkUser] = await Promise.all([
+        supabase
+          .from("trainers")
+          .select("email")
+          .eq("id", codeRow.bound_to_studio_id)
+          .maybeSingle(),
+        currentUser(),
+      ]);
+      boundEmail =
+        ((boundTrainerRes.data as { email?: string | null } | null)?.email ?? null)?.toLowerCase() ??
+        null;
+      currentEmail =
+        clerkUser?.primaryEmailAddress?.emailAddress?.toLowerCase() ?? null;
+      sameHuman = !!boundEmail && !!currentEmail && boundEmail === currentEmail;
+    }
+
+    if (!sameHuman) {
+      console.warn("access_code.bind.wrong_owner", {
+        code: codeRow.code,
+        attemptedBy: args.clerkUserId,
+        claimedBy: codeRow.bound_to_clerk_user_id,
+        boundEmail,
+        currentEmail,
+      });
+      await setOnboardingWarning(
+        supabase,
+        args.studioId,
+        "This access code is registered to a different account. If you recently changed your sign-in email, message the Form Studio team and we'll move it over.",
+      );
+      return;
+    }
+
+    console.info("access_code.bind.rebinding_same_human", {
       code: codeRow.code,
-      attemptedBy: args.clerkUserId,
-      claimedBy: codeRow.bound_to_clerk_user_id,
+      previousClerkId: codeRow.bound_to_clerk_user_id,
+      newClerkId: args.clerkUserId,
+      studioId: args.studioId,
+      email: currentEmail,
     });
-    return;
+    // Fall through to the rebind block — it overwrites
+    // bound_to_clerk_user_id to args.clerkUserId.
   }
 
   // Bind code → studio + user (idempotent: noop if already bound)
@@ -310,6 +375,10 @@ export async function bindAccessCodeOnOnboarding(args: {
         : "redeemed_first_time",
     clerk_user_id: args.clerkUserId,
   });
+
+  // Bind succeeded — clear any leftover warning surface text from
+  // an earlier failed attempt on this row.
+  await setOnboardingWarning(supabase, args.studioId, null);
 
   console.info("access_code.bind.success", {
     code: codeRow.code,

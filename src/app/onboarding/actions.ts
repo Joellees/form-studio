@@ -114,6 +114,73 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
     .maybeSingle();
   if (existing) return { ok: true };
 
+  // Email-based reconciliation: if a non-soft-deleted trainer row
+  // exists for this email under a DIFFERENT (stale) Clerk identity,
+  // that's the same human re-signing-up under a fresh Clerk user
+  // (e.g. the prod Clerk instance reissued user_* IDs, or they
+  // changed their primary email at Clerk). Rebind the existing row
+  // to the current Clerk user instead of creating a duplicate that
+  // would land them on /studio/expired with the wrong cohort.
+  //
+  // The reverse-direction case — a soft-deleted row at this email —
+  // is intentionally NOT rebound: that trainer was deleted on
+  // purpose and shouldn't be silently revived. Onboarding proceeds
+  // as a fresh signup and the slug auto-suffix picks a new URL.
+  //
+  // We use the `trainers.email` column directly (citext, unique-
+  // friendly under case-folding). Clerk's `primaryEmailAddress`
+  // is the canonical user-facing identifier; secondary verified
+  // emails aren't considered here to keep the reconciliation
+  // unambiguous.
+  if (email) {
+    const { data: byEmail } = await admin
+      .from("trainers")
+      .select("id, clerk_id, soft_deleted_at")
+      .eq("email", email)
+      .is("soft_deleted_at", null)
+      .maybeSingle();
+    if (
+      byEmail &&
+      (byEmail as { id: string; clerk_id: string }).clerk_id !== userId
+    ) {
+      const existingRow = byEmail as { id: string; clerk_id: string };
+      const { error: rebindErr } = await admin
+        .from("trainers")
+        .update({ clerk_id: userId })
+        .eq("id", existingRow.id);
+      if (!rebindErr) {
+        console.info("onboarding.rebind_by_email", {
+          clerkUserId: userId,
+          studioId: existingRow.id,
+          previousClerkId: existingRow.clerk_id,
+          email,
+        });
+        // Also rebind any access codes that point at the stale
+        // Clerk identity for this studio so the wrong-owner reject
+        // path in `bindAccessCodeOnOnboarding` won't fire on the
+        // next /beta visit. Scope by studio_id to avoid touching
+        // codes that aren't ours.
+        await admin
+          .from("access_codes")
+          .update({ bound_to_clerk_user_id: userId })
+          .eq("bound_to_studio_id", existingRow.id);
+        // The rebind also resolves any leftover orphan condition,
+        // so clear the warning surface text if it was set.
+        const { setOnboardingWarning } = await import("@/lib/onboarding-warning");
+        await setOnboardingWarning(admin, existingRow.id, null);
+        return { ok: true };
+      }
+      console.error("onboarding.rebind_by_email_failed", {
+        clerkUserId: userId,
+        studioId: existingRow.id,
+        message: rebindErr.message,
+      });
+      // Fall through to the create-new-row path — the duplicate
+      // will surface a warning via the bind step, which is the
+      // existing failure mode (still better than a 500).
+    }
+  }
+
   // Auto-suffix loop. INSERT with `subdomain_slug = candidate`; on the
   // UNIQUE-violation error code 23505 we step the suffix and retry. The
   // first attempt uses the bare slug, then `<slug>2`, `<slug>3`, …

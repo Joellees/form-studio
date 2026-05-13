@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { StudioShell } from "./_components/studio-shell";
+import { getOnboardingWarning } from "@/lib/onboarding-warning";
 import { isPreviewActive, PREVIEW_TRAINER_SLUG } from "@/lib/preview";
 import { hasStudioAccess } from "@/lib/subscription";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -80,6 +81,31 @@ export default async function StudioLayout({ children }: { children: React.React
   // editorial layout).
   const pathname = h.get("x-pathname") ?? "";
   const isExpiredPage = pathname.startsWith("/studio/expired");
+  const isOnboardingIssuePage = pathname.startsWith(
+    "/studio/onboarding-issue",
+  );
+
+  // Onboarding warning surface (priority over the subscription gate).
+  // When the access-code bind step failed recoverably, we set
+  // `trainers.onboarding_warning` to a short human-readable message
+  // (see `src/app/beta/actions.ts` and `src/lib/onboarding-warning.ts`)
+  // and route the trainer to a dedicated page with a "message us"
+  // CTA — strictly better than dumping them on /studio/expired with
+  // the wrong cohort defaults. The page itself renders bare (no
+  // StudioShell) so we don't surround an error message with empty
+  // studio chrome. Reading is column-missing-tolerant so this is a
+  // no-op before migration 0008 is applied.
+  const onboardingWarning = await getOnboardingWarning(
+    admin,
+    (trainer as { id: string }).id,
+  );
+  if (isOnboardingIssuePage) {
+    return <>{children}</>;
+  }
+  if (onboardingWarning) {
+    redirect("/studio/onboarding-issue");
+  }
+
   const allowed = hasStudioAccess({
     status: trainer.subscription_status,
     paidUntil: trainer.paid_until ?? null,
