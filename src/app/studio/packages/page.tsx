@@ -39,12 +39,14 @@ export default async function PackagesPage() {
      * fails with PostgREST 42703. Two-step pattern: try the wide
      * select first, fall back to the legacy column list on missing-
      * column. Display layer then defaults to USD when the field is
-     * absent. */
+     * absent. `session_type_mix` is intentionally not selected — the
+     * column still exists for back-compat but nothing on this page
+     * displays it after the trainer-feedback redesign. */
     (async () => {
       const wide = await admin
         .from("packages")
         .select(
-          "id, name, session_type_mix, session_count, duration_days, price_usd, currency, payment_mode, cancellation_policy, active",
+          "id, name, session_count, duration_days, price_usd, currency, payment_mode, cancellation_policy, active",
         )
         .eq("tenant_id", trainer.id)
         .order("created_at", { ascending: false });
@@ -52,7 +54,7 @@ export default async function PackagesPage() {
         return admin
           .from("packages")
           .select(
-            "id, name, session_type_mix, session_count, duration_days, price_usd, payment_mode, cancellation_policy, active",
+            "id, name, session_count, duration_days, price_usd, payment_mode, cancellation_policy, active",
           )
           .eq("tenant_id", trainer.id)
           .order("created_at", { ascending: false });

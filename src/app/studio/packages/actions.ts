@@ -10,6 +10,14 @@ import { requireTrainer } from "@/lib/trainer";
 const packageSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, "Required").max(80),
+  /**
+   * Optional client-facing description shown on the public
+   * storefront. Replaces the old `session_type_mix` badge after
+   * trainer feedback. Defensively written — if the column doesn't
+   * exist on prod yet (pre-migration 0012), the retry strips it and
+   * the package still saves.
+   */
+  description: z.string().max(600, "Keep it under 600 characters.").optional().default(""),
   session_count: z.number().int().positive("Must be greater than 0"),
   duration_days: z.number().int().positive("Must be greater than 0"),
   price_usd: z.number().nonnegative("Price must be 0 or greater"),
@@ -21,7 +29,6 @@ const packageSchema = z.object({
    * fallback in the insert/update branches below.
    */
   currency: z.enum(["usd", "aed", "sar"]).default("usd"),
-  session_type_mix: z.enum(["strength", "strength_mobility"]),
   /**
    * Default delivery mode for sessions on this package: in person or
    * online (zoom). In-app is NOT a package-level delivery option —
@@ -55,69 +62,61 @@ export async function savePackage(raw: unknown): Promise<ActionResult<{ id: stri
     const trainer = await requireTrainer();
     const supabase = createSupabaseAdminClient();
 
-    /* Full payload includes `currency`. If the column doesn't exist
-     * on this DB yet (migration 0011 pending), the first write
-     * fails with PostgREST 42703 and we retry without `currency`. */
+    /* Core payload sent on every write. `session_type_mix` is no
+     * longer in the form (the column survives in the DB with its
+     * default value — dropping it can be a later migration). New
+     * column-conditional fields (`currency`, `description`) get
+     * layered on below with retries to handle the case where their
+     * migrations (0011, 0012) haven't been applied yet on prod. */
     const basePayload: Record<string, unknown> = {
       tenant_id: trainer.id,
       name: values.name,
       session_count: values.session_count,
       duration_days: values.duration_days,
       price_usd: values.price_usd,
-      session_type_mix: values.session_type_mix,
       delivery_method: values.delivery_method,
       payment_mode: values.payment_mode,
       cancellation_policy: values.cancellation_policy,
     };
-    const withCurrency = { ...basePayload, currency: values.currency };
+    const withDescription = { ...basePayload, description: values.description };
+    const fullPayload = { ...withDescription, currency: values.currency };
 
-    if (values.id) {
-      /* Update path: try with currency first, retry without on
-       * missing-column. The tenant_id eq on update is defence-in-
-       * depth — the row is also keyed by id. */
-      let { data, error } = await supabase
-        .from("packages")
-        .update(withCurrency)
-        .eq("id", values.id)
-        .eq("tenant_id", trainer.id)
-        .select("id")
-        .single();
-      if (error && isMissingColumn(error, "currency")) {
-        console.warn("packages.update.currency_column_missing_fallback", {
-          packageId: values.id,
-        });
-        ({ data, error } = await supabase
+    /* Two retries cover the four states (both columns present, just
+     * currency, just description, neither). Postgres reports 42703
+     * one column at a time, so we strip whichever the error names
+     * and try again. */
+    async function attempt(
+      payload: Record<string, unknown>,
+    ): Promise<{ data: { id: string } | null; error: { code?: string | null; message?: string | null } | null }> {
+      if (values.id) {
+        const res = await supabase
           .from("packages")
-          .update(basePayload)
+          .update(payload)
           .eq("id", values.id)
           .eq("tenant_id", trainer.id)
           .select("id")
-          .single());
+          .single();
+        return { data: res.data, error: res.error };
       }
-      if (error) return fail(error.message);
-      revalidatePath("/studio/packages");
-      return ok({ id: data!.id });
+      const res = await supabase.from("packages").insert(payload).select("id").single();
+      return { data: res.data, error: res.error };
     }
 
-    /* Insert path: same retry pattern. Insert is what was broken
-     * before today's fix to the form's field-name mismatch (the
-     * form was sending `delivery_method_mix` while Zod expected
-     * `session_type_mix`), so any new package created now is the
-     * first one going through the rewritten flow. */
-    let { data, error } = await supabase
-      .from("packages")
-      .insert(withCurrency)
-      .select("id")
-      .single();
-    if (error && isMissingColumn(error, "currency")) {
-      console.warn("packages.insert.currency_column_missing_fallback");
-      ({ data, error } = await supabase
-        .from("packages")
-        .insert(basePayload)
-        .select("id")
-        .single());
+    let { data, error } = await attempt(fullPayload);
+    if (error && isMissingColumn(error, "description")) {
+      console.warn("packages.save.description_column_missing_fallback", { packageId: values.id });
+      ({ data, error } = await attempt({ ...basePayload, currency: values.currency }));
     }
-    if (error) return fail(error.message);
+    if (error && isMissingColumn(error, "currency")) {
+      console.warn("packages.save.currency_column_missing_fallback", { packageId: values.id });
+      ({ data, error } = await attempt({ ...basePayload, description: values.description }));
+    }
+    if (error && (isMissingColumn(error, "description") || isMissingColumn(error, "currency"))) {
+      console.warn("packages.save.both_optional_columns_missing_fallback", { packageId: values.id });
+      ({ data, error } = await attempt(basePayload));
+    }
+    if (error) return fail(error.message ?? "Couldn't save the package.");
+
     revalidatePath("/studio/packages");
     return ok({ id: data!.id });
   });

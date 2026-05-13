@@ -25,12 +25,29 @@ export default async function TrainerPublicPage({ params }: Props) {
     .maybeSingle();
   if (!trainer) notFound();
 
-  const { data: packages } = await admin
-    .from("packages")
-    .select("id, name, session_type_mix, session_count, duration_days, price_usd, cancellation_policy")
-    .eq("tenant_id", trainer.id)
-    .eq("active", true)
-    .order("price_usd", { ascending: true });
+  /* `description` was added by migration 0012. Until that's applied
+   * on prod the column doesn't exist and a select that names it
+   * fails with PostgREST 42703. Two-step pattern: try the wide
+   * select first, fall back to the legacy column list on missing-
+   * column. Display layer handles a missing `description` field by
+   * just not rendering it. */
+  const { data: packages } = await (async () => {
+    const wide = await admin
+      .from("packages")
+      .select("id, name, description, session_count, duration_days, price_usd, cancellation_policy")
+      .eq("tenant_id", trainer.id)
+      .eq("active", true)
+      .order("price_usd", { ascending: true });
+    if (wide.error && wide.error.code === "42703") {
+      return admin
+        .from("packages")
+        .select("id, name, session_count, duration_days, price_usd, cancellation_policy")
+        .eq("tenant_id", trainer.id)
+        .eq("active", true)
+        .order("price_usd", { ascending: true });
+    }
+    return wide;
+  })();
 
   const firstName = trainer.display_name?.split(" ")[0] ?? trainer.display_name ?? "";
 

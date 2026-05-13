@@ -6,13 +6,20 @@ import { useForm, useWatch } from "react-hook-form";
 
 import { archivePackage, savePackage } from "../actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type Currency = "usd" | "aed" | "sar";
 
 type FormValues = {
   name: string;
+  /**
+   * Optional client-facing summary shown on the public storefront
+   * under each package. Replaced the `session_type_mix` badge after
+   * trainer feedback that "strength" / "strength + mobility" wasn't
+   * carrying enough information for prospective clients.
+   */
+  description: string;
   session_count: number;
   duration_days: number;
   price_usd: number;
@@ -21,13 +28,6 @@ type FormValues = {
    * name on the DB side; here it's just "the price in this currency".
    */
   currency: Currency;
-  /**
-   * Was previously named `delivery_method_mix` here — a bug that
-   * silently broke `savePackage` because Zod expected
-   * `session_type_mix`. Renamed to match the server-side schema, so
-   * Create no longer fails with an invisible field error.
-   */
-  session_type_mix: "strength" | "strength_mobility";
   delivery_method: "in_person" | "online";
   payment_mode: "manual" | "online";
   cancellation_policy: "credited" | "lost";
@@ -63,12 +63,11 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
   } = useForm<FormValues>({
     defaultValues: {
       name: initial?.name ?? "",
+      description: initial?.description ?? "",
       session_count: initial?.session_count ?? 12,
       duration_days: initial?.duration_days ?? 30,
       price_usd: initial?.price_usd ?? 0,
       currency: (initial?.currency as Currency) ?? "usd",
-      session_type_mix:
-        (initial?.session_type_mix as FormValues["session_type_mix"]) ?? "strength",
       delivery_method:
         (initial?.delivery_method as FormValues["delivery_method"]) ?? "in_person",
       payment_mode: (initial?.payment_mode as FormValues["payment_mode"]) ?? "manual",
@@ -115,6 +114,18 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
         <Input {...register("name", { required: "Required" })} placeholder="The 12-session block" />
       </Field>
 
+      <Field label="description" error={errors.description?.message}>
+        <Textarea
+          rows={3}
+          {...register("description", { maxLength: { value: 600, message: "Keep it under 600 characters." } })}
+          placeholder="What's in this package — twelve in-person strength sessions over a month, weekly check-ins, custom plan."
+        />
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
+          Shown to clients on your public page. Skip if the package name already
+          says it.
+        </p>
+      </Field>
+
       <div className="grid gap-5 sm:grid-cols-3 sm:gap-6">
         <Field label="sessions" error={errors.session_count?.message}>
           <Input
@@ -159,16 +170,6 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           The currency the price above is in. Existing packages stay in their
           original currency.
         </p>
-      </Field>
-
-      <Field label="session mix">
-        <select
-          {...register("session_type_mix")}
-          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
-        >
-          <option value="strength">strength</option>
-          <option value="strength_mobility">strength + mobility</option>
-        </select>
       </Field>
 
       <Field label="how sessions are delivered">

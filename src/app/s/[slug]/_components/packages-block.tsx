@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,7 +7,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 type Pkg = {
   id: string;
   name: string;
-  session_type_mix: string;
+  /** Optional client-facing summary. Replaced the session_type_mix
+   * badge as the human-readable description of the package. */
+  description?: string | null;
   session_count: number;
   duration_days: number;
   price_usd: number;
@@ -30,10 +31,12 @@ export function PackagesBlock({ packages, trainerName }: { packages: Pkg[]; trai
       {packages.map((pkg) => (
         <Card key={pkg.id}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>{pkg.name}</CardTitle>
-              <Badge tone="moss">{pkg.session_type_mix.replace("_", " + ")}</Badge>
-            </div>
+            <CardTitle>{pkg.name}</CardTitle>
+            {pkg.description ? (
+              <p className="mt-2 whitespace-pre-line text-sm text-[color:var(--color-ink)]/75">
+                {pkg.description}
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-1 text-sm text-[color:var(--color-ink)]/75 tabular-nums">
