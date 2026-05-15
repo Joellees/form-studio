@@ -31,6 +31,7 @@ import {
 } from "../actions";
 import { saveExercise } from "@/app/studio/library/actions";
 import { LibraryDock } from "@/app/studio/_components/library-dock";
+import { ApplyToSessionButton } from "./apply-to-session-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -450,7 +451,12 @@ export function TemplateBuilder({ template, blocks: initialBlocks, exercises, gr
          * visible so the trainer doesn't have to scroll for it;
          * disabled — visibly inert via the Button's default
          * disabled:opacity styles — until there are unsaved changes. */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* "Apply to session" launches the same applyTemplateToSession
+           * action that the session-builder library sidebar uses for
+           * tap-to-apply — different entry point, identical writes.
+           * Outline variant so it doesn't compete with "save workout". */}
+          <ApplyToSessionButton templateId={template.id} templateName={template.name} />
           <Button variant="outline" onClick={archive} disabled={pending || saving}>
             archive
           </Button>

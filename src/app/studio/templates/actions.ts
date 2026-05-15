@@ -561,6 +561,112 @@ const removeSetGroupSchema = z.object({
  * carry at least one (the renderer assumes it). Trainer should
  * remove the exercise itself if they want a clean slate.
  */
+/**
+ * Server action used by the "Apply to session" modal on the
+ * template detail page. Lists the trainer's active clients and,
+ * per client, the next handful of upcoming or recent sessions so
+ * the trainer can pick a target. Limited to non-archived,
+ * non-cancelled sessions within ±21 days of today by default —
+ * enough range to cover "today's session" or "tomorrow's
+ * rescheduled one" without spamming the picker with months of
+ * history.
+ *
+ * Returns a flat list; the client component groups by client. Doing
+ * the join here keeps the modal a single round-trip.
+ */
+export async function listSessionsForApply(): Promise<
+  ActionResult<{
+    clients: Array<{
+      id: string;
+      display_name: string;
+      sessions: Array<{
+        id: string;
+        scheduled_at: string;
+        name: string | null;
+        duration_minutes: number;
+        status: string;
+      }>;
+    }>;
+  }>
+> {
+  return runAction(z.object({}), {}, async () => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    const now = new Date();
+    const minDate = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000).toISOString();
+    const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString();
+
+    /* One round trip — sessions joined with their client. We sort
+     * upcoming first (after now, ascending) and let the client side
+     * split if it wants past-vs-future grouping. */
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("id, scheduled_at, duration_minutes, name, status, client_id, clients(id, display_name)")
+      .eq("tenant_id", trainer.id)
+      .gte("scheduled_at", minDate)
+      .lte("scheduled_at", maxDate)
+      .neq("status", "cancelled")
+      .order("scheduled_at", { ascending: true });
+    if (error) return fail(error.message);
+
+    /* Group sessions by client_id so the modal can render a clean
+     * "Client → list of sessions" tree. Clients with no session in
+     * range are omitted — they have nothing for the trainer to
+     * apply to. */
+    const byClient = new Map<
+      string,
+      {
+        id: string;
+        display_name: string;
+        sessions: Array<{
+          id: string;
+          scheduled_at: string;
+          name: string | null;
+          duration_minutes: number;
+          status: string;
+        }>;
+      }
+    >();
+    for (const s of data ?? []) {
+      const c = (s as { clients?: { id: string; display_name: string } | { id: string; display_name: string }[] | null }).clients;
+      const client = Array.isArray(c) ? c[0] : c;
+      if (!client) continue;
+      const key = client.id;
+      if (!byClient.has(key)) {
+        byClient.set(key, { id: client.id, display_name: client.display_name, sessions: [] });
+      }
+      byClient.get(key)!.sessions.push({
+        id: s.id as string,
+        scheduled_at: s.scheduled_at as string,
+        name: (s.name as string | null) ?? null,
+        duration_minutes: s.duration_minutes as number,
+        status: s.status as string,
+      });
+    }
+
+    /* Sort each client's sessions by upcoming-first (scheduled_at >=
+     * now first, then past) — the most likely target is the next
+     * one. */
+    const nowIso = now.toISOString();
+    for (const group of byClient.values()) {
+      group.sessions.sort((a, b) => {
+        const aFuture = a.scheduled_at >= nowIso;
+        const bFuture = b.scheduled_at >= nowIso;
+        if (aFuture !== bFuture) return aFuture ? -1 : 1;
+        if (aFuture) return a.scheduled_at.localeCompare(b.scheduled_at);
+        return b.scheduled_at.localeCompare(a.scheduled_at);
+      });
+    }
+
+    return ok({
+      clients: Array.from(byClient.values()).sort((a, b) =>
+        a.display_name.localeCompare(b.display_name),
+      ),
+    });
+  });
+}
+
 export async function removeSetGroup(raw: unknown): Promise<ActionResult<void>> {
   return runAction(removeSetGroupSchema, raw, async ({ templateId, setGroupId }) => {
     const trainer = await requireTrainer();

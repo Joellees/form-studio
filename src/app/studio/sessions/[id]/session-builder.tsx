@@ -5,6 +5,7 @@ import {
   PointerSensor,
   TouchSensor,
   closestCenter,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -21,6 +22,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 import {
   addExerciseToSession,
+  applyTemplateToSession,
   logPerformedSet,
   removeSessionBlock,
   reorderSessionBlocks,
@@ -56,6 +58,11 @@ type BlockExercise = {
   order_index: number;
   exercises: { id: string; name: string; default_descriptor: string | null; video_url: string | null } | null;
   session_set_groups: SetGroup[];
+  /** Workout template this row was seeded from, if any. Powers the
+   * "from <workout name>" breadcrumb on the card. Optional in the
+   * type because the column was added in migration 0013 — pre-
+   * migration rows simply don't have it. */
+  source_template_id?: string | null;
 };
 
 type Block = {
@@ -66,6 +73,12 @@ type Block = {
 
 type LibraryExercise = { id: string; name: string; group_id: string | null };
 type LibraryGroup = { id: string; name: string };
+type LibraryWorkout = {
+  id: string;
+  name: string;
+  day_label: string | null;
+  exercise_count: number;
+};
 
 type SessionBuilderProps = {
   sessionId: string;
@@ -74,6 +87,10 @@ type SessionBuilderProps = {
   blocks: Block[];
   library: LibraryExercise[];
   libraryGroups?: LibraryGroup[];
+  /** Workout templates owned by this trainer; rendered under the
+   * Workouts tab in the library sidebar. Apply = expand template
+   * into session_block_exercises + session_set_groups. */
+  workouts?: LibraryWorkout[];
 };
 
 /**
@@ -100,6 +117,7 @@ export function SessionBuilder({
   blocks: initialBlocks,
   library,
   libraryGroups = [],
+  workouts = [],
 }: SessionBuilderProps) {
   const router = useRouter();
   const toast = useToast();
@@ -119,7 +137,35 @@ export function SessionBuilder({
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
+
+    /* Cross-area drag #1: a library exercise was dragged onto the
+     * session zone (or one of its block cards). The payload from
+     * `library-sidebar.tsx`'s DraggableExerciseRow names itself
+     * "library-exercise" + carries the exerciseId. */
+    const activeData = active.data.current as
+      | { type?: string; exerciseId?: string; workoutId?: string }
+      | undefined;
+    if (activeData?.type === "library-exercise" && activeData.exerciseId) {
+      const dropTargetId = String(over.id);
+      if (dropTargetId === "session-zone" || order.includes(dropTargetId)) {
+        addExercise(activeData.exerciseId);
+      }
+      return;
+    }
+
+    /* Cross-area drag #2: a workout template dragged in from the
+     * Workouts tab. Same destinations as #1. */
+    if (activeData?.type === "library-workout" && activeData.workoutId) {
+      const dropTargetId = String(over.id);
+      if (dropTargetId === "session-zone" || order.includes(dropTargetId)) {
+        applyWorkout(activeData.workoutId);
+      }
+      return;
+    }
+
+    /* Reorder: same path as before. */
+    if (active.id === over.id) return;
     const newOrder = (() => {
       const oldIndex = order.indexOf(String(active.id));
       const newIndex = order.indexOf(String(over.id));
@@ -132,6 +178,23 @@ export function SessionBuilder({
       if (!res.ok) {
         toast.error(res.error || "Couldn't save the new order.");
         router.refresh();
+      }
+    });
+  }
+
+  function applyWorkout(workoutId: string) {
+    startTransition(async () => {
+      try {
+        const res = await applyTemplateToSession({ sessionId, templateId: workoutId });
+        if (!res.ok) {
+          toast.error(res.error || "Couldn't apply the workout.");
+          return;
+        }
+        const n = res.data.blocksAdded;
+        toast.success(`Workout applied — ${n} exercise${n === 1 ? "" : "s"} added.`);
+        router.refresh();
+      } catch {
+        toast.error("Something went wrong. Try again.");
       }
     });
   }
@@ -152,6 +215,23 @@ export function SessionBuilder({
     }
     return out;
   }, [order, initialBlocks]);
+
+  /* Lookup table: source_template_id → workout name. Used to render
+   * the "from <workout>" breadcrumb on each session block card. The
+   * map is over the same `workouts` array the sidebar's Workouts tab
+   * renders, so this costs nothing extra — same data. */
+  const workoutNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of workouts) m.set(w.id, w.name);
+    return m;
+  }, [workouts]);
+
+  function workoutNameForBlock(block: Block): string | null {
+    const be = block.session_block_exercises[0];
+    const id = be?.source_template_id ?? null;
+    if (!id) return null;
+    return workoutNameById.get(id) ?? null;
+  }
 
   async function createAndAddExercise(input: { name: string; groupId: string | null }): Promise<string | null> {
     try {
@@ -215,39 +295,20 @@ export function SessionBuilder({
     });
   }
 
-  return (
-    <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+  /* Read-only path for clients — same structure but no DndContext or
+   * library on the side. Lives in its own return for clarity. */
+  if (!canEdit) {
+    return (
       <div className="space-y-6">
-        {/* Trainer notes */}
-        <NotesBlock sessionId={sessionId} initial={sessionNotes} canEdit={canEdit} />
-
-        {/* Blocks */}
+        <NotesBlock sessionId={sessionId} initial={sessionNotes} canEdit={false} />
         {orderedBlocks.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] px-6 py-10 text-center">
             <p className="text-sm font-semibold">No exercises yet</p>
             <p className="mt-1 text-sm text-[color:var(--color-ink)]/70">
-              {canEdit ? "Pick from your library on the right." : "Your trainer hasn&rsquo;t prescribed a workout yet."}
+              Your trainer hasn&rsquo;t prescribed a workout yet.
             </p>
           </div>
-        ) : canEdit ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={order} strategy={verticalListSortingStrategy}>
-              <div className="space-y-6">
-                {orderedBlocks.map((block, i) => (
-                  <SortableSessionBlock
-                    key={block.id}
-                    block={block}
-                    index={i}
-                    canEdit={canEdit}
-                    pending={pending}
-                    onRemove={() => removeBlock(block.id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
         ) : (
-          /* Read-only path for clients viewing — no DnD, no handle. */
           orderedBlocks.map((block, i) => (
             <BlockCardInner
               key={block.id}
@@ -257,23 +318,86 @@ export function SessionBuilder({
               pending={false}
               onRemove={() => {}}
               dragHandle={null}
+              sourceWorkoutName={workoutNameForBlock(block)}
             />
           ))
         )}
       </div>
+    );
+  }
 
-      {/* Library picker — trainer only. Sticky aside on desktop,
-          floating action button + bottom sheet on mobile. */}
-      {canEdit ? (
+  /* Trainer path — DndContext wraps BOTH the session column and the
+   * library dock so a drag started in the library can land on the
+   * session zone. handleDragEnd inspects active.data.current.type to
+   * distinguish library-exercise/library-workout cross-area drops
+   * from block-to-block reorders within the SortableContext. */
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+        <SessionDropZone>
+          <NotesBlock sessionId={sessionId} initial={sessionNotes} canEdit={true} />
+          {orderedBlocks.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] px-6 py-10 text-center">
+              <p className="text-sm font-semibold">No exercises yet</p>
+              <p className="mt-1 text-sm text-[color:var(--color-ink)]/70">
+                Pick an exercise or apply a workout from the library on the right —
+                tap or drag.
+              </p>
+            </div>
+          ) : (
+            <SortableContext items={order} strategy={verticalListSortingStrategy}>
+              <div className="space-y-6">
+                {orderedBlocks.map((block, i) => (
+                  <SortableSessionBlock
+                    key={block.id}
+                    block={block}
+                    index={i}
+                    canEdit={true}
+                    pending={pending}
+                    onRemove={() => removeBlock(block.id)}
+                    sourceWorkoutName={workoutNameForBlock(block)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          )}
+        </SessionDropZone>
+
         <LibraryDock
           exercises={library}
           groups={libraryGroups}
+          workouts={workouts}
           onAdd={addExercise}
+          onApplyWorkout={applyWorkout}
           onCreate={createAndAddExercise}
           pending={pending}
         />
-      ) : null}
-    </div>
+      </div>
+    </DndContext>
+  );
+}
+
+/**
+ * Drop zone wrapping the session column. Lights up with a dashed
+ * moss outline + parchment tint while a library item is over it,
+ * so the trainer can see the target before releasing. The droppable
+ * id is the constant "session-zone" that handleDragEnd checks
+ * against (block ids inside the SortableContext use UUIDs, so the
+ * two namespaces don't collide).
+ */
+function SessionDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "session-zone" });
+  return (
+    <section
+      ref={setNodeRef}
+      className={`space-y-6 rounded-3xl transition-colors ${
+        isOver
+          ? "bg-[color:var(--color-parchment)]/40 ring-2 ring-dashed ring-[color:var(--color-moss)]/50"
+          : ""
+      }`}
+    >
+      {children}
+    </section>
   );
 }
 
@@ -285,12 +409,14 @@ function SortableSessionBlock({
   canEdit,
   pending,
   onRemove,
+  sourceWorkoutName,
 }: {
   block: Block;
   index: number;
   canEdit: boolean;
   pending: boolean;
   onRemove: () => void;
+  sourceWorkoutName?: string | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: block.id,
@@ -309,6 +435,7 @@ function SortableSessionBlock({
         canEdit={canEdit}
         pending={pending}
         onRemove={onRemove}
+        sourceWorkoutName={sourceWorkoutName}
         dragHandle={
           <button
             type="button"
@@ -339,6 +466,7 @@ function BlockCardInner({
   pending,
   onRemove,
   dragHandle,
+  sourceWorkoutName,
 }: {
   block: Block;
   index: number;
@@ -346,6 +474,10 @@ function BlockCardInner({
   pending: boolean;
   onRemove: () => void;
   dragHandle: React.ReactNode;
+  /** Resolved name of the workout this row was seeded from, if any.
+   * The session page builds a `workoutsById` map from the workouts
+   * list and threads each block's name through here. */
+  sourceWorkoutName?: string | null;
 }) {
   const be = block.session_block_exercises[0];
   if (!be) return null;
@@ -360,6 +492,16 @@ function BlockCardInner({
                 exercise {String(index + 1).padStart(2, "0")}
               </p>
               <CardTitle className="mt-1">{be.exercises?.name ?? "Exercise"}</CardTitle>
+              {/* Breadcrumb: which workout template seeded this row.
+                * Only renders when `source_template_id` is set AND we
+                * have a name for it (i.e., the template still exists
+                * — deleted ones SET NULL the FK and the breadcrumb
+                * silently disappears). */}
+              {sourceWorkoutName ? (
+                <p className="mt-1 text-[11px] text-[color:var(--color-moss-deep)]">
+                  from <span className="font-medium">{sourceWorkoutName}</span>
+                </p>
+              ) : null}
               {be.exercises?.default_descriptor ? (
                 <p className="mt-1 text-xs text-[color:var(--color-ink)]/70">
                   {be.exercises.default_descriptor}

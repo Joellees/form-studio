@@ -16,24 +16,53 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   const trainer = await requireTrainer();
   const admin = createSupabaseAdminClient();
 
-  const [{ data: session }, { data: blocksRaw }, { data: exercises }, { data: groups }] = await Promise.all([
+  /* The session-block-exercises select tries to pull `source_template_id`
+   * first (added in migration 0013). On a pre-migration DB, PostgREST
+   * returns 42703 — the catch retries with the narrower legacy
+   * column set. The session log just doesn't render the "from <workout>"
+   * breadcrumb until the migration is applied. */
+  async function loadBlocks() {
+    const wide = await admin
+      .from("session_blocks")
+      .select(
+        `id, order_index,
+         session_block_exercises(id, order_index, setup_override, source_template_id,
+           exercises(id, name, default_descriptor, video_url),
+           session_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, performed_sets, performed_reps, performed_weight, performed_notes)
+         )`,
+      )
+      .eq("session_id", id)
+      .order("order_index");
+    if (wide.error && wide.error.code === "42703") {
+      return admin
+        .from("session_blocks")
+        .select(
+          `id, order_index,
+           session_block_exercises(id, order_index, setup_override,
+             exercises(id, name, default_descriptor, video_url),
+             session_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, performed_sets, performed_reps, performed_weight, performed_notes)
+           )`,
+        )
+        .eq("session_id", id)
+        .order("order_index");
+    }
+    return wide;
+  }
+
+  const [
+    { data: session },
+    { data: blocksRaw },
+    { data: exercises },
+    { data: groups },
+    { data: templatesRaw },
+  ] = await Promise.all([
     admin
       .from("sessions")
       .select("id, scheduled_at, duration_minutes, session_type, status, name, notes, zoom_url, clients(display_name)")
       .eq("id", id)
       .eq("tenant_id", trainer.id)
       .maybeSingle(),
-    admin
-      .from("session_blocks")
-      .select(
-        `id, order_index,
-         session_block_exercises(id, order_index, setup_override,
-           exercises(id, name, default_descriptor, video_url),
-           session_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, performed_sets, performed_reps, performed_weight, performed_notes)
-         )`,
-      )
-      .eq("session_id", id)
-      .order("order_index"),
+    loadBlocks(),
     admin
       .from("exercises")
       .select("id, name, group_id")
@@ -45,6 +74,14 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       .select("id, name")
       .eq("tenant_id", trainer.id)
       .order("sort_index")
+      .order("name"),
+    /* Workout templates for the new Workouts tab in the sidebar. We
+     * pull the count of block_exercises per template so the row can
+     * show "12 exercises · Push day" without a per-row query later. */
+    admin
+      .from("session_templates")
+      .select("id, name, day_label, template_blocks(template_block_exercises(id))")
+      .eq("tenant_id", trainer.id)
       .order("name"),
   ]);
 
@@ -72,6 +109,24 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
     const c = session.clients as { display_name?: string } | { display_name?: string }[] | null;
     return Array.isArray(c) ? c[0]?.display_name : c?.display_name;
   })();
+
+  /* Flatten the nested exercise-count select into a single number per
+   * template so the sidebar row can render its subtitle cheaply. */
+  const workouts = (templatesRaw ?? []).map((t) => {
+    const blocks =
+      ((t as { template_blocks?: Array<{ template_block_exercises?: Array<unknown> }> })
+        .template_blocks) ?? [];
+    const exerciseCount = blocks.reduce(
+      (sum, b) => sum + (b.template_block_exercises?.length ?? 0),
+      0,
+    );
+    return {
+      id: (t as { id: string }).id,
+      name: (t as { name: string }).name,
+      day_label: (t as { day_label: string | null }).day_label,
+      exercise_count: exerciseCount,
+    };
+  });
 
   return (
     <div className="rise-in-stagger space-y-6 md:space-y-8">
@@ -120,6 +175,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         blocks={blocks as unknown as Parameters<typeof SessionBuilder>[0]["blocks"]}
         library={exercises ?? []}
         libraryGroups={groups ?? []}
+        workouts={workouts}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import {
   LibrarySidebar,
   type LibrarySidebarExercise,
   type LibrarySidebarGroup,
+  type LibrarySidebarWorkout,
 } from "./library-sidebar";
 
 /**
@@ -23,7 +24,9 @@ import {
 export function LibraryDock(props: {
   exercises: LibrarySidebarExercise[];
   groups: LibrarySidebarGroup[];
+  workouts?: LibrarySidebarWorkout[];
   onAdd: (exerciseId: string) => void;
+  onApplyWorkout?: (workoutId: string) => void;
   onCreate?: (input: { name: string; groupId: string | null }) => Promise<string | null>;
   pending?: boolean;
   emptyHint?: string;
