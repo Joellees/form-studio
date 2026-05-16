@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AssignToClientsButton } from "./_components/assign-to-clients-button";
 import { SubscriberList } from "./_components/subscriber-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,19 @@ export default async function PackagesPage() {
                       <SubscriberList subscribers={subs} />
                     </span>
                   </div>
+                  {/* Per-row bulk-assign entry point. Mirrors the
+                    * detail-page button so the trainer can reach the
+                    * flow without drilling into a single package
+                    * first. Compact "sm" variant to fit the card. */}
+                  <div className="mt-3 flex justify-end">
+                    <AssignToClientsButton
+                      packageId={p.id}
+                      packageName={p.name}
+                      buttonLabel="Assign to clients"
+                      buttonSize="sm"
+                      buttonVariant="outline"
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -182,6 +196,13 @@ export default async function PackagesPage() {
                     <TableHead>cancellation</TableHead>
                     <TableHead>clients</TableHead>
                     <TableHead>status</TableHead>
+                    {/* Trailing action column for the per-row
+                      * Assign-to-clients button. Header is screen-
+                      * reader friendly but visually empty so the
+                      * existing column rhythm isn't disturbed. */}
+                    <TableHead>
+                      <span className="sr-only">actions</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -211,6 +232,15 @@ export default async function PackagesPage() {
                           <Badge tone={p.active ? "moss" : "stone"}>
                             {p.active ? "live" : "archived"}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <AssignToClientsButton
+                            packageId={p.id}
+                            packageName={p.name}
+                            buttonLabel="Assign"
+                            buttonSize="sm"
+                            buttonVariant="outline"
+                          />
                         </TableCell>
                       </TableRow>
                     );

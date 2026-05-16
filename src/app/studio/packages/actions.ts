@@ -122,6 +122,95 @@ export async function savePackage(raw: unknown): Promise<ActionResult<{ id: stri
   });
 }
 
+/**
+ * Server action used by the "Assign to clients" modal on the
+ * packages list + detail pages. Lists the trainer's active clients
+ * with a flag per row indicating whether that client already has an
+ * ACTIVE subscription for the given package (paid + not yet ended +
+ * sessions remaining > 0). The flag drives the inline "(already
+ * assigned)" hint in the picker — the modal still allows
+ * re-assignment to match the existing single-client flow's
+ * behaviour (which doesn't block duplicates either).
+ *
+ * Returns a plain list sorted by display_name. The bulk-assign
+ * itself loops the EXISTING `assignPackage` server action from
+ * `src/app/studio/subscriptions/actions.ts` client-side, so this
+ * action stays focused on reads.
+ */
+const listClientsSchema = z.object({ packageId: z.string().uuid() });
+
+export async function listClientsForAssign(
+  raw: unknown,
+): Promise<
+  ActionResult<{
+    clients: Array<{
+      id: string;
+      display_name: string;
+      email: string | null;
+      already_assigned: boolean;
+    }>;
+  }>
+> {
+  return runAction(listClientsSchema, raw, async ({ packageId }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    /* Authorize the package — we don't want a stray packageId from
+     * one tenant being used to list clients of another, even though
+     * the clients query below is already tenant-scoped. */
+    const { data: pkg } = await supabase
+      .from("packages")
+      .select("id")
+      .eq("id", packageId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!pkg) return fail("Package not found.");
+
+    /* All active (non-archived) clients for this trainer. We pull
+     * the bare minimum for the picker; the modal renders display_name
+     * + email as a disambiguator. */
+    const { data: clients, error: clientsErr } = await supabase
+      .from("clients")
+      .select("id, display_name, email")
+      .eq("tenant_id", trainer.id)
+      .eq("active", true)
+      .order("display_name");
+    if (clientsErr) return fail(clientsErr.message);
+
+    /* Existing active subscriptions for this package, scoped to
+     * trainer + package. "Active" = paid + end_date in the future
+     * (or null) + at least one session left. A client can have an
+     * old expired subscription for the same package and still NOT
+     * be flagged here — that's a normal re-purchase scenario. */
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: activeSubs, error: subsErr } = await supabase
+      .from("subscriptions")
+      .select("client_id, end_date, sessions_remaining, payment_status")
+      .eq("tenant_id", trainer.id)
+      .eq("package_id", packageId);
+    if (subsErr) return fail(subsErr.message);
+
+    const flaggedClientIds = new Set<string>();
+    for (const s of activeSubs ?? []) {
+      const endsLater = !s.end_date || (s.end_date as string) >= today;
+      const stillHasSessions = (s.sessions_remaining as number) > 0;
+      const paid = s.payment_status === "paid";
+      if (paid && endsLater && stillHasSessions) {
+        flaggedClientIds.add(s.client_id as string);
+      }
+    }
+
+    return ok({
+      clients: (clients ?? []).map((c) => ({
+        id: c.id as string,
+        display_name: c.display_name as string,
+        email: (c.email as string | null) ?? null,
+        already_assigned: flaggedClientIds.has(c.id as string),
+      })),
+    });
+  });
+}
+
 export async function archivePackage(id: string): Promise<ActionResult<void>> {
   return runAction(z.object({ id: z.string().uuid() }), { id }, async ({ id }) => {
     const trainer = await requireTrainer();

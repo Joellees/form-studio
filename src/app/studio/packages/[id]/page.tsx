@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { AssignToClientsButton } from "../_components/assign-to-clients-button";
 import { PackageForm } from "../_components/package-form";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
@@ -20,8 +21,21 @@ export default async function EditPackagePage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-xl rise-in">
-      <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">package</p>
-      <h1 className="mt-2 text-3xl md:text-4xl">{pkg.name}</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
+            package
+          </p>
+          <h1 className="mt-2 text-3xl md:text-4xl">{pkg.name}</h1>
+        </div>
+        {/* Inverse-direction entry point to the existing assignment
+          * flow: instead of "from this client, pick a package" the
+          * trainer can "from this package, pick clients (multi)."
+          * Same `assignPackage` server action under the hood — this
+          * just opens a sheet that loops it. The single-client flow
+          * on /studio/clients/[id] stays untouched. */}
+        <AssignToClientsButton packageId={pkg.id} packageName={pkg.name} />
+      </div>
       <PackageForm mode="edit" initial={pkg} />
     </div>
   );
