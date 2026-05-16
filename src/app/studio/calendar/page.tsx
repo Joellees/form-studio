@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CalendarGrid } from "./_components/calendar-grid";
+import { RequestsPanel, type PendingRequest } from "./_components/requests-panel";
 import { type SessionSummary } from "../_components/session-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -46,13 +47,20 @@ export default async function CalendarPage({ searchParams }: Props) {
     { data: sessions },
     { data: clientRows },
     { data: workouts },
+    { data: requestsRaw },
   ] = await Promise.all([
     admin
       .from("sessions")
+      /* Scheduled / completed / cancelled rows render in the grid.
+       * `requested` and `declined` are explicitly excluded — requests
+       * have a dedicated panel above the grid, and declined sessions
+       * are dismissed (not scheduled, never were) so they don't
+       * belong on the calendar. */
       .select("id, scheduled_at, duration_minutes, session_type, status, name, day_label, clients(display_name)")
       .eq("tenant_id", trainer.id)
       .gte("scheduled_at", start.toISOString())
       .lte("scheduled_at", end.toISOString())
+      .not("status", "in", "(requested,declined)")
       .order("scheduled_at"),
     admin
       .from("clients")
@@ -68,6 +76,18 @@ export default async function CalendarPage({ searchParams }: Props) {
       .eq("tenant_id", trainer.id)
       .eq("archived", false)
       .order("name"),
+    /* Pending session requests across ALL future dates, not scoped
+     * to the current view window — the trainer's mental model is
+     * "show me everything waiting on me," regardless of which week
+     * they're navigating. Cap at 20 so a runaway client doesn't
+     * hijack the panel; in practice this is "<5". */
+    admin
+      .from("sessions")
+      .select("id, scheduled_at, duration_minutes, notes, clients(display_name)")
+      .eq("tenant_id", trainer.id)
+      .eq("status", "requested")
+      .order("scheduled_at", { ascending: true })
+      .limit(20),
   ]);
 
   // Group sessions by day in trainer&rsquo;s timezone
@@ -142,6 +162,27 @@ export default async function CalendarPage({ searchParams }: Props) {
     return { id: c.id, displayName: c.display_name, activeBlocks };
   });
 
+  /* Shape the raw requests query into the panel's lighter type. We
+   * pull the client's display name out of the nested relation and
+   * format the scheduled-at in the trainer's tz once here so the
+   * client component doesn't need access to the trainer's timezone
+   * (avoids passing it through props as well). */
+  const requests: PendingRequest[] = (requestsRaw ?? []).map((r) => {
+    const c = r.clients as { display_name?: string } | { display_name?: string }[] | null;
+    const client = Array.isArray(c) ? c[0] : c;
+    return {
+      id: r.id as string,
+      scheduledLabel: formatInTz(
+        new Date(r.scheduled_at as string),
+        trainer.timezone,
+        "EEE, MMM d · HH:mm",
+      ),
+      durationMinutes: (r.duration_minutes as number) ?? 60,
+      clientName: client?.display_name ?? "Client",
+      clientNote: (r.notes as string | null) ?? null,
+    };
+  });
+
   const headline = view === "month" ? "This month." : view === "2weeks" ? "Two weeks." : "This week.";
   const dateLabel =
     view === "month"
@@ -175,6 +216,11 @@ export default async function CalendarPage({ searchParams }: Props) {
           <NavGroup prevHref={prevHref} nextHref={nextHref} />
         </div>
       </div>
+
+      {/* Requests live ABOVE the grid as a dedicated queue. The
+        * panel auto-hides when there are zero pending requests so
+        * quiet days don't waste vertical space. */}
+      <RequestsPanel requests={requests} />
 
       <CalendarGrid
         days={dayObjects}

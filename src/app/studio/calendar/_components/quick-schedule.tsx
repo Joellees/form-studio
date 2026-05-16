@@ -49,7 +49,14 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
-  const [type, setType] = useState<SessionType>("in_person");
+  /* Default to "zoom" (online). The previous default was "in_person";
+   * we no longer offer in-person as a new-session option — only
+   * legacy sessions with `session_type = 'in_person'` keep displaying
+   * their stored value. `prettySessionType()` still labels them as
+   * "in person" for display, and the inline editors keep an
+   * in-person option visible only when the row's current value is
+   * already in-person (see `session-row.tsx`). */
+  const [type, setType] = useState<SessionType>("zoom");
   const [time, setTime] = useState("09:00");
   const [workoutId, setWorkoutId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +73,14 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
   const activeBlock = client?.activeBlocks[0];
 
   // When the trainer picks a different client, default the session
-  // type to whatever their package locked in. Trainer can still
-  // override per-session via the dropdown.
+  // type to whatever their package locked in — unless the package
+  // says in-person. In-person is no longer offered as a new-session
+  // option (trainer feedback: not a daily-driver path), so a
+  // package configured for in_person now falls through to "zoom".
+  // The package's delivery_method is unchanged in the DB.
   useEffect(() => {
-    if (activeBlock) setType(activeBlock.defaultSessionType);
+    if (!activeBlock) return;
+    setType(activeBlock.defaultSessionType === "in_person" ? "zoom" : activeBlock.defaultSessionType);
   }, [activeBlock]);
 
   function save() {
@@ -163,7 +174,12 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
                 value={type}
                 onChange={(e) => setType(e.target.value as SessionType)}
               >
-                <option value="in_person">in person</option>
+                {/* "in_person" removed from the new-session picker per
+                  * trainer feedback. Legacy sessions with that value
+                  * still display as "in person" everywhere (see
+                  * `prettySessionType`); the inline edit on existing
+                  * cards keeps an in-person option visible only while
+                  * the current value is in-person. */}
                 <option value="zoom">online</option>
                 {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
                 {FEATURES.IN_APP_SESSIONS ? (

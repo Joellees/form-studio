@@ -356,6 +356,64 @@ export async function approveSessionRequest(sessionId: string): Promise<ActionRe
   });
 }
 
+/**
+ * Trainer-side decline for a client session request. Sets
+ * `status='declined'` (already a valid value in the type union) and
+ * optionally stores a short trainer note on `sessions.notes` so the
+ * client can see why when they look at the session in their portal.
+ *
+ * Distinct from `cancelSession`:
+ *   - cancel is for sessions that were SCHEDULED and the trainer/
+ *     client is undoing that — credits handling, audit, etc.
+ *   - decline is for sessions that NEVER scheduled in the first
+ *     place — no credit accounting needed, since approve is what
+ *     would have decremented the count.
+ *
+ * Authorization: session must belong to this trainer AND still be in
+ * `requested` state (we don't let a "decline" rewrite an already-
+ * scheduled or completed session — that's what cancel is for).
+ */
+const declineRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+  note: z.string().max(400).optional(),
+});
+
+export async function declineSessionRequest(
+  raw: unknown,
+): Promise<ActionResult<void>> {
+  return runAction(declineRequestSchema, raw, async ({ sessionId, note }) => {
+    const trainer = await requireTrainer();
+    const supabase = createSupabaseAdminClient();
+
+    const { data: session } = await supabase
+      .from("sessions")
+      .select("id, status")
+      .eq("id", sessionId)
+      .eq("tenant_id", trainer.id)
+      .maybeSingle();
+    if (!session) return fail("Session not found.");
+    if (session.status !== "requested") {
+      return fail("Only pending requests can be declined.");
+    }
+
+    const update: Record<string, unknown> = { status: "declined" };
+    if (note && note.trim().length > 0) update.notes = note.trim();
+
+    const { error } = await supabase
+      .from("sessions")
+      .update(update)
+      .eq("id", sessionId)
+      .eq("tenant_id", trainer.id);
+    if (error) return fail(error.message);
+
+    revalidatePath("/studio/calendar");
+    revalidatePath("/studio/dashboard");
+    revalidatePath("/client");
+    revalidatePath(`/studio/sessions/${sessionId}`);
+    return ok();
+  });
+}
+
 const updateTypeSchema = z.object({
   sessionId: z.string().uuid(),
   sessionType: z.enum(["in_person", "zoom", "in_app"]),

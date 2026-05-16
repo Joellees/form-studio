@@ -44,7 +44,11 @@ export function ScheduleForm({
       clientId: preselectClientId || clients[0]?.id || "",
       scheduledAt: defaultDateTime(),
       durationMinutes: 60,
-      sessionType: "in_person",
+      /* Default is "zoom" (online) — in-person is no longer offered
+       * as a new-session option per trainer feedback. Legacy
+       * sessions with `session_type='in_person'` still display
+       * correctly via `prettySessionType`. */
+      sessionType: "zoom",
       templateId: "",
       zoomUrl: "",
       name: "",
@@ -108,7 +112,10 @@ export function ScheduleForm({
           {...register("sessionType")}
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
-          <option value="in_person">in person</option>
+          {/* "in_person" removed from new-session options. Legacy
+            * rows still render via prettySessionType; the per-row
+            * inline edit on calendar cards keeps the option visible
+            * only while the existing value is in-person. */}
           <option value="zoom">online</option>
           {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
           {FEATURES.IN_APP_SESSIONS ? (

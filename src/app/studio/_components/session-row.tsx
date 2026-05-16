@@ -4,11 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import {
-  approveSessionRequest,
-  cancelSession,
-  updateSessionType,
-} from "@/app/studio/calendar/actions";
+import { cancelSession, updateSessionType } from "@/app/studio/calendar/actions";
 import { Badge } from "@/components/ui/badge";
 import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/utils";
@@ -78,7 +74,15 @@ export function SessionRow({
         backgroundRepeat: "no-repeat",
       }}
     >
-      <option value="in_person">in person</option>
+      {/* In-person is no longer offered for new selections, but we
+        * still render the option WHEN the current value is in-person
+        * — otherwise the controlled select would have no matching
+        * option and render an empty selection on legacy rows. Once
+        * the trainer flips it to "online" or "in-app", the option
+        * disappears on the next render. */}
+      {session.session_type === "in_person" ? (
+        <option value="in_person">in person</option>
+      ) : null}
       <option value="zoom">online</option>
       {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
       {FEATURES.IN_APP_SESSIONS ? (
@@ -101,37 +105,17 @@ export function SessionRow({
     </button>
   );
 
+  /* Per-session ⋯ menu — pared down from the previous four items.
+   * `approve` and `approve as in-app` are gone because client
+   * session-requests now live in their own panel at the top of the
+   * calendar (`src/app/studio/calendar/_components/requests-panel.tsx`)
+   * with explicit Approve / Decline buttons. Daily-driver actions
+   * (open details, cancel) stay here so the menu reads as a clean
+   * two-item list instead of a four-item kitchen sink. */
   const Menu = menuOpen ? (
     <>
       <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} aria-hidden />
       <div className="absolute right-0 top-full z-40 mt-1 flex w-48 flex-col gap-0.5 rounded-2xl bg-[color:var(--color-canvas)] p-1.5 shadow-[0_8px_24px_-6px_rgba(31,30,27,0.25),0_0_0_1px_rgba(31,30,27,0.08)]">
-        {isRequested ? (
-          <>
-            <MenuItem
-              onClick={() => {
-                setMenuOpen(false);
-                runAction(() => approveSessionRequest(session.id));
-              }}
-            >
-              approve
-            </MenuItem>
-            {/* "approve as in-app" gated by FEATURES.IN_APP_SESSIONS */}
-            {FEATURES.IN_APP_SESSIONS ? (
-              <MenuItem
-                onClick={() => {
-                  setMenuOpen(false);
-                  runAction(async () => {
-                    await updateSessionType({ sessionId: session.id, sessionType: "in_app" });
-                    await approveSessionRequest(session.id);
-                  });
-                }}
-              >
-                approve as in-app
-              </MenuItem>
-            ) : null}
-          </>
-        ) : null}
-
         <MenuItem asChild>
           <Link href={`/studio/sessions/${session.id}`} onClick={() => setMenuOpen(false)}>
             open details

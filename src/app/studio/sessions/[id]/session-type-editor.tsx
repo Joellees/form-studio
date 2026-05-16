@@ -43,7 +43,11 @@ export function SessionTypeEditor({
         backgroundRepeat: "no-repeat",
       }}
     >
-      <option value="in_person">in person</option>
+      {/* In-person is no longer offered for new selections; the
+        * option only renders while the current value is in-person
+        * so legacy session rows still display correctly. Flipping
+        * to "online" removes the option on the next render. */}
+      {value === "in_person" ? <option value="in_person">in person</option> : null}
       <option value="zoom">online</option>
       {/* in-app option gated by FEATURES.IN_APP_SESSIONS — see lib/features.ts */}
       {FEATURES.IN_APP_SESSIONS ? (
