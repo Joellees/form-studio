@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -53,7 +54,7 @@ export async function createInvite(raw: unknown): Promise<ActionResult<{ code: s
         revalidatePath("/studio/clients");
         return ok({ code });
       }
-      if (error.code !== "23505") return fail(error.message);
+      if (error.code !== "23505") return fail(friendlyError(error, "creating the invite"));
     }
     return fail("Could not generate a code — try again.");
   });
@@ -72,7 +73,7 @@ export async function revokeInvite(code: string): Promise<ActionResult<void>> {
       .eq("code", code)
       .eq("tenant_id", trainer.id)
       .is("claimed_at", null);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "creating the invite"));
     revalidatePath("/studio/clients");
     return ok();
   });

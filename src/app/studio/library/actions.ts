@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 import { toRepValue, UNIVERSAL_EXERCISES, UNIVERSAL_GROUPS } from "@/lib/universal-library";
@@ -21,7 +22,7 @@ export async function saveGroup(raw: unknown): Promise<ActionResult<{ id: string
       .insert({ tenant_id: trainer.id, name })
       .select("id")
       .single();
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok({ id: data.id });
   });
@@ -41,7 +42,7 @@ export async function renameGroup(raw: unknown): Promise<ActionResult<void>> {
       .update({ name })
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok();
   });
@@ -72,7 +73,7 @@ export async function deleteGroup(id: string): Promise<ActionResult<void>> {
       .delete()
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok();
   });
@@ -122,11 +123,11 @@ export async function saveExercise(raw: unknown): Promise<ActionResult<{ id: str
         .eq("tenant_id", trainer.id)
         .select("id")
         .single();
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "saving the exercise"));
       exerciseId = data.id as string;
     } else {
       const { data, error } = await admin.from("exercises").insert(payload).select("id").single();
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "saving the exercise"));
       exerciseId = data.id as string;
     }
 
@@ -186,7 +187,7 @@ export async function linkExercisesToGroups(raw: unknown): Promise<ActionResult<
     const { error } = await admin
       .from("exercise_group_memberships")
       .upsert(rows, { onConflict: "exercise_id,group_id", ignoreDuplicates: true });
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok({ linked: rows.length });
   });
@@ -212,7 +213,7 @@ export async function unlinkExerciseFromGroup(raw: unknown): Promise<ActionResul
       .eq("exercise_id", exerciseId)
       .eq("group_id", groupId)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok();
   });
@@ -254,7 +255,7 @@ export async function seedUniversalLibrary(_raw?: unknown): Promise<
         .insert({ tenant_id: trainer.id, name: groupName, is_universal: true })
         .select("id")
         .single();
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "saving the exercise"));
       groupByName.set(groupName.toLowerCase(), data.id as string);
       groupsCreated += 1;
     }
@@ -296,7 +297,7 @@ export async function seedUniversalLibrary(_raw?: unknown): Promise<
 
     if (rows.length > 0) {
       const { error } = await admin.from("exercises").insert(rows);
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "saving the exercise"));
       exercisesCreated = rows.length;
     }
 
@@ -324,7 +325,7 @@ export async function archiveExercises(raw: unknown): Promise<ActionResult<{ arc
       .in("id", exerciseIds)
       .eq("tenant_id", trainer.id)
       .select("id");
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok({ archived: data?.length ?? 0 });
   });
@@ -339,7 +340,7 @@ export async function archiveExercise(id: string): Promise<ActionResult<void>> {
       .update({ archived: true })
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the exercise"));
     revalidatePath("/studio/library");
     return ok();
   });

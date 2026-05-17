@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -27,7 +28,7 @@ export async function createTemplate(raw: unknown): Promise<ActionResult<{ id: s
       })
       .select("id")
       .single();
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
     revalidatePath("/studio/templates");
     return ok({ id: data.id });
   });
@@ -79,7 +80,7 @@ export async function createTemplateWithExercises(
       })
       .select("id")
       .single();
-    if (tplErr) return fail(tplErr.message);
+    if (tplErr) return fail(friendlyError(tplErr, "saving the workout"));
     const templateId = tpl.id as string;
 
     // Preserve the trainer's selection order — exercise N becomes
@@ -96,7 +97,7 @@ export async function createTemplateWithExercises(
         })
         .select("id")
         .single();
-      if (blockErr) return fail(blockErr.message);
+      if (blockErr) return fail(friendlyError(blockErr, "saving the workout"));
 
       const { data: be, error: beErr } = await supabase
         .from("template_block_exercises")
@@ -108,7 +109,7 @@ export async function createTemplateWithExercises(
         })
         .select("id")
         .single();
-      if (beErr) return fail(beErr.message);
+      if (beErr) return fail(friendlyError(beErr, "saving the workout"));
 
       const { error: sgErr } = await supabase.from("template_set_groups").insert({
         block_exercise_id: be.id,
@@ -122,7 +123,7 @@ export async function createTemplateWithExercises(
         weight_value: { type: "load", kg: 0 },
         rest_seconds: 90,
       });
-      if (sgErr) return fail(sgErr.message);
+      if (sgErr) return fail(friendlyError(sgErr, "saving the workout"));
     }
 
     revalidatePath("/studio/templates");
@@ -188,7 +189,7 @@ export async function appendExercisesToTemplate(
         })
         .select("id")
         .single();
-      if (blockErr) return fail(blockErr.message);
+      if (blockErr) return fail(friendlyError(blockErr, "saving the workout"));
 
       const { data: be, error: beErr } = await supabase
         .from("template_block_exercises")
@@ -200,7 +201,7 @@ export async function appendExercisesToTemplate(
         })
         .select("id")
         .single();
-      if (beErr) return fail(beErr.message);
+      if (beErr) return fail(friendlyError(beErr, "saving the workout"));
 
       const { error: sgErr } = await supabase.from("template_set_groups").insert({
         block_exercise_id: be.id,
@@ -214,7 +215,7 @@ export async function appendExercisesToTemplate(
         weight_value: { type: "load", kg: 0 },
         rest_seconds: 90,
       });
-      if (sgErr) return fail(sgErr.message);
+      if (sgErr) return fail(friendlyError(sgErr, "saving the workout"));
     }
 
     revalidatePath(`/studio/templates/${templateId}`);
@@ -232,7 +233,7 @@ export async function archiveTemplate(id: string): Promise<ActionResult<void>> {
       .update({ archived: true })
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
     revalidatePath("/studio/templates");
     return ok();
   });
@@ -271,7 +272,7 @@ export async function addExerciseToTemplate(raw: unknown): Promise<ActionResult<
       })
       .select("id")
       .single();
-    if (blockErr) return fail(blockErr.message);
+    if (blockErr) return fail(friendlyError(blockErr, "saving the workout"));
 
     const { data: blockEx, error: beErr } = await supabase
       .from("template_block_exercises")
@@ -283,7 +284,7 @@ export async function addExerciseToTemplate(raw: unknown): Promise<ActionResult<
       })
       .select("id")
       .single();
-    if (beErr) return fail(beErr.message);
+    if (beErr) return fail(friendlyError(beErr, "saving the workout"));
 
     const { error: sgErr } = await supabase.from("template_set_groups").insert({
       block_exercise_id: blockEx.id,
@@ -297,7 +298,7 @@ export async function addExerciseToTemplate(raw: unknown): Promise<ActionResult<
       weight_value: { type: "load", kg: 0 },
       rest_seconds: 90,
     });
-    if (sgErr) return fail(sgErr.message);
+    if (sgErr) return fail(friendlyError(sgErr, "saving the workout"));
 
     revalidatePath(`/studio/templates/${templateId}`);
     return ok({ blockId: block.id });
@@ -309,7 +310,7 @@ export async function removeTemplateBlock(blockId: string): Promise<ActionResult
     const trainer = await requireTrainer();
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase.from("template_blocks").delete().eq("id", id).eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
     return ok();
   });
 }
@@ -334,7 +335,7 @@ export async function updateSetGroup(raw: unknown): Promise<ActionResult<void>> 
       .update(fields)
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
     return ok();
   });
 }
@@ -390,7 +391,7 @@ export async function reorderTemplateBlocks(
         .update({ order_index: i })
         .eq("id", blockIds[i]!)
         .eq("tenant_id", trainer.id);
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "saving the workout"));
     }
 
     revalidatePath(`/studio/templates/${templateId}`);
@@ -450,7 +451,7 @@ export async function saveTemplateChanges(
         .update(fields)
         .eq("id", id)
         .eq("tenant_id", trainer.id);
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "saving the workout"));
     }
 
     if (blockOrder && blockOrder.length > 0) {
@@ -469,7 +470,7 @@ export async function saveTemplateChanges(
           .update({ order_index: i })
           .eq("id", blockOrder[i]!)
           .eq("tenant_id", trainer.id);
-        if (error) return fail(error.message);
+        if (error) return fail(friendlyError(error, "saving the workout"));
       }
     }
 
@@ -543,7 +544,7 @@ export async function addSetGroupToBlockExercise(
       })
       .select("id")
       .single();
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
 
     revalidatePath(`/studio/templates/${templateId}`);
     return ok({ id: data.id });
@@ -608,7 +609,7 @@ export async function listSessionsForApply(): Promise<
       .lte("scheduled_at", maxDate)
       .neq("status", "cancelled")
       .order("scheduled_at", { ascending: true });
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
 
     /* Group sessions by client_id so the modal can render a clean
      * "Client → list of sessions" tree. Clients with no session in
@@ -694,7 +695,7 @@ export async function removeSetGroup(raw: unknown): Promise<ActionResult<void>> 
       .delete()
       .eq("id", setGroupId)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "saving the workout"));
 
     revalidatePath(`/studio/templates/${templateId}`);
     return ok();

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError, isMissingColumnError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -41,20 +42,19 @@ const packageSchema = z.object({
 });
 
 /**
- * Detect "column does not exist" errors so the action can retry
- * without writing the column. Lets the deploy run safely ahead of
- * migration 0011 being applied to prod.
+ * Wraps the shared helper so the per-action call sites stay short.
+ * The original local detector caught "42703" + "does not exist"
+ * wording on SELECTs but missed PostgREST's "PGRST204" + "schema
+ * cache" wording on INSERTs — which is what surfaced as
+ * "could not find the 'currency' column of 'packages' in the
+ * schema cache" on /studio/packages/new. The shared
+ * `isMissingColumnError` covers both shapes.
  */
 function isMissingColumn(
   error: { code?: string | null; message?: string | null } | null,
   column: string,
 ): boolean {
-  if (!error) return false;
-  if (error.code === "42703") return true;
-  if (error.message && new RegExp(column, "i").test(error.message) && /does not exist|undefined/i.test(error.message)) {
-    return true;
-  }
-  return false;
+  return isMissingColumnError(error, column);
 }
 
 export async function savePackage(raw: unknown): Promise<ActionResult<{ id: string }>> {
@@ -115,7 +115,7 @@ export async function savePackage(raw: unknown): Promise<ActionResult<{ id: stri
       console.warn("packages.save.both_optional_columns_missing_fallback", { packageId: values.id });
       ({ data, error } = await attempt(basePayload));
     }
-    if (error) return fail(error.message ?? "Couldn't save the package.");
+    if (error) return fail(friendlyError(error, "saving your package"));
 
     revalidatePath("/studio/packages");
     return ok({ id: data!.id });
@@ -220,7 +220,7 @@ export async function archivePackage(id: string): Promise<ActionResult<void>> {
       .update({ active: false })
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "archiving the package"));
     revalidatePath("/studio/packages");
     return ok();
   });

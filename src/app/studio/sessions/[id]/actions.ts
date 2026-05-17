@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError, isMissingColumnError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -23,7 +24,7 @@ export async function logPerformedSet(raw: unknown): Promise<ActionResult<void>>
   return runAction(performSchema, raw, async ({ id, ...fields }) => {
     const admin = createSupabaseAdminClient();
     const { error } = await admin.from("session_set_groups").update(fields).eq("id", id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the session"));
     return ok();
   });
 }
@@ -65,7 +66,7 @@ export async function addExerciseToSession(raw: unknown): Promise<ActionResult<{
       .insert({ session_id: sessionId, tenant_id: trainer.id, order_index: nextOrder, round_count: 1 })
       .select("id")
       .single();
-    if (blockErr) return fail(blockErr.message);
+    if (blockErr) return fail(friendlyError(blockErr, "updating the session"));
 
     // Pull exercise defaults to seed a friendlier starting set group.
     const { data: ex } = await admin
@@ -79,7 +80,7 @@ export async function addExerciseToSession(raw: unknown): Promise<ActionResult<{
       .insert({ block_id: block.id, exercise_id: exerciseId, tenant_id: trainer.id, order_index: 0 })
       .select("id")
       .single();
-    if (beErr) return fail(beErr.message);
+    if (beErr) return fail(friendlyError(beErr, "updating the session"));
 
     const { error: sgErr } = await admin.from("session_set_groups").insert({
       block_exercise_id: be.id,
@@ -93,7 +94,7 @@ export async function addExerciseToSession(raw: unknown): Promise<ActionResult<{
       weight_value: { type: "load", kg: 0 },
       rest_seconds: ex?.default_rest_seconds ?? 90,
     });
-    if (sgErr) return fail(sgErr.message);
+    if (sgErr) return fail(friendlyError(sgErr, "updating the session"));
 
     revalidatePath(`/studio/sessions/${sessionId}`);
     revalidatePath(`/client/sessions/${sessionId}`);
@@ -110,7 +111,7 @@ export async function removeSessionBlock(blockId: string): Promise<ActionResult<
       .delete()
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the session"));
     return ok();
   });
 }
@@ -140,7 +141,7 @@ export async function updateSessionSetGroup(raw: unknown): Promise<ActionResult<
       .update(fields)
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the session"));
     return ok();
   });
 }
@@ -191,7 +192,7 @@ export async function reorderSessionBlocks(
         .update({ order_index: i })
         .eq("id", blockIds[i]!)
         .eq("tenant_id", trainer.id);
-      if (error) return fail(error.message);
+      if (error) return fail(friendlyError(error, "updating the session"));
     }
 
     revalidatePath(`/studio/sessions/${sessionId}`);
@@ -273,7 +274,7 @@ export async function applyTemplateToSession(
       )
       .eq("template_id", templateId)
       .order("order_index");
-    if (loadErr) return fail(loadErr.message);
+    if (loadErr) return fail(friendlyError(loadErr, "updating the session"));
     if (!tBlocks || tBlocks.length === 0) {
       return fail(`"${(template as { name: string }).name}" has no exercises yet — add some, then apply.`);
     }
@@ -303,7 +304,7 @@ export async function applyTemplateToSession(
         })
         .select("id")
         .single();
-      if (sbErr) return fail(sbErr.message);
+      if (sbErr) return fail(friendlyError(sbErr, "updating the session"));
       nextBlockOrder += 1;
 
       const tbes =
@@ -341,7 +342,7 @@ export async function applyTemplateToSession(
           .insert(beInsert)
           .select("id")
           .single();
-        if (beRes.error && beRes.error.code === "42703") {
+        if (beRes.error && isMissingColumnError(beRes.error)) {
           const { source_template_id: _drop, ...beWithoutSource } = beInsert;
           void _drop;
           beRes = await admin
@@ -371,7 +372,7 @@ export async function applyTemplateToSession(
         }));
         if (sgs.length > 0) {
           const { error: sgErr } = await admin.from("session_set_groups").insert(sgs);
-          if (sgErr) return fail(sgErr.message);
+          if (sgErr) return fail(friendlyError(sgErr, "updating the session"));
         }
       }
 
@@ -402,7 +403,7 @@ export async function updateSessionNotes(raw: unknown): Promise<ActionResult<voi
       .update({ notes: notes || null })
       .eq("id", sessionId)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the session"));
     revalidatePath(`/studio/sessions/${sessionId}`);
     revalidatePath(`/client/sessions/${sessionId}`);
     return ok();

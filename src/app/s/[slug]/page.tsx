@@ -4,6 +4,7 @@ import { TrainerHero } from "./_components/trainer-hero";
 import { PackagesBlock } from "./_components/packages-block";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Button } from "@/components/ui/button";
+import { isMissingColumnError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const revalidate = 60;
@@ -38,7 +39,7 @@ export default async function TrainerPublicPage({ params }: Props) {
       .eq("tenant_id", trainer.id)
       .eq("active", true)
       .order("price_usd", { ascending: true });
-    if (wide.error && wide.error.code === "42703") {
+    if (wide.error && isMissingColumnError(wide.error)) {
       return admin
         .from("packages")
         .select("id, name, session_count, duration_days, price_usd, cancellation_policy")

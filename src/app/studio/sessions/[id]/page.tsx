@@ -4,6 +4,7 @@ import { SessionActions } from "./session-actions";
 import { SessionBuilder } from "./session-builder";
 import { SessionTypeEditor } from "./session-type-editor";
 import { Badge } from "@/components/ui/badge";
+import { isMissingColumnError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatInTz } from "@/lib/schedule";
 import { isLegacyInApp, type SessionTypeValue } from "@/lib/session-type";
@@ -33,7 +34,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       )
       .eq("session_id", id)
       .order("order_index");
-    if (wide.error && wide.error.code === "42703") {
+    if (wide.error && isMissingColumnError(wide.error)) {
       return admin
         .from("session_blocks")
         .select(

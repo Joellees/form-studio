@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireClient, requireTrainer } from "@/lib/trainer";
 import { canClientCancel } from "@/lib/schedule";
@@ -63,7 +64,7 @@ export async function scheduleSession(raw: unknown): Promise<ActionResult<{ id: 
       .select("id")
       .single();
 
-    if (sessErr) return fail(sessErr.message);
+    if (sessErr) return fail(friendlyError(sessErr, "scheduling the session"));
 
     if (values.templateId) {
       const cloned = await cloneTemplateIntoSession(supabase, trainer.id, values.templateId, session.id);
@@ -113,7 +114,7 @@ async function cloneTemplateIntoSession(
       })
       .select("id")
       .single();
-    if (blockErr) return fail(blockErr.message);
+    if (blockErr) return fail(friendlyError(blockErr, "scheduling the session"));
 
     for (const be of block.template_block_exercises ?? []) {
       const { data: newBe, error: beErr } = await supabase
@@ -127,7 +128,7 @@ async function cloneTemplateIntoSession(
         })
         .select("id")
         .single();
-      if (beErr) return fail(beErr.message);
+      if (beErr) return fail(friendlyError(beErr, "scheduling the session"));
 
       for (const sg of be.template_set_groups ?? []) {
         const { error: sgErr } = await supabase.from("session_set_groups").insert({
@@ -143,7 +144,7 @@ async function cloneTemplateIntoSession(
           rest_seconds: sg.rest_seconds,
           intent_tag: sg.intent_tag,
         });
-        if (sgErr) return fail(sgErr.message);
+        if (sgErr) return fail(friendlyError(sgErr, "scheduling the session"));
       }
     }
   }
@@ -203,7 +204,7 @@ export async function cancelSession(raw: unknown): Promise<ActionResult<void>> {
       .from("sessions")
       .update({ status: "cancelled" })
       .eq("id", sessionId);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "scheduling the session"));
 
     if (creditRestored && session.subscription_id) {
       const { data: sub } = await supabase
@@ -296,7 +297,7 @@ export async function requestSession(raw: unknown): Promise<ActionResult<{ id: s
       })
       .select("id")
       .single();
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "scheduling the session"));
     revalidatePath("/client/dashboard");
     revalidatePath("/client");
     revalidatePath("/studio/dashboard");
@@ -342,7 +343,7 @@ export async function approveSessionRequest(sessionId: string): Promise<ActionRe
         subscription_id: isClientRequestedInApp ? null : activeSub?.id ?? null,
       })
       .eq("id", id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "scheduling the session"));
 
     if (activeSub) {
       await supabase
@@ -404,7 +405,7 @@ export async function declineSessionRequest(
       .update(update)
       .eq("id", sessionId)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "scheduling the session"));
 
     revalidatePath("/studio/calendar");
     revalidatePath("/studio/dashboard");
@@ -431,7 +432,7 @@ export async function updateSessionType(raw: unknown): Promise<ActionResult<void
       .update({ session_type: sessionType })
       .eq("id", sessionId)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "scheduling the session"));
     revalidatePath("/studio/calendar");
     revalidatePath("/client");
     revalidatePath(`/studio/sessions/${sessionId}`);

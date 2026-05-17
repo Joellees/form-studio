@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPrice } from "@/lib/pricing";
+import { isMissingColumnError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -51,7 +52,7 @@ export default async function PackagesPage() {
         )
         .eq("tenant_id", trainer.id)
         .order("created_at", { ascending: false });
-      if (wide.error && wide.error.code === "42703") {
+      if (wide.error && isMissingColumnError(wide.error)) {
         return admin
           .from("packages")
           .select(

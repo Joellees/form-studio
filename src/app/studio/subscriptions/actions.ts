@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError } from "@/lib/postgrest-errors";
 import { sendEmail, subscriptionPaidEmail } from "@/lib/email";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
@@ -60,7 +61,7 @@ export async function markSubscriptionPaid(raw: unknown): Promise<ActionResult<v
         paid_confirmed_by: trainer.id,
       })
       .eq("id", subscriptionId);
-    if (updErr) return fail(updErr.message);
+    if (updErr) return fail(friendlyError(updErr, "updating the subscription"));
 
     // Audit row — every status change is recorded. Lightweight log
     // matters even at Beta 2 scale because trainers and clients
@@ -177,7 +178,7 @@ export async function revertSubscriptionToPending(
         paid_confirmed_by: null,
       })
       .eq("id", subscriptionId);
-    if (updErr) return fail(updErr.message);
+    if (updErr) return fail(friendlyError(updErr, "updating the subscription"));
 
     await supabase.from("subscription_status_log").insert({
       subscription_id: subscriptionId,
@@ -232,7 +233,7 @@ export async function updateSubscription(raw: unknown): Promise<ActionResult<voi
       .update(fields)
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the subscription"));
     revalidatePath("/studio/clients");
     return ok();
   });
@@ -283,7 +284,7 @@ export async function assignPackage(raw: unknown): Promise<ActionResult<{ subscr
       })
       .select("id")
       .single();
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the subscription"));
 
     if (markPaid) {
       await admin.from("payments").insert({
@@ -350,7 +351,7 @@ export async function switchPackageNextCycle(raw: unknown): Promise<ActionResult
       .from("subscriptions")
       .update({ pending_package_id: packageId })
       .eq("id", subscriptionId);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the subscription"));
 
     revalidatePath("/client");
     return ok();

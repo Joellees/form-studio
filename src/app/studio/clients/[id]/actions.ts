@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
+import { friendlyError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -26,7 +27,7 @@ export async function setClientArchived(raw: unknown): Promise<ActionResult<void
       .update({ active: !archived })
       .eq("id", clientId)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the client"));
     revalidatePath("/studio/clients");
     revalidatePath(`/studio/clients/${clientId}`);
     return ok();
@@ -62,7 +63,7 @@ export async function updateClientFields(raw: unknown): Promise<ActionResult<voi
         { onConflict: "client_id" },
       );
 
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the client"));
     revalidatePath(`/studio/clients/${clientId}`);
     return ok();
   });
@@ -98,7 +99,7 @@ export async function updateClientDetails(raw: unknown): Promise<ActionResult<vo
       })
       .eq("id", id)
       .eq("tenant_id", trainer.id);
-    if (error) return fail(error.message);
+    if (error) return fail(friendlyError(error, "updating the client"));
     revalidatePath("/studio/clients");
     revalidatePath(`/studio/clients/${id}`);
     return ok();
