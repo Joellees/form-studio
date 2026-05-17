@@ -527,6 +527,10 @@ function GenerateCodeModal({ onClose }: { onClose: () => void }) {
   const [cohort, setCohort] = useState<"beta_1" | "beta_2">("beta_1");
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
+  /* Trial flag — beta_2 only. The checkbox is rendered conditionally
+   * below the cohort select; toggling cohort to beta_1 resets the
+   * flag so a B1 code never gets generated with trial_days set. */
+  const [includeTrial, setIncludeTrial] = useState(false);
   const [pending, startTransition] = useTransition();
   const [generated, setGenerated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -535,9 +539,15 @@ function GenerateCodeModal({ onClose }: { onClose: () => void }) {
   const [b2Preview, setB2Preview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Refresh Beta 2 preview whenever cohort flips to beta_2.
+  // Refresh Beta 2 preview whenever cohort flips to beta_2. Also
+  // reset the trial flag whenever cohort changes — the trial option
+  // is beta_2-only, but the checkbox state would otherwise persist
+  // through a beta_2 → beta_1 → beta_2 toggle.
   useEffect(() => {
-    if (cohort !== "beta_2") return;
+    if (cohort !== "beta_2") {
+      setIncludeTrial(false);
+      return;
+    }
     let cancelled = false;
     setPreviewLoading(true);
     void (async () => {
@@ -568,6 +578,11 @@ function GenerateCodeModal({ onClose }: { onClose: () => void }) {
         cohort,
         label: cohort === "beta_1" ? label.trim() : undefined,
         note: note.trim() || undefined,
+        /* Trial is beta_2-only and 7 days is the only length the UI
+         * offers today. The server-side schema also gates trial_days
+         * to beta_2 — sending it on a beta_1 generation would be
+         * silently ignored. */
+        trial_days: cohort === "beta_2" && includeTrial ? 7 : undefined,
       });
       if (!r.ok) {
         setError(r.error);
@@ -690,6 +705,21 @@ function GenerateCodeModal({ onClose }: { onClose: () => void }) {
                 <p className="text-[11px] text-[color:var(--color-stone)]">
                   Numbers increment forever; revoked codes never free up their number.
                 </p>
+                {/* Trial flag — Beta 2 only. Checked = generated code
+                  * carries trial_days = 7 and the redeeming trainer
+                  * gets full studio access for 7 days before the
+                  * /studio/expired gate kicks in. Unchecked = normal
+                  * Beta 2 behaviour (lands on /studio/expired
+                  * immediately to subscribe). */}
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-[color:var(--color-ink)]">
+                  <input
+                    type="checkbox"
+                    checked={includeTrial}
+                    onChange={(e) => setIncludeTrial(e.target.checked)}
+                    className="h-4 w-4 rounded border-[color:var(--color-stone-soft)] text-[color:var(--color-ink)] focus:ring-2 focus:ring-[color:var(--color-ink)]/15"
+                  />
+                  <span>Include 7-day trial</span>
+                </label>
               </div>
             )}
 

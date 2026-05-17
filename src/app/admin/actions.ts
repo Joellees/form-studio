@@ -494,12 +494,19 @@ const generateCodeSchema = z.object({
   cohort: z.string().min(1).max(40),
   label: z.string().max(80).optional(),
   note: z.string().max(280).optional(),
+  /* When set (and the cohort supports it — currently only beta_2),
+   * the generated access code carries `trial_days = N` so the
+   * redemption flow stamps `trainers.trial_started_at` and the
+   * studio gate lets the trainer into /studio for N days. The admin
+   * checkbox only offers 7 today, but the schema accepts any
+   * positive integer for future flexibility. */
+  trial_days: z.number().int().positive().optional(),
 });
 
 export async function generateAccessCode(
   raw: unknown,
 ): Promise<ActionResult<{ id: string; code: string }>> {
-  return runAction(generateCodeSchema, raw, async ({ cohort, label, note }) => {
+  return runAction(generateCodeSchema, raw, async ({ cohort, label, note, trial_days }) => {
     const { adminTrainerId, supabase } = await requireAdminContext();
 
     // Beta 2 may lose a race against a concurrent generator (two
@@ -518,18 +525,44 @@ export async function generateAccessCode(
       const storedLabel =
         gen.sanitizedLabel ?? (label && label.trim().length > 0 ? label.trim() : null);
 
-      const { data, error } = await supabase
+      /* Trial codes are beta_2-only at the admin UI level (the
+       * checkbox is hidden for beta_1). The schema permits any
+       * cohort to carry trial_days, but we don't lose anything by
+       * being defensive here — only beta_2 currently sets it. */
+      const baseInsert: Record<string, unknown> = {
+        code: gen.code,
+        cohort,
+        label: storedLabel,
+        note: note ?? null,
+        created_by: adminTrainerId,
+      };
+      const includeTrial = trial_days && trial_days > 0 && cohort === "beta_2";
+      const withTrial = includeTrial
+        ? { ...baseInsert, trial_days }
+        : baseInsert;
+      let { data, error } = await supabase
         .from("access_codes")
-        .insert({
-          code: gen.code,
-          cohort,
-          label: storedLabel,
-          note: note ?? null,
-          created_by: adminTrainerId,
-        })
+        .insert(withTrial)
         .select("id, code")
         .single();
-      if (!error) {
+      /* If the trial column doesn't exist yet (pre-migration), retry
+       * without it. The generated code is still a normal beta_2 row
+       * — just no trial attached. Logged for audit. */
+      if (
+        error &&
+        includeTrial &&
+        (error.code === "42703" || error.code === "PGRST204")
+      ) {
+        console.warn("admin.generate_access_code.trial_days_column_missing_fallback", {
+          cohort,
+        });
+        ({ data, error } = await supabase
+          .from("access_codes")
+          .insert(baseInsert)
+          .select("id, code")
+          .single());
+      }
+      if (!error && data) {
         inserted = { id: data.id, code: data.code, storedLabel };
         break;
       }
@@ -537,12 +570,15 @@ export async function generateAccessCode(
       // this would mean the label collided despite our pre-check, also
       // safe to retry — though `generateAccessCodeValue` will short-
       // circuit with a clear error on the next attempt.
-      if (error.message?.toLowerCase().includes("access_codes_code") ||
-          error.message?.toLowerCase().includes("duplicate key")) {
-        lastError = error.message;
+      if (!error) continue; // shouldn't happen — type guard for the typecheck
+      if (
+        error.message?.toLowerCase().includes("access_codes_code") ||
+        error.message?.toLowerCase().includes("duplicate key")
+      ) {
+        lastError = error.message ?? "duplicate key";
         continue;
       }
-      return fail(error.message);
+      return fail(error.message ?? "Couldn't save the code.");
     }
     if (!inserted) {
       return fail(`Couldn't generate a unique code after 5 tries. Last error: ${lastError}`);

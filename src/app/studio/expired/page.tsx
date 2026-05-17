@@ -29,21 +29,40 @@ export default async function ExpiredPage() {
   if (!userId) redirect("/sign-in");
 
   const admin = createSupabaseAdminClient();
-  const { data: trainer } = await admin
+  /* Pull trial_started_at too — gate logic uses it. Falls back to
+   * the legacy column list if the migration hasn't been applied
+   * (the gate then sees trialStartedAt = undefined and the new
+   * branch in hasStudioAccess is silently inert). */
+  const wide = await admin
     .from("trainers")
     .select(
-      "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort",
+      "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort, trial_started_at",
     )
     .eq("clerk_id", userId)
     .maybeSingle();
+  const trainer =
+    wide.error && (wide.error.code === "42703" || wide.error.code === "PGRST204")
+      ? (
+          await admin
+            .from("trainers")
+            .select(
+              "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort",
+            )
+            .eq("clerk_id", userId)
+            .maybeSingle()
+        ).data
+      : wide.data;
 
   if (!trainer) redirect("/onboarding");
 
-  // If they actually have access, kick them back into /studio.
+  // If they actually have access (trial included), kick them back
+  // into /studio.
   const allowed = hasStudioAccess({
     status: trainer.subscription_status,
     paidUntil: trainer.paid_until ?? null,
     softDeletedAt: trainer.soft_deleted_at ?? null,
+    trialStartedAt:
+      (trainer as { trial_started_at?: string | null }).trial_started_at ?? null,
   });
   if (allowed) redirect("/studio");
 

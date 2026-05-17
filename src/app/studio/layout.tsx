@@ -3,9 +3,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { StudioShell } from "./_components/studio-shell";
+import { TrialBanner } from "./_components/trial-banner";
 import { getOnboardingWarning } from "@/lib/onboarding-warning";
 import { isPreviewActive, PREVIEW_TRAINER_SLUG } from "@/lib/preview";
-import { hasStudioAccess } from "@/lib/subscription";
+import { hasStudioAccess, trialState } from "@/lib/subscription";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getTenantKind, getTenantSlug } from "@/lib/tenancy";
 
@@ -42,13 +43,31 @@ export default async function StudioLayout({ children }: { children: React.React
   if (!userId) redirect("/sign-in");
 
   const admin = createSupabaseAdminClient();
-  const { data: trainer } = await admin
+  /* The wide select adds `trial_started_at` (added in migration
+   * 0014). On a pre-migration DB the column doesn't exist and
+   * PostgREST returns 42703 / PGRST204 — fall back to the legacy
+   * column list, leaving trial_started_at as undefined so the gate
+   * + banner both no-op gracefully. */
+  const trainerQuery = await admin
     .from("trainers")
     .select(
-      "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort",
+      "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort, trial_started_at",
     )
     .eq("clerk_id", userId)
     .maybeSingle();
+  const trainer =
+    trainerQuery.error &&
+    (trainerQuery.error.code === "42703" || trainerQuery.error.code === "PGRST204")
+      ? (
+          await admin
+            .from("trainers")
+            .select(
+              "id, display_name, subdomain_slug, subscription_status, paid_until, soft_deleted_at, cohort",
+            )
+            .eq("clerk_id", userId)
+            .maybeSingle()
+        ).data
+      : trainerQuery.data;
 
   if (!trainer) {
     // This user is signed in but isn't a trainer. If they're a client
@@ -106,10 +125,13 @@ export default async function StudioLayout({ children }: { children: React.React
     redirect("/studio/onboarding-issue");
   }
 
+  const trainerTrialStartedAt =
+    (trainer as { trial_started_at?: string | null }).trial_started_at ?? null;
   const allowed = hasStudioAccess({
     status: trainer.subscription_status,
     paidUntil: trainer.paid_until ?? null,
     softDeletedAt: trainer.soft_deleted_at ?? null,
+    trialStartedAt: trainerTrialStartedAt,
   });
   if (isExpiredPage) {
     // Always render the expired page bare (no StudioShell). If the
@@ -121,5 +143,21 @@ export default async function StudioLayout({ children }: { children: React.React
     redirect("/studio/expired");
   }
 
-  return <StudioShell trainer={trainer}>{children}</StudioShell>;
+  /* Trial countdown banner — surfaces only in the last 24h of an
+   * active trial. `trialState` returns null when the trainer never
+   * had a trial (most trainers) so the conditional below is a cheap
+   * no-op for everyone else. The banner sits inside StudioShell so
+   * the studio chrome wraps it like any other page content. */
+  const trial = trialState(trainerTrialStartedAt);
+  const showTrialBanner = !!(trial && trial.active && trial.hoursRemaining <= 24);
+  const firstName = (trainer.display_name ?? "").split(" ")[0] ?? trainer.display_name ?? "";
+
+  return (
+    <StudioShell trainer={trainer}>
+      {showTrialBanner && trial ? (
+        <TrialBanner hoursRemaining={trial.hoursRemaining} firstName={firstName} />
+      ) : null}
+      {children}
+    </StudioShell>
+  );
 }

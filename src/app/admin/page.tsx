@@ -47,12 +47,28 @@ export default async function AdminPage({
   const sp = await searchParams;
   const supabase = createSupabaseAdminClient();
 
-  const { data: trainers } = await supabase
+  /* Wide select includes `trial_started_at` (migration 0014). Fall
+   * back to the legacy column list on PostgREST 42703 / PGRST204 so
+   * the admin page stays alive even before the migration is applied
+   * — trial column just renders as not-set everywhere. */
+  const trainersWide = await supabase
     .from("trainers")
     .select(
-      "id, display_name, email, clerk_id, subdomain_slug, cohort, subscription_status, paid_until, soft_deleted_at, created_at",
+      "id, display_name, email, clerk_id, subdomain_slug, cohort, subscription_status, paid_until, soft_deleted_at, created_at, trial_started_at",
     )
     .order("created_at", { ascending: false });
+  const trainers =
+    trainersWide.error &&
+    (trainersWide.error.code === "42703" || trainersWide.error.code === "PGRST204")
+      ? (
+          await supabase
+            .from("trainers")
+            .select(
+              "id, display_name, email, clerk_id, subdomain_slug, cohort, subscription_status, paid_until, soft_deleted_at, created_at",
+            )
+            .order("created_at", { ascending: false })
+        ).data
+      : trainersWide.data;
 
   const { data: subs } = (await supabase
     .from("trainer_subscriptions")
@@ -137,6 +153,8 @@ export default async function AdminPage({
         paidUntil: (t.paid_until as string) ?? null,
         lastMarkedPaidAt: sub?.last_marked_paid_at ?? null,
         joinedAt: (t.created_at as string) ?? null,
+        trialStartedAt:
+          ((t as { trial_started_at?: string | null }).trial_started_at) ?? null,
         softDeleted: !!t.soft_deleted_at,
       };
     });

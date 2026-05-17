@@ -235,11 +235,29 @@ export async function bindAccessCodeOnOnboarding(args: {
     );
     return;
   }
-  const { data: codeRow } = await supabase
+  /* Wide select includes `trial_days` (migration 0014). The
+   * column-missing-tolerant fallback strips it on pre-migration
+   * prod — the rest of the flow then runs trial-less. */
+  const wide = await supabase
     .from("access_codes")
-    .select("id, code, cohort, revoked, bound_to_clerk_user_id, bound_to_studio_id, redemption_count")
+    .select(
+      "id, code, cohort, revoked, bound_to_clerk_user_id, bound_to_studio_id, redemption_count, trial_days",
+    )
     .ilike("code", cookieCode)
     .maybeSingle();
+  const codeRow =
+    wide.error &&
+    (wide.error.code === "42703" || wide.error.code === "PGRST204")
+      ? (
+          await supabase
+            .from("access_codes")
+            .select(
+              "id, code, cohort, revoked, bound_to_clerk_user_id, bound_to_studio_id, redemption_count",
+            )
+            .ilike("code", cookieCode)
+            .maybeSingle()
+        ).data
+      : wide.data;
   if (!codeRow || codeRow.revoked) {
     console.warn("access_code.bind.bad_code", { cookieCode, studioId: args.studioId });
     await setOnboardingWarning(
@@ -358,14 +376,35 @@ export async function bindAccessCodeOnOnboarding(args: {
       } as Record<string, unknown>);
     }
   }
-  await supabase
-    .from("trainers")
-    .update({
-      cohort: codeRow.cohort,
-      subscription_status: defaults.status,
-      paid_until: null,
-    })
-    .eq("id", args.studioId);
+  /* Trainer-row update — cohort + subscription default. If the
+   * redeemed code carried `trial_days`, ALSO stamp
+   * `trial_started_at = now()` so the gate's trial branch lets the
+   * trainer reach /studio for the trial window. Defensive against
+   * the migration not being applied: try the wide update first,
+   * fall back to the legacy column set on 42703 / PGRST204. */
+  const trialDays = (codeRow as { trial_days?: number | null }).trial_days ?? null;
+  const baseTrainerUpdate: Record<string, unknown> = {
+    cohort: codeRow.cohort,
+    subscription_status: defaults.status,
+    paid_until: null,
+  };
+  if (trialDays && trialDays > 0) {
+    const wideUpdate = await supabase
+      .from("trainers")
+      .update({ ...baseTrainerUpdate, trial_started_at: new Date().toISOString() })
+      .eq("id", args.studioId);
+    if (
+      wideUpdate.error &&
+      (wideUpdate.error.code === "42703" || wideUpdate.error.code === "PGRST204")
+    ) {
+      console.warn("access_code.bind.trial_started_at_column_missing_fallback", {
+        studioId: args.studioId,
+      });
+      await supabase.from("trainers").update(baseTrainerUpdate).eq("id", args.studioId);
+    }
+  } else {
+    await supabase.from("trainers").update(baseTrainerUpdate).eq("id", args.studioId);
+  }
 
   await supabase.from("access_code_events").insert({
     access_code_id: codeRow.id,

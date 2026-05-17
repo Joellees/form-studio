@@ -16,6 +16,7 @@ import {
 } from "../actions";
 import { KNOWN_COHORT_KEYS } from "@/lib/cohorts";
 import { PRICING, formatPrice, isPricedCohort } from "@/lib/pricing";
+import { trialState } from "@/lib/subscription";
 
 export type TrainerRow = {
   id: string;
@@ -32,6 +33,12 @@ export type TrainerRow = {
   lastMarkedPaidAt: string | null;
   joinedAt: string | null;
   softDeleted: boolean;
+  /** ISO timestamp from `trainers.trial_started_at`. When the
+   * trial is still active and they haven't paid, the row renders
+   * a small "Trial — N days left" italic line under the trainer
+   * name. After the trial expires, the existing `expired` status
+   * pill already conveys that, so the trial line is hidden. */
+  trialStartedAt: string | null;
 };
 
 export function AdminTrainerTable({ rows }: { rows: TrainerRow[] }) {
@@ -84,6 +91,10 @@ export function AdminTrainerTable({ rows }: { rows: TrainerRow[] }) {
                 <p className="text-xs text-[color:var(--color-ink)]/55">
                   {r.email ?? "—"}
                 </p>
+                <TrialBadge
+                  trialStartedAt={r.trialStartedAt}
+                  status={r.status}
+                />
               </td>
               <td className="px-4 py-3">
                 <Pill tone="stone">{r.cohortDisplay}</Pill>
@@ -184,6 +195,38 @@ function StatusPill({ status }: { status: string | null }) {
   if (status === "expired") return <Pill tone="signal">Expired</Pill>;
   if (status === "canceled") return <Pill tone="muted">Canceled</Pill>;
   return <Pill tone="stone">{status ?? "—"}</Pill>;
+}
+
+/**
+ * Small italic muted line under the trainer name when they're
+ * mid-trial AND still on the unpaid (status='expired') row. Once
+ * they pay, status flips to 'active' and we suppress the line —
+ * they're a paid trainer like any other now; the trial timestamp
+ * stays in the DB for audit but doesn't drive UI. Once the trial
+ * expires (and they haven't paid), the existing "expired" status
+ * pill already conveys that, so the trial line is also hidden.
+ */
+function TrialBadge({
+  trialStartedAt,
+  status,
+}: {
+  trialStartedAt: string | null;
+  status: string | null;
+}) {
+  const trial = trialState(trialStartedAt);
+  if (!trial || !trial.active) return null;
+  /* Suppress on paid trainers — they're "active" like any other
+   * trainer, the trial detail is just historical at that point. */
+  if (status === "active" || status === "founding") return null;
+  const label =
+    trial.daysRemaining === 1
+      ? "Trial — 1 day left"
+      : `Trial — ${trial.daysRemaining} days left`;
+  return (
+    <p className="mt-1 text-[11px] italic text-[color:var(--color-stone)]">
+      {label}
+    </p>
+  );
 }
 
 function PaidUntilCell({ value }: { value: string | null }) {
