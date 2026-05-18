@@ -168,6 +168,26 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
         // so clear the warning surface text if it was set.
         const { setOnboardingWarning } = await import("@/lib/onboarding-warning");
         await setOnboardingWarning(admin, existingRow.id, null);
+
+        // Also run `bindAccessCodeOnOnboarding` so that any FRESH
+        // access code currently in the trainer's `fs_beta` cookie
+        // (e.g. a new trial code applied during this rebind
+        // signup) gets processed: trial_started_at stamped, cohort
+        // refreshed, subscription state set. Without this, a
+        // trainer with an existing row at this email who redeems a
+        // trial code would skip the trial entirely — they'd be
+        // rebound to the new Clerk identity but the trial wouldn't
+        // activate. Same try/catch shape as the insert-path call
+        // below so a bind failure doesn't break onboarding.
+        try {
+          const { bindAccessCodeOnOnboarding } = await import("@/app/beta/actions");
+          await bindAccessCodeOnOnboarding({
+            clerkUserId: userId,
+            studioId: existingRow.id,
+          });
+        } catch (err) {
+          console.error("onboarding.rebind_bind_access_code_failed", err);
+        }
         return { ok: true };
       }
       console.error("onboarding.rebind_by_email_failed", {

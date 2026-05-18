@@ -245,6 +245,25 @@ export async function bindAccessCodeOnOnboarding(args: {
     )
     .ilike("code", cookieCode)
     .maybeSingle();
+  /* Log the result shape so prod can confirm whether trial_days
+   * actually flows through this select. If the schema cache is
+   * stale we'll see the 42703/PGRST204 branch trigger here and the
+   * fallback strip the column — at which point the bind runs
+   * trial-less even when the code legitimately has trial_days set
+   * in the DB. */
+  if (wide.error) {
+    console.warn("access_code.bind.wide_select_error", {
+      cookieCode,
+      code: wide.error.code,
+      message: wide.error.message,
+    });
+  } else if (wide.data) {
+    console.info("access_code.bind.wide_select_ok", {
+      cookieCode,
+      id: (wide.data as { id?: string }).id ?? null,
+      trial_days: (wide.data as { trial_days?: number | null }).trial_days ?? null,
+    });
+  }
   const codeRow =
     wide.error &&
     (wide.error.code === "42703" || wide.error.code === "PGRST204")
@@ -380,30 +399,66 @@ export async function bindAccessCodeOnOnboarding(args: {
    * redeemed code carried `trial_days`, ALSO stamp
    * `trial_started_at = now()` so the gate's trial branch lets the
    * trainer reach /studio for the trial window. Defensive against
-   * the migration not being applied: try the wide update first,
-   * fall back to the legacy column set on 42703 / PGRST204. */
+   * the migration not being applied OR transient failures: try the
+   * wide update first, fall back to the base update on ANY error
+   * (not just column-missing) so the trainer isn't left half-
+   * configured if a transient blip hits the wide write. */
   const trialDays = (codeRow as { trial_days?: number | null }).trial_days ?? null;
   const baseTrainerUpdate: Record<string, unknown> = {
     cohort: codeRow.cohort,
     subscription_status: defaults.status,
     paid_until: null,
   };
+  /* Verbose logging so prod Vercel logs surface exactly which
+   * branch ran and whether the trial got stamped. Diagnosing a
+   * silent fail without these breadcrumbs is brutal. */
+  console.info("access_code.bind.trial_decision", {
+    studioId: args.studioId,
+    code: codeRow.code,
+    cohort: codeRow.cohort,
+    trial_days_on_code: trialDays,
+    will_set_trial_started_at: !!(trialDays && trialDays > 0),
+  });
   if (trialDays && trialDays > 0) {
     const wideUpdate = await supabase
       .from("trainers")
       .update({ ...baseTrainerUpdate, trial_started_at: new Date().toISOString() })
       .eq("id", args.studioId);
-    if (
-      wideUpdate.error &&
-      (wideUpdate.error.code === "42703" || wideUpdate.error.code === "PGRST204")
-    ) {
-      console.warn("access_code.bind.trial_started_at_column_missing_fallback", {
+    if (wideUpdate.error) {
+      console.warn("access_code.bind.trial_wide_update_failed_falling_back", {
         studioId: args.studioId,
+        code: wideUpdate.error.code,
+        message: wideUpdate.error.message,
       });
-      await supabase.from("trainers").update(baseTrainerUpdate).eq("id", args.studioId);
+      const fallback = await supabase
+        .from("trainers")
+        .update(baseTrainerUpdate)
+        .eq("id", args.studioId);
+      if (fallback.error) {
+        console.error("access_code.bind.trial_fallback_update_failed", {
+          studioId: args.studioId,
+          code: fallback.error.code,
+          message: fallback.error.message,
+        });
+      }
+    } else {
+      console.info("access_code.bind.trial_started_at_set", {
+        studioId: args.studioId,
+        code: codeRow.code,
+      });
     }
   } else {
-    await supabase.from("trainers").update(baseTrainerUpdate).eq("id", args.studioId);
+    const noTrial = await supabase
+      .from("trainers")
+      .update(baseTrainerUpdate)
+      .eq("id", args.studioId);
+    if (noTrial.error) {
+      console.error("access_code.bind.no_trial_update_failed", {
+        studioId: args.studioId,
+        code: noTrial.error.code,
+        message: noTrial.error.message,
+      });
+    }
   }
 
   await supabase.from("access_code_events").insert({
