@@ -260,21 +260,32 @@ export async function applyTemplateToSession(
       .maybeSingle();
     if (!template) return fail("Workout not found.");
 
-    /* Load the template's full tree in one nested query. The
-     * `*` columns on each level let us copy values forward without
-     * having to enumerate them — fewer places to update if columns
-     * are added later. */
+    /* Minimal SELECT — only columns we actually write into the
+     * session. Earlier version pulled round_label / round_rest_seconds
+     * / intent_tag which we never USED — they were just along for the
+     * ride, and if any of them happened to be missing on prod the
+     * whole select 42703'd and the entire apply silently aborted
+     * (the original symptom of "applying a workout shows nothing in
+     * the session"). Narrowing the select makes the apply tolerant
+     * of those out-of-band column variations. */
     const { data: tBlocks, error: loadErr } = await admin
       .from("template_blocks")
       .select(
-        `id, order_index, round_label, round_count, round_rest_seconds,
+        `id, order_index, round_count,
          template_block_exercises(id, order_index, setup_override, exercise_id,
-           template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, intent_tag)
+           template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds)
          )`,
       )
       .eq("template_id", templateId)
       .order("order_index");
-    if (loadErr) return fail(friendlyError(loadErr, "updating the session"));
+    if (loadErr) {
+      console.error("applyTemplateToSession.load_template_failed", {
+        templateId,
+        code: loadErr.code,
+        message: loadErr.message,
+      });
+      return fail(friendlyError(loadErr, "updating the session"));
+    }
     if (!tBlocks || tBlocks.length === 0) {
       return fail(`"${(template as { name: string }).name}" has no exercises yet — add some, then apply.`);
     }
@@ -290,21 +301,66 @@ export async function applyTemplateToSession(
 
     let blocksAdded = 0;
 
+    /* Per-insert defensive retry helper. The session_* tables may
+     * be missing columns the template_* tables have (round_count,
+     * setup_override, source_template_id) depending on which
+     * out-of-band migrations have been applied. Pattern: try wide,
+     * on 42703 / PGRST204 strip the named column and retry. */
+    async function insertWithFallback<T extends Record<string, unknown>>(
+      table: "session_blocks" | "session_block_exercises" | "session_set_groups",
+      payload: T,
+      optionalColumns: Array<keyof T>,
+    ): Promise<{ data: { id: string } | null; error: { code?: string | null; message?: string | null } | null }> {
+      let working: Record<string, unknown> = { ...payload };
+      // Try with everything, then iteratively drop each optional column
+      // that's reported missing until the insert succeeds OR a non-
+      // missing-column error surfaces.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const res = await admin
+          .from(table)
+          .insert(working)
+          .select("id")
+          .single();
+        if (!res.error) return res;
+        if (!isMissingColumnError(res.error)) return res;
+        // Find which optional column the error names; drop it and retry.
+        const droppable = optionalColumns.find(
+          (k) => res.error?.message && new RegExp(`\\b${String(k)}\\b`, "i").test(res.error.message),
+        );
+        if (!droppable || !(droppable in working)) return res;
+        console.warn(`applyTemplateToSession.${table}.column_missing_dropping`, {
+          column: droppable,
+          code: res.error.code,
+        });
+        const { [droppable as string]: _drop, ...rest } = working;
+        void _drop;
+        working = rest;
+      }
+    }
+
     for (const tb of tBlocks) {
-      /* New session_block per template_block. We keep
-       * round_count/label/rest if the template carried them — they
-       * line up 1:1 with the session_blocks columns. */
-      const { data: sb, error: sbErr } = await admin
-        .from("session_blocks")
-        .insert({
+      const tbCast = tb as { id: string; round_count?: number | null };
+      const sbRes = await insertWithFallback(
+        "session_blocks",
+        {
           session_id: sessionId,
           tenant_id: trainer.id,
           order_index: nextBlockOrder,
-          round_count: (tb as { round_count?: number }).round_count ?? 1,
-        })
-        .select("id")
-        .single();
-      if (sbErr) return fail(friendlyError(sbErr, "updating the session"));
+          round_count: tbCast.round_count ?? 1,
+        },
+        ["round_count"],
+      );
+      if (sbRes.error || !sbRes.data) {
+        console.error("applyTemplateToSession.session_block_insert_failed", {
+          templateId,
+          sessionId,
+          code: sbRes.error?.code,
+          message: sbRes.error?.message,
+        });
+        return fail(friendlyError(sbRes.error, "updating the session"));
+      }
+      const sb = sbRes.data;
       nextBlockOrder += 1;
 
       const tbes =
@@ -322,42 +378,36 @@ export async function applyTemplateToSession(
             weight_type: string;
             weight_value: unknown;
             rest_seconds: number | null;
-            intent_tag: string | null;
           }>;
         }> }).template_block_exercises) ?? [];
 
       for (const tbe of tbes) {
-        /* Insert with source_template_id; retry without on 42703 so
-         * the deploy is safe before migration 0013 lands. */
-        const beInsert = {
-          block_id: sb.id,
-          exercise_id: tbe.exercise_id,
-          tenant_id: trainer.id,
-          order_index: tbe.order_index,
-          setup_override: tbe.setup_override,
-          source_template_id: templateId,
-        };
-        let beRes = await admin
-          .from("session_block_exercises")
-          .insert(beInsert)
-          .select("id")
-          .single();
-        if (beRes.error && isMissingColumnError(beRes.error)) {
-          const { source_template_id: _drop, ...beWithoutSource } = beInsert;
-          void _drop;
-          beRes = await admin
-            .from("session_block_exercises")
-            .insert(beWithoutSource)
-            .select("id")
-            .single();
-        }
+        const beRes = await insertWithFallback(
+          "session_block_exercises",
+          {
+            block_id: sb.id,
+            exercise_id: tbe.exercise_id,
+            tenant_id: trainer.id,
+            order_index: tbe.order_index,
+            setup_override: tbe.setup_override,
+            source_template_id: templateId,
+          },
+          ["setup_override", "source_template_id"],
+        );
         if (beRes.error || !beRes.data) {
-          return fail(beRes.error?.message ?? "Couldn't add exercise to session.");
+          console.error("applyTemplateToSession.session_block_exercise_insert_failed", {
+            templateId,
+            sessionId,
+            exerciseId: tbe.exercise_id,
+            code: beRes.error?.code,
+            message: beRes.error?.message,
+          });
+          return fail(friendlyError(beRes.error, "updating the session"));
         }
 
-        /* Copy each template_set_group → session_set_group. The
-         * planned (prescribed) values come along; performed_* stays
-         * null until the trainer logs the set. */
+        /* Copy each template_set_group → session_set_group. Planned
+         * (prescribed) values come along; performed_* stays null
+         * until the trainer logs the set. */
         const sgs = (tbe.template_set_groups ?? []).map((tsg) => ({
           block_exercise_id: beRes.data!.id,
           tenant_id: trainer.id,
@@ -372,13 +422,26 @@ export async function applyTemplateToSession(
         }));
         if (sgs.length > 0) {
           const { error: sgErr } = await admin.from("session_set_groups").insert(sgs);
-          if (sgErr) return fail(friendlyError(sgErr, "updating the session"));
+          if (sgErr) {
+            console.error("applyTemplateToSession.session_set_groups_insert_failed", {
+              templateId,
+              sessionId,
+              code: sgErr.code,
+              message: sgErr.message,
+            });
+            return fail(friendlyError(sgErr, "updating the session"));
+          }
         }
       }
 
       blocksAdded += 1;
     }
 
+    console.info("applyTemplateToSession.success", {
+      templateId,
+      sessionId,
+      blocksAdded,
+    });
     revalidatePath(`/studio/sessions/${sessionId}`);
     revalidatePath(`/client/sessions/${sessionId}`);
     return ok({ blocksAdded });

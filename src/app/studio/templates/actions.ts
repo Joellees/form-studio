@@ -444,33 +444,108 @@ export async function saveTemplateChanges(
       .maybeSingle();
     if (!tpl) return fail("That workout isn't yours.");
 
+    /* Pre-verify ownership of every set-group and block id through
+     * the template chain. The original implementation enforced this
+     * by adding `.eq("tenant_id", trainer.id)` to each UPDATE — but
+     * if any row's `tenant_id` was historically NULL (column added
+     * later, backfill missed it, RLS bypass write earlier) the
+     * UPDATE silently affects 0 rows and the action returns ok().
+     * Result: the toast says "Workout saved." but the change never
+     * landed and `router.refresh()` reads back the old values, so
+     * the trainer's edit looks like it was lost.
+     *
+     * New shape: load all owned set-group + block ids by joining
+     * back through the template, assert membership, then UPDATE by
+     * id alone. Adds a `.select("id")` to detect any update that
+     * affects 0 rows so a silent failure is surfaced loudly.
+     */
+    const { data: ownedTree, error: ownedErr } = await supabase
+      .from("template_blocks")
+      .select("id, template_block_exercises(id, template_set_groups(id))")
+      .eq("template_id", templateId);
+    if (ownedErr) return fail(friendlyError(ownedErr, "saving the workout"));
+
+    const ownedBlockIds = new Set<string>();
+    const ownedSetGroupIds = new Set<string>();
+    for (const block of (ownedTree ?? []) as Array<{
+      id: string;
+      template_block_exercises?: Array<{
+        template_set_groups?: Array<{ id: string }>;
+      }>;
+    }>) {
+      ownedBlockIds.add(block.id);
+      for (const be of block.template_block_exercises ?? []) {
+        for (const sg of be.template_set_groups ?? []) {
+          ownedSetGroupIds.add(sg.id);
+        }
+      }
+    }
+
+    /* Membership checks — refuse the whole save if any incoming id
+     * doesn't belong to this template. Earlier, this would have
+     * just silently no-op'd a malicious / stale id; now we surface
+     * it explicitly. */
+    for (const sg of setGroups) {
+      if (!ownedSetGroupIds.has(sg.id)) {
+        console.warn("saveTemplateChanges.unowned_set_group", {
+          templateId,
+          setGroupId: sg.id,
+          trainerId: trainer.id,
+        });
+        return fail("One of those set groups doesn't belong to this workout. Reload the page and try again.");
+      }
+    }
+    if (blockOrder && blockOrder.length > 0) {
+      for (const bid of blockOrder) {
+        if (!ownedBlockIds.has(bid)) {
+          console.warn("saveTemplateChanges.unowned_block", {
+            templateId,
+            blockId: bid,
+          });
+          return fail("Some blocks don't belong to this workout. Reload the page and try again.");
+        }
+      }
+    }
+
+    /* Set-group writes. `.select("id")` on each UPDATE returns the
+     * affected rows so we can fail loudly if a write affects nothing
+     * (rather than the previous silent-zero-rows pattern). */
     for (const sg of setGroups) {
       const { id, ...fields } = sg;
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("template_set_groups")
         .update(fields)
         .eq("id", id)
-        .eq("tenant_id", trainer.id);
+        .select("id");
       if (error) return fail(friendlyError(error, "saving the workout"));
+      if (!updated || updated.length === 0) {
+        console.warn("saveTemplateChanges.set_group_update_zero_rows", {
+          templateId,
+          setGroupId: id,
+        });
+        return fail(
+          "Couldn't save one of your sets — reload the page and try the edit again.",
+        );
+      }
     }
 
     if (blockOrder && blockOrder.length > 0) {
-      const { data: owned } = await supabase
-        .from("template_blocks")
-        .select("id")
-        .eq("template_id", templateId)
-        .eq("tenant_id", trainer.id)
-        .in("id", blockOrder);
-      if ((owned ?? []).length !== blockOrder.length) {
-        return fail("Some blocks don't belong to this workout.");
-      }
       for (let i = 0; i < blockOrder.length; i++) {
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from("template_blocks")
           .update({ order_index: i })
           .eq("id", blockOrder[i]!)
-          .eq("tenant_id", trainer.id);
+          .select("id");
         if (error) return fail(friendlyError(error, "saving the workout"));
+        if (!updated || updated.length === 0) {
+          console.warn("saveTemplateChanges.block_order_update_zero_rows", {
+            templateId,
+            blockId: blockOrder[i],
+          });
+          return fail(
+            "Couldn't save the new exercise order — reload the page and try again.",
+          );
+        }
       }
     }
 
