@@ -90,7 +90,7 @@ export default async function CalendarPage({ searchParams }: Props) {
       .limit(20),
   ]);
 
-  // Group sessions by day in trainer&rsquo;s timezone
+  // Group sessions by day in trainer's timezone
   const sessionsByDay: Record<string, SessionSummary[]> = {};
   for (const s of sessions ?? []) {
     const key = formatInTz(new Date(s.scheduled_at), trainer.timezone, "yyyy-MM-dd");
@@ -108,7 +108,9 @@ export default async function CalendarPage({ searchParams }: Props) {
     });
   }
 
-  const todayKey = formatInTz(new Date(), trainer.timezone, "yyyy-MM-dd");
+  const now = new Date();
+  const todayKey = formatInTz(now, trainer.timezone, "yyyy-MM-dd");
+  const currentYearKey = formatInTz(now, trainer.timezone, "yyyy");
   const monthStartKey = monthStart
     ? formatInTz(monthStart, trainer.timezone, "yyyy-MM-dd")
     : null;
@@ -183,39 +185,52 @@ export default async function CalendarPage({ searchParams }: Props) {
     };
   });
 
-  const headline = view === "month" ? "This month." : view === "2weeks" ? "Two weeks." : "This week.";
-  const dateLabel =
+  // iOS-Calendar header: the primary label is the date range itself —
+  // month name for month view, "Nov 18 – 24" for week / 2-weeks. The
+  // year sits above as a quiet eyebrow only when it differs from the
+  // current year (matches iOS's habit of hiding "2026" when you're
+  // already in 2026; it reappears the moment you page into 2027).
+  const titleYearKey =
     view === "month"
-      ? formatInTz(monthStart ?? start, trainer.timezone, "MMMM yyyy")
-      : `${formatInTz(start, trainer.timezone, "MMM d")} — ${formatInTz(end, trainer.timezone, "MMM d, yyyy")}`;
+      ? formatInTz(monthStart ?? start, trainer.timezone, "yyyy")
+      : formatInTz(start, trainer.timezone, "yyyy");
+  const titleYear = titleYearKey === currentYearKey ? null : titleYearKey;
+  const titleLabel =
+    view === "month"
+      ? formatInTz(monthStart ?? start, trainer.timezone, "MMMM")
+      : sameMonth(start, end, trainer.timezone)
+        ? `${formatInTz(start, trainer.timezone, "MMM d")} – ${formatInTz(end, trainer.timezone, "d")}`
+        : `${formatInTz(start, trainer.timezone, "MMM d")} – ${formatInTz(end, trainer.timezone, "MMM d")}`;
+
+  // Whether the current window already contains today — drives the
+  // "today" jump-back button. Hidden when we're already on now (so
+  // the default load has no extra chrome), visible the moment the
+  // trainer has paged away. iOS's bottom-bar "Today" pill does the
+  // same thing with persistent placement; we just hide rather than
+  // dim for less visual noise.
+  const todayInWindow =
+    todayKey >= formatInTz(start, trainer.timezone, "yyyy-MM-dd") &&
+    todayKey <= formatInTz(end, trainer.timezone, "yyyy-MM-dd");
 
   // prev/next anchored to the start of the current window so the
   // chevrons traverse non-overlapping ranges.
   const prevHref = navHref(view, start, "prev");
   const nextHref = navHref(view, start, "next");
+  const todayHref = `?${new URLSearchParams({ view, date: todayKey }).toString()}`;
 
   return (
-    <div className="rise-in-stagger space-y-4 md:space-y-8">
-      {/* Mobile layout: title block on its own row, controls below it
-          on a separate row (view-switcher left, prev/next right). At
-          375px, packing title + 5 controls on one row meant the
-          switcher wrapped onto a third line and the nav arrows
-          collided with the date label. */}
-      <div className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-            calendar
-          </p>
-          <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">{headline}</h1>
-          <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums md:text-sm">
-            {dateLabel} · {prettyTimezone(trainer.timezone)}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 md:justify-end">
-          <ViewSwitcher current={view} reference={start} />
-          <NavGroup prevHref={prevHref} nextHref={nextHref} />
-        </div>
-      </div>
+    <div className="rise-in-stagger space-y-5 md:space-y-8">
+      <CalendarHeader
+        titleYear={titleYear}
+        titleLabel={titleLabel}
+        timezoneLabel={prettyTimezone(trainer.timezone)}
+        view={view}
+        reference={start}
+        prevHref={prevHref}
+        nextHref={nextHref}
+        todayHref={todayHref}
+        showTodayButton={!todayInWindow}
+      />
 
       {/* Requests live ABOVE the grid as a dedicated queue. The
         * panel auto-hides when there are zero pending requests so
@@ -237,6 +252,91 @@ export default async function CalendarPage({ searchParams }: Props) {
           body="Add a client first so you have someone to schedule."
         />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * iOS-Calendar-shaped header. Two zones:
+ *
+ *   left:   year eyebrow (conditional) + primary label (month OR range)
+ *   right:  [today]  [week / 2wk / month]  [← →]
+ *
+ * The "today" pill is conditional — it only renders when the
+ * current view window doesn't include today. iOS shows it in a
+ * persistent spot whenever you've paged away; we hide it on the
+ * default load so the chrome stays quiet, and surface it the moment
+ * the trainer has navigated forward or back.
+ *
+ * On mobile the right cluster wraps below the title block — packing
+ * a four-element control row inline at 375px collided with the date
+ * label and forced the view switcher onto its own line anyway.
+ * Splitting it deliberately gives the heading one row of breathing
+ * space and lines the controls up across one clean tap-target row.
+ */
+function CalendarHeader({
+  titleYear,
+  titleLabel,
+  timezoneLabel,
+  view,
+  reference,
+  prevHref,
+  nextHref,
+  todayHref,
+  showTodayButton,
+}: {
+  titleYear: string | null;
+  titleLabel: string;
+  timezoneLabel: string;
+  view: View;
+  reference: Date;
+  prevHref: string;
+  nextHref: string;
+  todayHref: string;
+  showTodayButton: boolean;
+}) {
+  return (
+    <div className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
+      <div>
+        {titleYear ? (
+          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-stone)] tabular-nums">
+            {titleYear}
+          </p>
+        ) : (
+          /* No year eyebrow when we're in the current year — but we
+           * still want the title baseline to sit at the same height
+           * as on other pages. The invisible spacer keeps "November"
+           * landing on the same y-coordinate as e.g. "Everyone you
+           * train." on the clients list, so flipping between sidebar
+           * pages doesn't bobble the H1. */
+          <p
+            aria-hidden
+            className="text-xs font-medium uppercase tracking-[0.26em] text-transparent select-none"
+          >
+            &nbsp;
+          </p>
+        )}
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight md:mt-1 md:text-4xl">
+          {titleLabel}
+        </h1>
+        <p className="mt-1.5 text-xs text-[color:var(--color-stone)] md:text-[13px]">
+          times in {timezoneLabel}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3 md:justify-end">
+        <div className="flex items-center gap-2">
+          {showTodayButton ? (
+            <Link
+              href={todayHref}
+              className="inline-flex h-9 items-center rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3.5 text-xs font-semibold tracking-tight text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-parchment)]"
+            >
+              today
+            </Link>
+          ) : null}
+          <ViewSwitcher current={view} reference={reference} />
+        </div>
+        <NavGroup prevHref={prevHref} nextHref={nextHref} />
+      </div>
     </div>
   );
 }
@@ -267,6 +367,16 @@ function addMonths(d: Date, n: number): Date {
   return next;
 }
 
+/**
+ * Two date ranges share a month when their MMM tokens match in the
+ * trainer's tz. Drives the compact "Nov 18 – 24" rendering versus
+ * the spelt-out "Nov 28 – Dec 4" form when a range crosses a month
+ * boundary.
+ */
+function sameMonth(start: Date, end: Date, tz: string): boolean {
+  return formatInTz(start, tz, "yyyy-MM") === formatInTz(end, tz, "yyyy-MM");
+}
+
 // `reference` (not `ref`) — `ref` is a reserved React prop, JSX
 // strips it from the props object before the component sees it,
 // which manifested as a server-side "Cannot read properties of
@@ -274,14 +384,14 @@ function addMonths(d: Date, n: number): Date {
 function ViewSwitcher({ current, reference }: { current: View; reference: Date }) {
   const items: { v: View; label: string }[] = [
     { v: "week", label: "week" },
-    { v: "2weeks", label: "2 weeks" },
+    { v: "2weeks", label: "2 wk" },
     { v: "month", label: "month" },
   ];
   const date = reference.toISOString().slice(0, 10);
   return (
     <div
       role="tablist"
-      className="inline-flex items-center gap-0.5 rounded-full bg-[color:var(--color-parchment)] p-1 text-xs font-medium"
+      className="inline-flex items-center gap-0.5 rounded-full bg-[color:var(--color-parchment)] p-0.5 text-xs font-medium"
     >
       {items.map((item) => {
         const active = current === item.v;
@@ -292,7 +402,7 @@ function ViewSwitcher({ current, reference }: { current: View; reference: Date }
             href={`?${params.toString()}`}
             role="tab"
             aria-selected={active}
-            className={`inline-flex h-9 items-center rounded-full px-3.5 transition-colors ${
+            className={`inline-flex h-8 items-center rounded-full px-3 transition-colors ${
               active
                 ? "bg-[color:var(--color-ink)] text-[color:var(--color-canvas)]"
                 : "text-[color:var(--color-ink)]/65 hover:text-[color:var(--color-ink)]"
@@ -308,22 +418,22 @@ function ViewSwitcher({ current, reference }: { current: View; reference: Date }
 
 function NavGroup({ prevHref, nextHref }: { prevHref: string; nextHref: string }) {
   return (
-    <div className="inline-flex items-center gap-1">
+    <div className="inline-flex items-center gap-0.5">
       <Link
         href={prevHref}
         aria-label="previous"
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 hover:bg-[color:var(--color-parchment)]"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink)]/65 transition-colors hover:bg-[color:var(--color-parchment)] hover:text-[color:var(--color-ink)]"
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </Link>
       <Link
         href={nextHref}
         aria-label="next"
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--color-ink)]/70 hover:bg-[color:var(--color-parchment)]"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink)]/65 transition-colors hover:bg-[color:var(--color-parchment)] hover:text-[color:var(--color-ink)]"
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </Link>
