@@ -4,9 +4,28 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type ActionResult, fail, ok, runAction } from "@/lib/actions";
-import { friendlyError } from "@/lib/postgrest-errors";
+import { friendlyError, isMissingColumnError } from "@/lib/postgrest-errors";
+import { FIELD_KEYS } from "@/lib/set-group";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
+
+/**
+ * Seed payload for a freshly-added set group under the new opt-in
+ * fields model. The default exercise row shows only Sets (=1); the
+ * trainer adds Reps / Weight / Tempo / RPE / Time / Rest via the
+ * popover. `active_fields = []` means "no optional fields yet";
+ * `rep_type` / `weight_type` are nullable post-migration 0015, so we
+ * leave them null until the trainer opts in.
+ */
+const FRESH_SET_GROUP_DEFAULTS = {
+  sets: 1,
+  rep_type: null,
+  rep_value: {},
+  weight_type: null,
+  weight_value: {},
+  rest_seconds: null,
+  active_fields: [] as string[],
+} as const;
 
 const createSchema = z.object({
   name: z.string().min(1, "Required").max(80),
@@ -111,17 +130,10 @@ export async function createTemplateWithExercises(
         .single();
       if (beErr) return fail(friendlyError(beErr, "saving the workout"));
 
-      const { error: sgErr } = await supabase.from("template_set_groups").insert({
+      const { error: sgErr } = await insertSetGroupSeed(supabase, {
         block_exercise_id: be.id,
         tenant_id: trainer.id,
         order_index: 0,
-        label: "Working",
-        sets: 3,
-        rep_type: "fixed",
-        rep_value: { type: "fixed", reps: 10 },
-        weight_type: "load",
-        weight_value: { type: "load", kg: 0 },
-        rest_seconds: 90,
       });
       if (sgErr) return fail(friendlyError(sgErr, "saving the workout"));
     }
@@ -130,6 +142,56 @@ export async function createTemplateWithExercises(
     revalidatePath("/studio/library");
     return ok({ id: templateId });
   });
+}
+
+/**
+ * Insert a freshly-seeded set group with the opt-in defaults
+ * (Sets = 1, no optional fields). Tolerates the
+ * `active_fields` column being absent on a stale prod database
+ * (migration 0015 not yet applied) by stripping it and retrying — the
+ * same defensive pattern used in applyTemplateToSession. Without this,
+ * a single missed migration would break "add exercise" entirely.
+ */
+async function insertSetGroupSeed(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  base: { block_exercise_id: string; tenant_id: string; order_index: number; label?: string | null },
+): Promise<{ error: { message?: string | null; code?: string | null } | null }> {
+  const payload: Record<string, unknown> = {
+    ...FRESH_SET_GROUP_DEFAULTS,
+    ...base,
+  };
+  // First try: full opt-in shape (active_fields present, types nullable).
+  let res = await supabase.from("template_set_groups").insert(payload);
+  if (!res.error) return { error: null };
+
+  // If the migration that drops NOT NULL on rep_type / weight_type hasn't
+  // run, the insert will 23502 (not_null_violation). Fall back to the
+  // legacy 3×10 @ 0 kg / 90s shape so the trainer can still add exercises.
+  if (res.error.code === "23502") {
+    res = await supabase.from("template_set_groups").insert({
+      ...base,
+      sets: 3,
+      rep_type: "fixed",
+      rep_value: { type: "fixed", reps: 10 },
+      weight_type: "load",
+      weight_value: { type: "load", kg: 0 },
+      rest_seconds: 90,
+    });
+    if (!res.error) return { error: null };
+  }
+
+  // If `active_fields` is missing on this DB, strip it and retry — the
+  // row still inserts, the trainer just doesn't get the opt-in UX
+  // until the migration lands.
+  if (isMissingColumnError(res.error)) {
+    const { active_fields: _drop, ...without } = payload;
+    void _drop;
+    const retry = await supabase.from("template_set_groups").insert(without);
+    if (!retry.error) return { error: null };
+    return { error: retry.error };
+  }
+
+  return { error: res.error };
 }
 
 const appendExercisesSchema = z.object({
@@ -203,17 +265,10 @@ export async function appendExercisesToTemplate(
         .single();
       if (beErr) return fail(friendlyError(beErr, "saving the workout"));
 
-      const { error: sgErr } = await supabase.from("template_set_groups").insert({
+      const { error: sgErr } = await insertSetGroupSeed(supabase, {
         block_exercise_id: be.id,
         tenant_id: trainer.id,
         order_index: 0,
-        label: "Working",
-        sets: 3,
-        rep_type: "fixed",
-        rep_value: { type: "fixed", reps: 10 },
-        weight_type: "load",
-        weight_value: { type: "load", kg: 0 },
-        rest_seconds: 90,
       });
       if (sgErr) return fail(friendlyError(sgErr, "saving the workout"));
     }
@@ -286,17 +341,10 @@ export async function addExerciseToTemplate(raw: unknown): Promise<ActionResult<
       .single();
     if (beErr) return fail(friendlyError(beErr, "saving the workout"));
 
-    const { error: sgErr } = await supabase.from("template_set_groups").insert({
+    const { error: sgErr } = await insertSetGroupSeed(supabase, {
       block_exercise_id: blockEx.id,
       tenant_id: trainer.id,
       order_index: 0,
-      label: "Working",
-      sets: 3,
-      rep_type: "fixed",
-      rep_value: { type: "fixed", reps: 10 },
-      weight_type: "load",
-      weight_value: { type: "load", kg: 0 },
-      rest_seconds: 90,
     });
     if (sgErr) return fail(friendlyError(sgErr, "saving the workout"));
 
@@ -406,12 +454,20 @@ const saveTemplateChangesSchema = z.object({
       z.object({
         id: z.string().uuid(),
         sets: z.number().int().positive().optional(),
-        rep_type: z.string().optional(),
+        rep_type: z.string().nullable().optional(),
         rep_value: z.unknown().optional(),
-        weight_type: z.string().optional(),
+        weight_type: z.string().nullable().optional(),
         weight_value: z.unknown().optional(),
         rest_seconds: z.number().int().nullable().optional(),
         label: z.string().nullable().optional(),
+        // Opt-in field tracking (migration 0015). `active_fields` is the
+        // jsonb array of optional field keys the trainer has added; the
+        // tempo / rpe / time_seconds columns hold values for the new
+        // fields that didn't exist under the old fixed-grid model.
+        active_fields: z.array(z.enum(FIELD_KEYS)).optional(),
+        tempo: z.string().max(40).nullable().optional(),
+        rpe: z.string().max(20).nullable().optional(),
+        time_seconds: z.number().int().positive().nullable().optional(),
       }),
     )
     .max(500),
@@ -509,23 +565,52 @@ export async function saveTemplateChanges(
 
     /* Set-group writes. `.select("id")` on each UPDATE returns the
      * affected rows so we can fail loudly if a write affects nothing
-     * (rather than the previous silent-zero-rows pattern). */
+     * (rather than the previous silent-zero-rows pattern).
+     *
+     * Opt-in field columns (`active_fields`, `tempo`, `rpe`,
+     * `time_seconds`) were introduced in migration 0015. If the
+     * migration hasn't been applied to this DB the UPDATE fails with
+     * PGRST204 / 42703 — we strip the offending column from the
+     * payload and retry so the rest of the save still lands. The same
+     * pattern protects against future opt-in column additions. */
+    const OPT_IN_DROPPABLE = ["active_fields", "tempo", "rpe", "time_seconds"];
     for (const sg of setGroups) {
-      const { id, ...fields } = sg;
-      const { data: updated, error } = await supabase
-        .from("template_set_groups")
-        .update(fields)
-        .eq("id", id)
-        .select("id");
-      if (error) return fail(friendlyError(error, "saving the workout"));
-      if (!updated || updated.length === 0) {
-        console.warn("saveTemplateChanges.set_group_update_zero_rows", {
-          templateId,
-          setGroupId: id,
-        });
-        return fail(
-          "Couldn't save one of your sets — reload the page and try the edit again.",
+      const { id, ...rest } = sg;
+      let working: Record<string, unknown> = { ...rest };
+      while (true) {
+        const { data: updated, error } = await supabase
+          .from("template_set_groups")
+          .update(working)
+          .eq("id", id)
+          .select("id");
+        if (!error) {
+          if (!updated || updated.length === 0) {
+            console.warn("saveTemplateChanges.set_group_update_zero_rows", {
+              templateId,
+              setGroupId: id,
+            });
+            return fail(
+              "Couldn't save one of your sets — reload the page and try the edit again.",
+            );
+          }
+          break;
+        }
+        if (!isMissingColumnError(error)) {
+          return fail(friendlyError(error, "saving the workout"));
+        }
+        const droppable = OPT_IN_DROPPABLE.find(
+          (k) => error.message && new RegExp(`\\b${k}\\b`, "i").test(error.message),
         );
+        if (!droppable || !(droppable in working)) {
+          return fail(friendlyError(error, "saving the workout"));
+        }
+        console.warn("saveTemplateChanges.column_missing_dropping", {
+          column: droppable,
+          code: error.code,
+        });
+        const { [droppable]: _drop, ...withoutCol } = working;
+        void _drop;
+        working = withoutCol;
       }
     }
 
@@ -603,26 +688,26 @@ export async function addSetGroupToBlockExercise(
       .limit(1);
     const nextOrder = (last?.[0]?.order_index ?? -1) + 1;
 
-    const { data, error } = await supabase
+    // Insert a fresh opt-in set group at the next order_index. We have
+    // to round-trip through `insertSetGroupSeed` + a follow-up SELECT
+    // rather than relying on `.select().single()` because the seed
+    // helper handles the column-missing fallback path internally.
+    const seedRes = await insertSetGroupSeed(supabase, {
+      block_exercise_id: blockExerciseId,
+      tenant_id: trainer.id,
+      order_index: nextOrder,
+    });
+    if (seedRes.error) return fail(friendlyError(seedRes.error, "saving the workout"));
+
+    const { data } = await supabase
       .from("template_set_groups")
-      .insert({
-        block_exercise_id: blockExerciseId,
-        tenant_id: trainer.id,
-        order_index: nextOrder,
-        label: nextOrder === 0 ? "Working" : null,
-        sets: 3,
-        rep_type: "fixed",
-        rep_value: { type: "fixed", reps: 10 },
-        weight_type: "load",
-        weight_value: { type: "load", kg: 0 },
-        rest_seconds: 90,
-      })
       .select("id")
-      .single();
-    if (error) return fail(friendlyError(error, "saving the workout"));
+      .eq("block_exercise_id", blockExerciseId)
+      .eq("order_index", nextOrder)
+      .maybeSingle();
 
     revalidatePath(`/studio/templates/${templateId}`);
-    return ok({ id: data.id });
+    return ok({ id: (data?.id as string) ?? "" });
   });
 }
 

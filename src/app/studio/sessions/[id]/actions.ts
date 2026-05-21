@@ -273,7 +273,7 @@ export async function applyTemplateToSession(
       .select(
         `id, order_index, round_count,
          template_block_exercises(id, order_index, setup_override, exercise_id,
-           template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds)
+           template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, active_fields, tempo, rpe, time_seconds)
          )`,
       )
       .eq("template_id", templateId)
@@ -373,11 +373,15 @@ export async function applyTemplateToSession(
             order_index: number;
             label: string | null;
             sets: number;
-            rep_type: string;
+            rep_type: string | null;
             rep_value: unknown;
-            weight_type: string;
+            weight_type: string | null;
             weight_value: unknown;
             rest_seconds: number | null;
+            active_fields?: unknown;
+            tempo?: string | null;
+            rpe?: string | null;
+            time_seconds?: number | null;
           }>;
         }> }).template_block_exercises) ?? [];
 
@@ -408,6 +412,13 @@ export async function applyTemplateToSession(
         /* Copy each template_set_group → session_set_group. Planned
          * (prescribed) values come along; performed_* stays null
          * until the trainer logs the set. */
+        /* Copy each template_set_group → session_set_group with the
+         * full opt-in shape so the session inherits the exact field
+         * selection the trainer set up on the template. Per-row insert
+         * with column-missing fallback handles a stale `session_*`
+         * schema (e.g. migration 0015 not yet applied to that table)
+         * gracefully — the row still lands without the opt-in metadata
+         * and the trainer just sees the legacy fixed-grid view there. */
         const sgs = (tbe.template_set_groups ?? []).map((tsg) => ({
           block_exercise_id: beRes.data!.id,
           tenant_id: trainer.id,
@@ -419,17 +430,25 @@ export async function applyTemplateToSession(
           weight_type: tsg.weight_type,
           weight_value: tsg.weight_value,
           rest_seconds: tsg.rest_seconds,
+          active_fields: tsg.active_fields ?? [],
+          tempo: tsg.tempo ?? null,
+          rpe: tsg.rpe ?? null,
+          time_seconds: tsg.time_seconds ?? null,
         }));
-        if (sgs.length > 0) {
-          const { error: sgErr } = await admin.from("session_set_groups").insert(sgs);
-          if (sgErr) {
+        for (const sgPayload of sgs) {
+          const ins = await insertWithFallback(
+            "session_set_groups",
+            sgPayload,
+            ["active_fields", "tempo", "rpe", "time_seconds"],
+          );
+          if (ins.error) {
             console.error("applyTemplateToSession.session_set_groups_insert_failed", {
               templateId,
               sessionId,
-              code: sgErr.code,
-              message: sgErr.message,
+              code: ins.error.code,
+              message: ins.error.message,
             });
-            return fail(friendlyError(sgErr, "updating the session"));
+            return fail(friendlyError(ins.error, "updating the session"));
           }
         }
       }

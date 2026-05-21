@@ -26,7 +26,7 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
         `id, order_index, round_label, round_count, round_rest_seconds,
          template_block_exercises(id, order_index, setup_override, exercise_id,
            exercises(id, name),
-           template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, intent_tag)
+           template_set_groups(id, order_index, label, sets, rep_type, rep_value, weight_type, weight_value, rest_seconds, intent_tag, active_fields, tempo, rpe, time_seconds)
          )`,
       )
       .eq("template_id", id)
