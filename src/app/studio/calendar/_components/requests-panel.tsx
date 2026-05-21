@@ -115,7 +115,7 @@ export function RequestsPanel({ requests }: { requests: PendingRequest[] }) {
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-moss)]">
-          Requests
+          requests
         </p>
         <span className="text-[11px] tabular-nums text-[color:var(--color-stone)]">
           {requests.length} pending

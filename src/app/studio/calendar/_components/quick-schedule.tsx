@@ -1,5 +1,6 @@
 "use client";
 
+import { fromZonedTime } from "date-fns-tz";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
@@ -46,6 +47,15 @@ type Props = {
    * 09:00 when omitted.
    */
   initialTime?: string;
+  /**
+   * The trainer's IANA timezone (e.g. "Asia/Beirut"). REQUIRED for
+   * correct local→UTC conversion at submit time. Without this we
+   * fall back to the BROWSER's timezone — which is wrong any time
+   * the trainer's device tz differs from their studio tz (e.g.
+   * trainer in Beirut on a laptop set to UTC books at the wrong
+   * hour). Passing it explicitly removes that whole class of bug.
+   */
+  timezone: string;
 };
 
 /**
@@ -53,7 +63,7 @@ type Props = {
  * optionally a pre-built workout. Shows the client&rsquo;s active block inline
  * so the trainer sees how many sessions are left without hunting for it.
  */
-export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose, initialTime }: Props) {
+export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose, initialTime, timezone }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
@@ -101,11 +111,19 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose, i
       return;
     }
     setError(null);
+    /* Build the UTC instant from a trainer-LOCAL date + time, NOT
+     * the browser-local one. `new Date("2026-05-21T09:00:00")`
+     * interprets the string as the browser's local time, so a
+     * trainer in Beirut whose laptop is on UTC would create the
+     * session three hours off. `fromZonedTime` reads the same
+     * string as "this naive datetime in the named tz" and returns
+     * the correct UTC instant. */
     const localIso = `${isoDate}T${time}:00`;
+    const scheduledAtUtc = fromZonedTime(localIso, timezone).toISOString();
     startTransition(async () => {
       const result = await scheduleSession({
         clientId,
-        scheduledAt: new Date(localIso).toISOString(),
+        scheduledAt: scheduledAtUtc,
         durationMinutes: 60,
         sessionType: type,
         templateId: workoutId || null,

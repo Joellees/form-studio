@@ -243,6 +243,7 @@ export default async function CalendarPage({ searchParams }: Props) {
         clients={clients}
         workouts={workouts ?? []}
         view={view}
+        timezone={trainer.timezone}
       />
 
       {clients.length === 0 && (!sessions || sessions.length === 0) ? (

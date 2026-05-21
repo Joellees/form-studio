@@ -1,5 +1,6 @@
 "use client";
 
+import { formatInTimeZone } from "date-fns-tz";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { QuickSchedule, type ClientOpt } from "./quick-schedule";
@@ -21,6 +22,9 @@ type Props = {
   clients: ClientOpt[];
   workouts: { id: string; name: string }[];
   view: "week" | "2weeks" | "month";
+  /** Trainer's IANA timezone — used for "now" math and the
+   * local→UTC conversion in QuickSchedule. */
+  timezone: string;
 };
 
 /* ─── Quick-schedule launch shape ─────────────────────────────────
@@ -50,7 +54,7 @@ type Pick = { day: Day; initialTime?: string };
  *    grid for month. Month cell tap opens a centered modal with the
  *    `DayTimeline` so the booking UX matches mobile.
  */
-export function CalendarGrid({ days, sessionsByDay, clients, workouts, view }: Props) {
+export function CalendarGrid({ days, sessionsByDay, clients, workouts, view, timezone }: Props) {
   const [picked, setPicked] = useState<Pick | null>(null);
   /* The desktop month timeline modal is separate from the
    * quick-schedule sheet: tapping a cell opens the timeline,
@@ -100,6 +104,7 @@ export function CalendarGrid({ days, sessionsByDay, clients, workouts, view }: P
         <DesktopWeekTimeGrid
           days={days}
           sessionsByDay={sessionsByDay}
+          timezone={timezone}
           onPick={(d) => setTimelineDay(d)}
           onAddAtTime={(d, time) => openQuickSchedule(d, time)}
         />
@@ -136,6 +141,7 @@ export function CalendarGrid({ days, sessionsByDay, clients, workouts, view }: P
           clients={clients}
           workouts={workouts}
           initialTime={picked.initialTime}
+          timezone={timezone}
           onClose={() => setPicked(null)}
         />
       ) : null}
@@ -666,11 +672,13 @@ const GRID_HEIGHT = GRID_HOURS * GRID_HOUR_PX;
 function DesktopWeekTimeGrid({
   days,
   sessionsByDay,
+  timezone,
   onPick,
   onAddAtTime,
 }: {
   days: Day[];
   sessionsByDay: Record<string, SessionSummary[]>;
+  timezone: string;
   /** Click the day header → open the day timeline modal. */
   onPick: (d: Day) => void;
   /** Click an empty slot in a column → schedule at that time. */
@@ -684,25 +692,23 @@ function DesktopWeekTimeGrid({
 
   return (
     <div className="hidden md:block">
-      {/* Sticky day-header row sitting just under the page chrome.
-        * The 56px gutter cell at left lines up with the hour
-        * column below so the rest of the header columns align
-        * one-to-one with their day tracks. */}
-      <div className="sticky top-[64px] z-20 grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-[color:var(--color-stone-soft)]/50 bg-[color:var(--color-canvas)]/95 backdrop-blur">
+      {/* Day-header row. Stays in the document flow rather than
+        * being sticky — the studio chrome above is already sticky,
+        * and a second sticky layer made the day strip drift behind
+        * a 1px line. The weekday + date stack vertically (iOS Week
+        * view shape) so the date number can carry the moss circle
+        * without competing horizontally with the eyebrow. */}
+      <div className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))] border-b border-[color:var(--color-stone-soft)]/40">
         <div />
         {days.map((d) => (
           <button
             key={d.key}
             type="button"
             onClick={() => onPick(d)}
-            className={cn(
-              "flex items-center justify-center gap-2 py-3 transition-colors",
-              "hover:bg-[color:var(--color-parchment)]/40",
-              d.isToday && "bg-[color:var(--color-parchment)]/30",
-            )}
+            className="flex flex-col items-center gap-1 py-2.5 transition-colors hover:bg-[color:var(--color-parchment)]/35"
             aria-label={`open ${d.humanDate}`}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
               {d.weekday}
             </span>
             <DateBadge dayNum={d.dayNum} isToday={d.isToday} size="sm" />
@@ -711,18 +717,20 @@ function DesktopWeekTimeGrid({
       </div>
 
       {/* Time grid body. Hour gutter on the left + 7 day tracks. */}
-      <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))]">
-        {/* Hour gutter — labels float at the gridline. Each hour
-          * "row" is 60px tall so the absolute positioning math in
-          * the day columns lines up. */}
+      <div className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))]">
+        {/* Hour gutter — labels sit at the start of each row,
+          * tabular-nums for clean vertical alignment, stone/70 so
+          * they recede behind the actual data. We render every
+          * hour 06 → 22; the gutter is its own column so the
+          * labels don't collide with the day tracks. */}
         <div className="relative" style={{ height: GRID_HEIGHT }}>
           {hours.map((h) => (
             <div
               key={h}
-              className="absolute left-0 right-0 flex justify-end pr-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-stone)] tabular-nums"
-              style={{ top: (h - GRID_START_HOUR) * GRID_HOUR_PX - 6 }}
+              className="absolute right-0 pr-2 text-[11px] tabular-nums text-[color:var(--color-stone)]/70"
+              style={{ top: (h - GRID_START_HOUR) * GRID_HOUR_PX + 4 }}
             >
-              {h === GRID_START_HOUR ? null : h}
+              {String(h).padStart(2, "0")}
             </div>
           ))}
         </div>
@@ -732,6 +740,7 @@ function DesktopWeekTimeGrid({
             key={d.key}
             day={d}
             sessions={sessionsByDay[d.key] ?? []}
+            timezone={timezone}
             onAddAtTime={(time) => onAddAtTime(d, time)}
           />
         ))}
@@ -760,10 +769,12 @@ function DesktopWeekTimeGrid({
 function WeekGridColumn({
   day,
   sessions,
+  timezone,
   onAddAtTime,
 }: {
   day: Day;
   sessions: SessionSummary[];
+  timezone: string;
   onAddAtTime: (time: string) => void;
 }) {
   function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -780,42 +791,36 @@ function WeekGridColumn({
 
   const blocks = useMemo(() => computeWeekBlocks(sessions), [sessions]);
 
+  /* Hour gridlines drawn as a single CSS gradient on the column
+   * background — 7 columns × 17 hour-line divs would be 119 DOM
+   * nodes purely for decoration. The gradient lays a 1px line of
+   * stone-soft/35 every GRID_HOUR_PX, leaving the rest of the
+   * column transparent. Half-hour dashed marks are intentionally
+   * gone — they were noise, not structure. */
+  const gridlineStyle: React.CSSProperties = {
+    height: GRID_HEIGHT,
+    backgroundImage: `linear-gradient(to bottom, rgba(206,199,184,0.35) 1px, transparent 1px)`,
+    backgroundSize: `100% ${GRID_HOUR_PX}px`,
+    backgroundRepeat: "repeat-y",
+  };
+
   return (
     <div
-      className={cn(
-        "relative border-l border-[color:var(--color-stone-soft)]/45 transition-colors",
-        day.isToday && "bg-[color:var(--color-parchment)]/25",
-      )}
-      style={{ height: GRID_HEIGHT }}
+      className="relative border-l border-[color:var(--color-stone-soft)]/30"
+      style={gridlineStyle}
     >
-      {/* Click overlay (z-0). Hover deepens the tint so the
-        * trainer can see what they'll click into. */}
+      {/* Click overlay (z-0). Hover tint is quieter than before —
+        * a calm parchment wash so the click target is visible
+        * without flashing. Today's column does NOT carry an extra
+        * background tint: the moss circle on the date and the
+        * current-time line are already two strong "today" signals;
+        * a third was overkill. */}
       <button
         type="button"
         onClick={handleClick}
         aria-label={`add session on ${day.humanDate}`}
-        className="absolute inset-0 z-0 transition-colors hover:bg-[color:var(--color-parchment)]/45"
+        className="absolute inset-0 z-0 transition-colors hover:bg-[color:var(--color-parchment)]/25"
       />
-
-      {/* Hour gridlines (z-10). One thin line at each hour boundary
-        * + a slightly lighter half-hour mark so the trainer can
-        * dead-reckon a 30-minute snap visually. */}
-      <div className="pointer-events-none absolute inset-0 z-10">
-        {Array.from({ length: GRID_HOURS }).map((_, i) => (
-          <div
-            key={`hour-${i}`}
-            className="absolute left-0 right-0 border-t border-[color:var(--color-stone-soft)]/45"
-            style={{ top: i * GRID_HOUR_PX }}
-          />
-        ))}
-        {Array.from({ length: GRID_HOURS }).map((_, i) => (
-          <div
-            key={`half-${i}`}
-            className="absolute left-0 right-0 border-t border-dashed border-[color:var(--color-stone-soft)]/25"
-            style={{ top: i * GRID_HOUR_PX + GRID_HOUR_PX / 2 }}
-          />
-        ))}
-      </div>
 
       {/* Session blocks (z-20). pointer-events: auto on each link so
         * clicks navigate; the surrounding wrapper is pointer-events:
@@ -828,8 +833,10 @@ function WeekGridColumn({
       </div>
 
       {/* Current-time line — only renders inside today's column.
-        * Client-only; it updates every minute. */}
-      {day.isToday ? <CurrentTimeLine /> : null}
+        * Computes "now" in the TRAINER's tz, not the browser's, so
+        * a trainer in Beirut on a laptop set to UTC still sees the
+        * line land at the right hour. */}
+      {day.isToday ? <CurrentTimeLine timezone={timezone} /> : null}
     </div>
   );
 }
@@ -926,7 +933,7 @@ function WeekGridBlock({ block }: { block: WeekBlock }) {
     <a
       href={`/studio/sessions/${session.id}`}
       className={cn(
-        "pointer-events-auto absolute flex flex-col gap-0.5 overflow-hidden rounded-md border-l-[3px] border-[color:var(--color-moss)] bg-[color:var(--color-canvas)] px-1.5 py-1 text-[11px] leading-tight shadow-[0_1px_0_rgba(31,30,27,0.06),0_4px_12px_-6px_rgba(31,30,27,0.18)] transition-shadow hover:shadow-[0_2px_0_rgba(31,30,27,0.08),0_8px_18px_-6px_rgba(31,30,27,0.28)]",
+        "pointer-events-auto absolute flex flex-col gap-0.5 overflow-hidden rounded-md border-l-[3px] border-[color:var(--color-moss)] bg-[color:var(--color-canvas)] px-1.5 py-1 text-[11px] leading-tight shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-shadow hover:shadow-[0_4px_12px_-2px_rgba(31,30,27,0.18)]",
         cancelled && "line-through opacity-50",
         completed && "opacity-75",
       )}
@@ -937,30 +944,35 @@ function WeekGridBlock({ block }: { block: WeekBlock }) {
         width: `calc(${widthPct}% - 4px)`,
       }}
     >
-      <span className="tabular-nums text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-stone)]">
+      <span className="tabular-nums text-[10px] text-[color:var(--color-stone)]">
         {session.formatted_time}
       </span>
-      <span className="truncate font-medium text-[color:var(--color-ink)]">{label}</span>
+      <span className="truncate text-[color:var(--color-ink)]">{label}</span>
     </a>
   );
 }
 
 /**
  * The moss "you are here" line that cuts across today's column.
- * Updates every 60 seconds — no need for finer granularity since
- * the line is a glance affordance, not a stopwatch. Hides itself
- * if `now` falls outside the visible 6 AM → 11 PM range so the
- * trainer doesn't see a stranded line floating off-grid at midnight.
+ *
+ * Computes the offset in the TRAINER's timezone, not the browser's
+ * — a trainer in Beirut on a laptop set to UTC still sees the line
+ * land at the right hour. The line auto-updates every 60 seconds.
+ * No finer granularity needed: the line is a glance affordance,
+ * not a stopwatch.
+ *
+ * Hairline (1.5px) over a 6px ringed dot at the left edge — same
+ * shape iOS uses, just in moss instead of red.
  */
-function CurrentTimeLine() {
-  const [top, setTop] = useState<number | null>(() => computeNowOffset());
+function CurrentTimeLine({ timezone }: { timezone: string }) {
+  const [top, setTop] = useState<number | null>(() => computeNowOffset(timezone));
 
   useEffect(() => {
-    const tick = () => setTop(computeNowOffset());
+    const tick = () => setTop(computeNowOffset(timezone));
     tick();
     const id = window.setInterval(tick, 60_000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [timezone]);
 
   if (top === null) return null;
 
@@ -970,20 +982,30 @@ function CurrentTimeLine() {
       className="pointer-events-none absolute left-0 right-0 z-30"
       style={{ top }}
     >
-      <div className="relative h-[2px] bg-[color:var(--color-moss)]">
-        <span className="absolute left-0 top-1/2 size-2.5 -translate-x-1.5 -translate-y-1/2 rounded-full bg-[color:var(--color-moss)] shadow-[0_0_0_2px_rgba(74,85,64,0.18)]" />
+      <div className="relative h-[1.5px] bg-[color:var(--color-moss)]">
+        <span className="absolute left-0 top-1/2 size-2 -translate-x-1 -translate-y-1/2 rounded-full bg-[color:var(--color-moss)] shadow-[0_0_0_2px_rgba(74,85,64,0.18)]" />
       </div>
     </div>
   );
 }
 
-function computeNowOffset(): number | null {
-  const now = new Date();
-  const h = now.getHours();
-  const m = now.getMinutes();
-  const minutesFromStart = (h - GRID_START_HOUR) * 60 + m;
-  if (minutesFromStart < 0 || minutesFromStart > GRID_HOURS * 60) return null;
-  return minutesFromStart;
+function computeNowOffset(timezone: string): number | null {
+  // Read the current trainer-local hour:minute via date-fns-tz so
+  // a browser tz different from the trainer's studio tz doesn't
+  // misplace the line.
+  try {
+    const hhmm = formatInTimeZone(new Date(), timezone, "HH:mm");
+    const [hStr = "0", mStr = "0"] = hhmm.split(":");
+    const h = Number(hStr);
+    const m = Number(mStr);
+    const minutesFromStart = (h - GRID_START_HOUR) * 60 + m;
+    if (minutesFromStart < 0 || minutesFromStart > GRID_HOURS * 60) return null;
+    return minutesFromStart;
+  } catch {
+    // Bad tz string → fail closed (hide the line) rather than
+    // throwing during render.
+    return null;
+  }
 }
 
 /* ─── Desktop: month grid ──────────────────────────────────────── */
@@ -1057,10 +1079,17 @@ function MonthCell({
       type="button"
       onClick={onPick}
       className={cn(
-        "group flex min-h-[7.5rem] flex-col gap-1.5 rounded-xl bg-[color:var(--color-parchment)]/30 p-1.5 text-left transition-colors",
-        "hover:bg-[color:var(--color-parchment)]/65",
-        day.isToday && "bg-[color:var(--color-parchment)]/60 hover:bg-[color:var(--color-parchment)]/80",
-        !day.inMonth && "bg-[color:var(--color-parchment)]/15 opacity-65 hover:opacity-90",
+        // Cell base: very light parchment so the grid reads as a
+        // calendar of cards without competing with the chips
+        // inside. Today gets a slightly stronger tint but no
+        // additional ring — the moss circle on the date number is
+        // signal enough. Out-of-month cells dim via opacity only
+        // (was previously also lightening the bg, which fought the
+        // opacity and looked muddy).
+        "group flex min-h-[7.5rem] flex-col gap-1.5 rounded-xl bg-[color:var(--color-parchment)]/15 p-1.5 text-left transition-colors",
+        "hover:bg-[color:var(--color-parchment)]/45",
+        day.isToday && "bg-[color:var(--color-parchment)]/40 hover:bg-[color:var(--color-parchment)]/60",
+        !day.inMonth && "opacity-50 hover:opacity-80",
       )}
       aria-label={`open ${day.humanDate}`}
     >
