@@ -5,6 +5,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
 
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { ToastProvider } from "@/components/ui/toast";
 import { getCanonicalUrl } from "@/lib/urls";
 
@@ -82,8 +83,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </head>
         <body>
           <ToastProvider>
-            {children}
-            <RegisterServiceWorker />
+            <ConfirmProvider>
+              {children}
+              <RegisterServiceWorker />
+            </ConfirmProvider>
           </ToastProvider>
         </body>
       </html>

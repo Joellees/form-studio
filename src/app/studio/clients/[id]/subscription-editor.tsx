@@ -6,6 +6,7 @@ import { updateSubscription } from "@/app/studio/subscriptions/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 
 type Sub = {
   id: string;
@@ -22,6 +23,7 @@ type Sub = {
  * without leaving the client page.
  */
 export function SubscriptionEditor({ sub }: { sub: Sub }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -39,9 +41,10 @@ export function SubscriptionEditor({ sub }: { sub: Sub }) {
         end_date: endDate || null,
       });
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         return;
       }
+      toast.success("subscription updated.");
       setEditing(false);
     });
   }

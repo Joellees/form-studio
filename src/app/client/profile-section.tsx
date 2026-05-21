@@ -7,6 +7,7 @@ import { updateNoteToTrainer } from "./actions";
 import { SwitchPackageNextCycle } from "./dashboard/switch-package";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
 
 type Package = {
   id: string;
@@ -50,6 +51,7 @@ export function ProfileSection({
   packages,
 }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [savingNote, startNoteSave] = useTransition();
   const [note, setNote] = useState(noteToTrainer ?? "");
   const [editing, setEditing] = useState(false);
@@ -58,9 +60,10 @@ export function ProfileSection({
     startNoteSave(async () => {
       const result = await updateNoteToTrainer({ note: note.trim() || null });
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         return;
       }
+      toast.success("note sent to your trainer.");
       setEditing(false);
       router.refresh();
     });

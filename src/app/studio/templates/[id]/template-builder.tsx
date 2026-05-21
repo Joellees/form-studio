@@ -39,6 +39,7 @@ import { LibraryDock } from "@/app/studio/_components/library-dock";
 import { ApplyToSessionButton } from "./apply-to-session-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -164,6 +165,7 @@ export function TemplateBuilder({
 }: Props) {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [saving, startSaving] = useTransition();
 
@@ -249,7 +251,7 @@ export function TemplateBuilder({
             toast.error(result.error || "Couldn't add the exercise. Try again.");
             return;
           }
-          toast.success("Exercise added.");
+          toast.success("exercise added.");
           router.refresh();
         } catch {
           toast.error("Something went wrong. Try again.");
@@ -294,7 +296,7 @@ export function TemplateBuilder({
         router.refresh();
         return result.data.id;
       }
-      toast.success("Exercise added.");
+      toast.success("exercise added.");
       router.refresh();
       return result.data.id;
     } catch {
@@ -303,8 +305,14 @@ export function TemplateBuilder({
     }
   }
 
-  function removeBlock(blockId: string) {
-    if (!confirm("Remove this exercise from the workout?")) return;
+  async function removeBlock(blockId: string) {
+    const ok = await confirm({
+      title: "remove this exercise from the workout?",
+      body: "your library exercise stays — only this row is removed.",
+      confirmLabel: "remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     const block = blocks.find((b) => b.id === blockId);
     if (block) {
       const setGroupIds = new Set(
@@ -326,8 +334,14 @@ export function TemplateBuilder({
     });
   }
 
-  function archive() {
-    if (!confirm("Archive this workout?")) return;
+  async function archive() {
+    const ok = await confirm({
+      title: "archive this workout?",
+      body: "you'll still see it in archived workouts and can restore it anytime.",
+      confirmLabel: "archive",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       await archiveTemplate(template.id);
       router.push("/studio/templates");
@@ -352,7 +366,7 @@ export function TemplateBuilder({
           toast.error(res.error || "Couldn't save your changes. Try again.");
           return;
         }
-        toast.success("Workout saved.");
+        toast.success("workout saved.");
         setDrafts({});
         serverOrderRef.current = order;
         router.refresh();
@@ -477,7 +491,9 @@ export function TemplateBuilder({
                       drafts={drafts}
                       onChange={setDraftField}
                       onChangeMany={setDraftMany}
-                      onRemove={() => removeBlock(block.id)}
+                      onRemove={() => {
+                        void removeBlock(block.id);
+                      }}
                       disabled={pending || saving}
                     />
                   ))}

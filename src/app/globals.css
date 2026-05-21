@@ -208,6 +208,40 @@
 }
 
 /* A single page-load orchestration: fade + rise, staggered children. */
+/* Dialog overlay + content entrances. Used by the branded
+ * ConfirmDialog (and any other Radix Dialog that opts in). Kept short
+ * — 160ms — so the confirm step doesn't feel laggy after a tap. The
+ * overlay fades while the content fades + rises, giving a single
+ * concerted appearance rather than two stages. */
+@layer utilities {
+  .dialog-overlay-in {
+    animation: dialog-overlay-fade 160ms ease-out both;
+  }
+  .dialog-content-in {
+    animation: dialog-content-pop 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes dialog-overlay-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes dialog-content-pop {
+    from {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% + 6px)) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dialog-overlay-in,
+    .dialog-content-in {
+      animation: none !important;
+    }
+  }
+}
+
 @layer utilities {
   .rise-in {
     animation: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;

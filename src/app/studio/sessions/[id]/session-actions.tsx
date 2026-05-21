@@ -5,11 +5,15 @@ import { useTransition } from "react";
 
 import { approveSessionRequest, cancelSession } from "@/app/studio/calendar/actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 
 type Session = { id: string; status: string };
 
 export function SessionActions({ session }: { session: Session }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
 
   if (session.status === "requested") {
@@ -20,7 +24,7 @@ export function SessionActions({ session }: { session: Session }) {
           onClick={() =>
             startTransition(async () => {
               const r = await approveSessionRequest(session.id);
-              if (!r.ok) alert(r.error);
+              if (!r.ok) toast.error(r.error);
               router.refresh();
             })
           }
@@ -32,8 +36,12 @@ export function SessionActions({ session }: { session: Session }) {
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              const r = await cancelSession({ sessionId: session.id, actor: "trainer", reason: "declined" });
-              if (!r.ok) alert(r.error);
+              const r = await cancelSession({
+                sessionId: session.id,
+                actor: "trainer",
+                reason: "declined",
+              });
+              if (!r.ok) toast.error(r.error);
               router.refresh();
             })
           }
@@ -49,11 +57,18 @@ export function SessionActions({ session }: { session: Session }) {
       <Button
         variant="outline"
         disabled={pending}
-        onClick={() => {
-          if (!confirm("Cancel this session? The client&rsquo;s credit will be restored.")) return;
+        onClick={async () => {
+          const ok = await confirm({
+            title: "cancel this session?",
+            body: "the client's session credit will be restored.",
+            confirmLabel: "cancel session",
+            cancelLabel: "keep it",
+            tone: "danger",
+          });
+          if (!ok) return;
           startTransition(async () => {
             const r = await cancelSession({ sessionId: session.id, actor: "trainer" });
-            if (!r.ok) alert(r.error);
+            if (!r.ok) toast.error(r.error);
             router.refresh();
           });
         }}

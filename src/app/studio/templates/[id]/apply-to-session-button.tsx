@@ -92,7 +92,7 @@ export function ApplyToSessionButton({
         return;
       }
       const n = res.data.blocksAdded;
-      toast.success(`Applied to session — ${n} exercise${n === 1 ? "" : "s"} added.`);
+      toast.success(`applied to session — ${n} exercise${n === 1 ? "" : "s"} added.`);
       setOpen(false);
       /* Reset cached client list so the next open shows fresh state
        * (the trainer might apply to the same session again, or to

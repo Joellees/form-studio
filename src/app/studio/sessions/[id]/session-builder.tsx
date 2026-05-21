@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { formatReps, formatWeight, type RepValue, type WeightValue } from "@/lib/set-group";
 
@@ -121,6 +122,7 @@ export function SessionBuilder({
 }: SessionBuilderProps) {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
 
   /* Local block order, lifted out of props so a drag preview mutates
@@ -191,7 +193,7 @@ export function SessionBuilder({
           return;
         }
         const n = res.data.blocksAdded;
-        toast.success(`Workout applied — ${n} exercise${n === 1 ? "" : "s"} added.`);
+        toast.success(`workout applied — ${n} exercise${n === 1 ? "" : "s"} added.`);
         router.refresh();
       } catch {
         toast.error("Something went wrong. Try again.");
@@ -262,7 +264,7 @@ export function SessionBuilder({
         router.refresh();
         return result.data.id;
       }
-      toast.success("Exercise added.");
+      toast.success("exercise added.");
       router.refresh();
       return result.data.id;
     } catch {
@@ -279,7 +281,7 @@ export function SessionBuilder({
           toast.error(result.error || "Couldn't add the exercise. Try again.");
           return;
         }
-        toast.success("Exercise added.");
+        toast.success("exercise added.");
         router.refresh();
       } catch {
         toast.error("Something went wrong. Try again.");
@@ -287,8 +289,14 @@ export function SessionBuilder({
     });
   }
 
-  function removeBlock(id: string) {
-    if (!confirm("Remove this exercise from the session?")) return;
+  async function removeBlock(id: string) {
+    const ok = await confirm({
+      title: "remove this exercise from the session?",
+      body: "any logged sets on this exercise will be discarded.",
+      confirmLabel: "remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       await removeSessionBlock(id);
       router.refresh();
@@ -354,7 +362,7 @@ export function SessionBuilder({
                     index={i}
                     canEdit={true}
                     pending={pending}
-                    onRemove={() => removeBlock(block.id)}
+                    onRemove={() => void removeBlock(block.id)}
                     sourceWorkoutName={workoutNameForBlock(block)}
                   />
                 ))}

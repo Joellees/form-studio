@@ -9,8 +9,10 @@ import { RequestSessionDialog } from "./dashboard/request-session-dialog";
 import { cancelSession } from "@/app/studio/calendar/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 import { FEATURES } from "@/lib/features";
 import { EXTRA_INAPP_PRICE_USD } from "@/lib/pricing";
 import { prettySessionType } from "@/lib/session-type";
@@ -137,6 +139,8 @@ export function CalendarSection({ upcoming, past, cycleEnabled }: Props) {
 
 function SessionItem({ session: s, muted = false }: { session: Session; muted?: boolean }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
   const closed = s.status === "cancelled" || s.status === "completed";
@@ -146,12 +150,19 @@ function SessionItem({ session: s, muted = false }: { session: Session; muted?: 
   // visually distinguish them from trainer-pushed in-app workouts.
   const isExtraInApp = isInApp && s.in_app_origin === "client_requested";
 
-  function onCancel() {
-    if (!confirm("Cancel this session?")) return;
+  async function onCancel() {
+    const ok = await confirm({
+      title: "cancel this session?",
+      body: "your session credit will be restored.",
+      confirmLabel: "cancel session",
+      cancelLabel: "keep it",
+      tone: "danger",
+    });
+    if (!ok) return;
     setMenuOpen(false);
     startTransition(async () => {
       const result = await cancelSession({ sessionId: s.id, actor: "client" });
-      if (!result.ok) alert(result.error);
+      if (!result.ok) toast.error(result.error);
       router.refresh();
     });
   }
@@ -219,7 +230,7 @@ function SessionItem({ session: s, muted = false }: { session: Session; muted?: 
                   <button
                     type="button"
                     className="block w-full rounded-xl px-3 py-2 text-left text-sm text-[color:var(--color-sienna)] hover:bg-[color:var(--color-parchment)]"
-                    onClick={onCancel}
+                    onClick={() => void onCancel()}
                   >
                     cancel session
                   </button>

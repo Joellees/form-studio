@@ -6,6 +6,7 @@ import { useForm, useWatch } from "react-hook-form";
 
 import { archivePackage, savePackage } from "../actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -54,6 +55,7 @@ function currencyLabel(currency: Currency): string {
 export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initial?: Initial }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
   const {
     register,
     handleSubmit,
@@ -98,9 +100,15 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
     });
   }
 
-  function onArchive() {
+  async function onArchive() {
     if (!initial?.id) return;
-    if (!confirm("Archive this package? Existing subscriptions continue; new clients can&rsquo;t buy it.")) return;
+    const ok = await confirm({
+      title: "archive this package?",
+      body: "existing subscriptions continue. new clients can't buy it until you restore it.",
+      confirmLabel: "archive",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       await archivePackage(initial.id!);
       router.push("/studio/packages");
@@ -218,7 +226,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           {pending ? "saving…" : mode === "create" ? "create package" : "save changes"}
         </Button>
         {mode === "edit" && initial?.active !== false ? (
-          <Button type="button" variant="outline" onClick={onArchive} disabled={pending}>
+          <Button type="button" variant="outline" onClick={() => void onArchive()} disabled={pending}>
             archive
           </Button>
         ) : null}

@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 
 import { cancelSession, updateSessionType } from "@/app/studio/calendar/actions";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ export function SessionRow({
   variant?: "list" | "card";
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -125,9 +127,16 @@ export function SessionRow({
         {!isCancelled ? (
           <MenuItem
             danger
-            onClick={() => {
+            onClick={async () => {
               setMenuOpen(false);
-              if (!confirm("Cancel this session?")) return;
+              const ok = await confirm({
+                title: "cancel this session?",
+                body: "the client's session credit will be restored.",
+                confirmLabel: "cancel session",
+                cancelLabel: "keep it",
+                tone: "danger",
+              });
+              if (!ok) return;
               runAction(() => cancelSession({ sessionId: session.id, actor: "trainer" }));
             }}
           >

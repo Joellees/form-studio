@@ -69,7 +69,7 @@ export function RequestsPanel({ requests }: { requests: PendingRequest[] }) {
         toast.error(res.error || "Couldn't approve. Try again.");
         return;
       }
-      toast.success("Request approved.");
+      toast.success("request approved.");
       router.refresh();
     });
   }
@@ -102,7 +102,7 @@ export function RequestsPanel({ requests }: { requests: PendingRequest[] }) {
         toast.error(res.error || "Couldn't decline. Try again.");
         return;
       }
-      toast.success("Request declined.");
+      toast.success("request declined.");
       cancelDecline(id);
       router.refresh();
     });

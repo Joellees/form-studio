@@ -6,6 +6,7 @@ import { updateClientDetails } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 
 type Details = {
   id: string;
@@ -18,6 +19,7 @@ type Details = {
 };
 
 export function ClientDetailsEditor({ client }: { client: Details }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState({
@@ -42,9 +44,10 @@ export function ClientDetailsEditor({ client }: { client: Details }) {
         injuries: form.injuries || null,
       });
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         return;
       }
+      toast.success("client details saved.");
       setEditing(false);
     });
   }

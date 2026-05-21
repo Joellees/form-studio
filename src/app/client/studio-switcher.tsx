@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { setActiveStudio } from "./pick/actions";
+import { useToast } from "@/components/ui/toast";
 
 type Membership = {
   tenantId: string;
@@ -25,6 +26,7 @@ export function ClientStudioSwitcher({
   memberships: Membership[];
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -34,7 +36,7 @@ export function ClientStudioSwitcher({
     startTransition(async () => {
       const result = await setActiveStudio({ tenantId });
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         return;
       }
       router.refresh();

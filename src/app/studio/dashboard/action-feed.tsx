@@ -6,6 +6,7 @@ import { useTransition } from "react";
 
 import { approveSessionRequest } from "@/app/studio/calendar/actions";
 import { markSubscriptionPaid } from "@/app/studio/subscriptions/actions";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Single-line action items the trainer can clear in one click.
@@ -28,12 +29,13 @@ export type FeedItem =
 
 export function ActionFeed({ items }: { items: FeedItem[] }) {
   const router = useRouter();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
 
   function markPaid(subscriptionId: string) {
     startTransition(async () => {
       const r = await markSubscriptionPaid({ subscriptionId });
-      if (!r.ok) alert(r.error);
+      if (!r.ok) toast.error(r.error);
       router.refresh();
     });
   }
@@ -41,7 +43,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
   function approve(sessionId: string) {
     startTransition(async () => {
       const r = await approveSessionRequest(sessionId);
-      if (!r.ok) alert(r.error);
+      if (!r.ok) toast.error(r.error);
       router.refresh();
     });
   }

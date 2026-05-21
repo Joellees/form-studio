@@ -14,6 +14,8 @@ import {
   restoreStudio,
   softDeleteStudio,
 } from "../actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import { KNOWN_COHORT_KEYS } from "@/lib/cohorts";
 import { PRICING, formatPrice, isPricedCohort } from "@/lib/pricing";
 import { trialState } from "@/lib/subscription";
@@ -266,12 +268,14 @@ function RowMenu({
   onModal: (kind: "mark_paid" | "change_cohort" | "hard_delete") => void;
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
     startTransition(async () => {
       const r = await action();
-      if (!r.ok) alert(r.error ?? "Action failed");
+      if (!r.ok) toast.error(r.error ?? "Action failed");
       onClose();
       router.refresh();
     });
@@ -300,10 +304,14 @@ function RowMenu({
             <MenuItem onClick={() => onModal("change_cohort")}>Change cohort</MenuItem>
             {row.status === "founding" ? null : (
               <MenuItem
-                onClick={() =>
-                  confirm(`Grant founding status to ${row.displayName}? Free for life.`) &&
-                  run(() => grantFounding({ studioId: row.id }))
-                }
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `grant founding status to ${row.displayName}?`,
+                    body: "free access for life. you can change cohort again later.",
+                    confirmLabel: "grant founding",
+                  });
+                  if (ok) run(() => grantFounding({ studioId: row.id }));
+                }}
                 disabled={pending}
               >
                 Grant founding
@@ -319,10 +327,15 @@ function RowMenu({
             ) : row.status !== "founding" ? (
               <MenuItem
                 danger
-                onClick={() =>
-                  confirm(`Cancel subscription for ${row.displayName}?`) &&
-                  run(() => cancelTrainerSubscription({ studioId: row.id }))
-                }
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `cancel subscription for ${row.displayName}?`,
+                    body: "they lose studio access at the end of the current paid period.",
+                    confirmLabel: "cancel subscription",
+                    tone: "danger",
+                  });
+                  if (ok) run(() => cancelTrainerSubscription({ studioId: row.id }));
+                }}
                 disabled={pending}
               >
                 Cancel subscription
@@ -338,11 +351,15 @@ function RowMenu({
             ) : (
               <MenuItem
                 danger
-                onClick={() =>
-                  confirm(
-                    `Soft-delete ${row.displayName}? Their access is blocked but every record (clients, sessions, packages) is preserved. Reversible.`,
-                  ) && run(() => softDeleteStudio({ studioId: row.id }))
-                }
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `soft-delete ${row.displayName}?`,
+                    body: "their access is blocked, every record (clients, sessions, packages) is preserved. reversible.",
+                    confirmLabel: "soft-delete",
+                    tone: "danger",
+                  });
+                  if (ok) run(() => softDeleteStudio({ studioId: row.id }));
+                }}
                 disabled={pending}
               >
                 Soft-delete

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { generateAccessCode, hardDeleteAccessCode, previewNextAccessCode, revokeAccessCode } from "../actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import { formatBeta1Code, sanitizeBeta1Label } from "@/lib/access-codes";
 import { KNOWN_COHORT_KEYS, cohortLabel } from "@/lib/cohorts";
 import { getBetaGateUrl } from "@/lib/urls";
@@ -91,6 +93,8 @@ function whatsappMessage({
 
 export function CodesTable({ rows }: { rows: CodeRow[] }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [open, setOpen] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CodeRow | null>(null);
@@ -277,22 +281,20 @@ export function CodesTable({ rows }: { rows: CodeRow[] }) {
                           {!r.revoked ? (
                             <MenuItem
                               danger
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    "Revoke this code? It can no longer be redeemed, including by the trainer who claimed it.",
-                                  )
-                                ) {
-                                  // Run synchronously via the actions module
-                                  void (async () => {
-                                    const result = await revokeAccessCode({
-                                      accessCodeId: r.id,
-                                    });
-                                    if (!result.ok) alert(result.error);
-                                    setOpen(null);
-                                    router.refresh();
-                                  })();
-                                }
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: "revoke this code?",
+                                  body: "it can no longer be redeemed — including by the trainer who claimed it.",
+                                  confirmLabel: "revoke",
+                                  tone: "danger",
+                                });
+                                if (!ok) return;
+                                const result = await revokeAccessCode({
+                                  accessCodeId: r.id,
+                                });
+                                if (!result.ok) toast.error(result.error);
+                                setOpen(null);
+                                router.refresh();
                               }}
                             >
                               Revoke

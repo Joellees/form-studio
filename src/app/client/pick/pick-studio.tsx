@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { setActiveStudio } from "./actions";
+import { useToast } from "@/components/ui/toast";
 
 type Membership = {
   tenantId: string;
@@ -13,6 +14,7 @@ type Membership = {
 
 export function PickStudio({ memberships }: { memberships: Membership[] }) {
   const router = useRouter();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -21,7 +23,7 @@ export function PickStudio({ memberships }: { memberships: Membership[] }) {
     startTransition(async () => {
       const result = await setActiveStudio({ tenantId });
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         setBusy(null);
         return;
       }

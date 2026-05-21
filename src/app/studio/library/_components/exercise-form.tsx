@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { archiveExercise, saveExercise, saveGroup } from "../actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,7 @@ export function ExerciseForm({
   initial?: Initial;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
 
   const [name, setName] = useState(initial?.name ?? "");
@@ -182,9 +184,15 @@ export function ExerciseForm({
     });
   }
 
-  function onArchive() {
+  async function onArchive() {
     if (!initial?.id) return;
-    if (!confirm("Archive this exercise? Past sessions keep it; new templates can&rsquo;t use it.")) return;
+    const ok = await confirm({
+      title: "archive this exercise?",
+      body: "past sessions keep it. new workouts can't use it until you restore it.",
+      confirmLabel: "archive",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       await archiveExercise(initial.id!);
       router.push("/studio/library");
@@ -397,7 +405,7 @@ export function ExerciseForm({
           {pending ? "saving…" : mode === "create" ? "add" : "save"}
         </Button>
         {mode === "edit" && !initial?.archived ? (
-          <Button type="button" variant="outline" onClick={onArchive} disabled={pending}>
+          <Button type="button" variant="outline" onClick={() => void onArchive()} disabled={pending}>
             archive
           </Button>
         ) : null}

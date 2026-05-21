@@ -11,9 +11,11 @@ import {
   unlinkExerciseFromGroup,
 } from "../actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 
 type Group = { id: string; name: string; sort_index: number; is_universal?: boolean };
 type LightExercise = { id: string; name: string; group_ids: string[] };
@@ -104,6 +106,8 @@ function GroupRow({
   exercises: LightExercise[];
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(group.name);
@@ -128,7 +132,7 @@ function GroupRow({
     startTransition(async () => {
       const result = await renameGroup({ id: group.id, name: name.trim() });
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         setName(group.name);
       }
       setEditing(false);
@@ -136,12 +140,17 @@ function GroupRow({
     });
   }
 
-  function remove() {
-    const msg =
-      count > 0
-        ? `Delete "${group.name}"? The ${count} exercise${count === 1 ? "" : "s"} in this group stay in your library — only the link is removed.`
-        : `Delete "${group.name}"?`;
-    if (!confirm(msg)) return;
+  async function remove() {
+    const ok = await confirm({
+      title: `delete "${group.name}"?`,
+      body:
+        count > 0
+          ? `the ${count} exercise${count === 1 ? "" : "s"} in this group stay in your library — only the link is removed.`
+          : "you can add another group anytime.",
+      confirmLabel: "delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
       await deleteGroup(group.id);
       router.refresh();
@@ -151,7 +160,7 @@ function GroupRow({
   function unlink(exerciseId: string) {
     startTransition(async () => {
       const result = await unlinkExerciseFromGroup({ exerciseId, groupId: group.id });
-      if (!result.ok) alert(result.error);
+      if (!result.ok) toast.error(result.error);
       router.refresh();
     });
   }
@@ -204,7 +213,7 @@ function GroupRow({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={remove}
+              onClick={() => void remove()}
               disabled={pending}
               className="text-[color:var(--color-sienna)] hover:bg-[color:var(--color-sienna)]/10"
             >

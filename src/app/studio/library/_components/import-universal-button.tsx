@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { seedUniversalLibrary } from "../actions";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Drops a one-time seed of common bodybuilding / strength /
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
  */
 export function ImportUniversalButton() {
   const router = useRouter();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmed, setConfirmed] = useState(false);
 
@@ -21,7 +23,7 @@ export function ImportUniversalButton() {
     startTransition(async () => {
       const result = await seedUniversalLibrary({});
       if (!result.ok) {
-        alert(result.error);
+        toast.error(result.error);
         return;
       }
       const { groupsCreated, exercisesCreated, exercisesSkipped } = result.data;
@@ -29,7 +31,11 @@ export function ImportUniversalButton() {
       if (exercisesCreated > 0) parts.push(`${exercisesCreated} exercise${exercisesCreated === 1 ? "" : "s"} added`);
       if (groupsCreated > 0) parts.push(`${groupsCreated} group${groupsCreated === 1 ? "" : "s"} created`);
       if (exercisesSkipped > 0) parts.push(`${exercisesSkipped} skipped (already in library)`);
-      alert(parts.length ? parts.join(" · ") : "Library is already up to date.");
+      if (parts.length === 0) {
+        toast.info("library is already up to date.");
+      } else {
+        toast.success(parts.join(" · "));
+      }
       setConfirmed(false);
       router.refresh();
     });
