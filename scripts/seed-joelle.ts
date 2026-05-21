@@ -907,6 +907,105 @@ async function seedSessions(
   }
 }
 
+/**
+ * Calendar showcase block.
+ *
+ * The base `seedSessions` spreads 8 future scheduled sessions across
+ * 14 days at one-per-day cadence — accurate, but a thin schedule
+ * that makes the calendar page (especially the new iOS-style day
+ * timeline) look quiet. This adds a denser, varied set of 15
+ * sessions anchored to TODAY in the trainer's local timezone, so
+ * opening `/studio/calendar` lands on a populated week with
+ * multiple sessions per day across realistic training hours.
+ *
+ * Idempotent via a `name LIKE 'showcase:%'` marker: re-running the
+ * seed sees the marker rows and skips. To re-generate (e.g. after a
+ * long gap so "today" has drifted), delete the existing showcase
+ * rows first:
+ *
+ *   delete from public.sessions
+ *    where tenant_id = '<joelle-id>' and name like 'showcase:%';
+ */
+async function seedCalendarShowcase(
+  tenantId: string,
+  clientsBySpec: { spec: ClientSpec; id: string; subscriptionId: string | null }[],
+  templateIds: string[],
+): Promise<void> {
+  const existing = await runSql<{ count: string }>(
+    `select count(*)::text as count from public.sessions
+       where tenant_id = ${esc(tenantId)} and name like 'showcase:%';`,
+  );
+  if (Number(existing[0]?.count ?? "0") > 0) {
+    console.log("   calendar showcase already seeded, skipping");
+    return;
+  }
+
+  const active = clientsBySpec.filter(
+    (c) => c.spec.state === "active_mid" || c.spec.state === "active_renewing",
+  );
+  if (active.length === 0) return;
+
+  // Day-offset, HH:mm, session type, label. Distributed to fill
+  // today + the next 5 days with realistic training-hour density:
+  // an early morning, a mid-day, an evening block on busy days.
+  const slots: Array<{
+    dayOffset: number;
+    time: string;
+    sessionType: "in_person" | "zoom";
+    label: string;
+  }> = [
+    { dayOffset: 0, time: "07:00", sessionType: "in_person", label: "today early" },
+    { dayOffset: 0, time: "09:30", sessionType: "zoom", label: "today morning" },
+    { dayOffset: 0, time: "12:00", sessionType: "zoom", label: "today lunch" },
+    { dayOffset: 0, time: "17:30", sessionType: "in_person", label: "today evening" },
+    { dayOffset: 1, time: "08:00", sessionType: "zoom", label: "tomorrow am" },
+    { dayOffset: 1, time: "11:00", sessionType: "in_person", label: "tomorrow mid" },
+    { dayOffset: 1, time: "19:00", sessionType: "zoom", label: "tomorrow pm" },
+    { dayOffset: 2, time: "09:00", sessionType: "zoom", label: "d2 am" },
+    { dayOffset: 2, time: "16:00", sessionType: "in_person", label: "d2 pm" },
+    { dayOffset: 3, time: "18:00", sessionType: "zoom", label: "d3 evening" },
+    { dayOffset: 4, time: "07:00", sessionType: "in_person", label: "d4 early" },
+    { dayOffset: 4, time: "14:00", sessionType: "zoom", label: "d4 afternoon" },
+    { dayOffset: 4, time: "18:30", sessionType: "zoom", label: "d4 evening" },
+    { dayOffset: 5, time: "10:00", sessionType: "in_person", label: "d5 am" },
+    { dayOffset: 5, time: "15:00", sessionType: "zoom", label: "d5 pm" },
+  ];
+
+  // Trainer's local "today" — same shape as in the studio layout's
+  // dashboard math. We assume UTC for the script (it's a one-off
+  // tooling run); the trainer's actual timezone math at render time
+  // re-anchors everything in their local view anyway.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i]!;
+    const client = active[i % active.length]!;
+    const templateId = templateIds[i % Math.max(templateIds.length, 1)] ?? null;
+
+    const when = new Date(today);
+    when.setDate(today.getDate() + slot.dayOffset);
+    const [hStr = "0", mStr = "0"] = slot.time.split(":");
+    when.setHours(Number(hStr), Number(mStr), 0, 0);
+
+    await runSql(
+      `insert into public.sessions
+         (tenant_id, client_id, subscription_id, source_template_id, scheduled_at, duration_minutes, session_type, status, name)
+       values (
+         ${esc(tenantId)},
+         ${esc(client.id)},
+         ${client.subscriptionId ? esc(client.subscriptionId) : "null"},
+         ${templateId ? esc(templateId) : "null"},
+         ${esc(when.toISOString())},
+         60,
+         ${esc(slot.sessionType)},
+         'scheduled',
+         ${esc(`showcase: ${slot.label}`)}
+       );`,
+    );
+  }
+}
+
 async function seedLogs(tenantId: string, clientsBySpec: { spec: ClientSpec; id: string }[]): Promise<void> {
   // Pick clients with relevant fields enabled and seed time-series data.
   const now = new Date();
@@ -1032,6 +1131,9 @@ async function main() {
 
   console.log("\n→ seeding sessions (30 past + 8 future + 3 requested + 2 cancelled + 1 in-app)…");
   await seedSessions(tenantId, created, templateIds);
+
+  console.log("\n→ seeding calendar showcase (15 sessions across today + next 5 days)…");
+  await seedCalendarShowcase(tenantId, created, templateIds);
 
   console.log("\n→ seeding client logs (weight/cycle/measurements/mood/sleep/prs)…");
   await seedLogs(tenantId, created);

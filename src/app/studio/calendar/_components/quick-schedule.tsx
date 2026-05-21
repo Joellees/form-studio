@@ -38,6 +38,14 @@ type Props = {
   clients: ClientOpt[];
   workouts: WorkoutOpt[];
   onClose: () => void;
+  /**
+   * Optional HH:mm string to pre-fill the time field. Used by the
+   * day-timeline view: tapping an empty hour row opens the schedule
+   * sheet with the time already set, so the trainer's mental model
+   * is "I picked the slot, now just confirm the rest". Falls back to
+   * 09:00 when omitted.
+   */
+  initialTime?: string;
 };
 
 /**
@@ -45,7 +53,7 @@ type Props = {
  * optionally a pre-built workout. Shows the client&rsquo;s active block inline
  * so the trainer sees how many sessions are left without hunting for it.
  */
-export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }: Props) {
+export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose, initialTime }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
@@ -57,7 +65,7 @@ export function QuickSchedule({ isoDate, dayLabel, clients, workouts, onClose }:
    * in-person option visible only when the row's current value is
    * already in-person (see `session-row.tsx`). */
   const [type, setType] = useState<SessionType>("zoom");
-  const [time, setTime] = useState("09:00");
+  const [time, setTime] = useState(initialTime ?? "09:00");
   const [workoutId, setWorkoutId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
