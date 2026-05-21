@@ -16,9 +16,12 @@
  *   Beta 2 (paid, $29/mo grandfathered)
  *     Format: `B2-NNN` (3-digit zero-padded sequential number)
  *     Examples: `B2-001`, `B2-007`, `B2-051`
- *     Number = `max(existing B2 number) + 1`, including revoked rows.
- *     Once a number is used it is never reused, even if the row is later
- *     revoked. After number 999 the field widens; 3 digits is a minimum.
+ *     Number = lowest positive integer not currently present in the
+ *     `access_codes` table — i.e. gap-filling. Revoked rows still hold
+ *     their number (they're not deleted), so revocation does NOT free a
+ *     slot. But a hard-DELETE does: the next code generated will reuse
+ *     the lowest freed number instead of stepping past it. After number
+ *     999 the field widens; 3 digits is a minimum.
  *
  *   Launch (public)
  *     No access code required. Generation is rejected at this layer so
@@ -95,9 +98,15 @@ export function isLegacyCodeFormat(code: string): boolean {
 type Sb = ReturnType<typeof createSupabaseAdminClient>;
 
 /**
- * Find the next Beta 2 number to allocate. Includes revoked rows
- * — they hold a number forever. Returns the integer (not the
- * formatted code).
+ * Find the next Beta 2 number to allocate.
+ *
+ * Gap-filling: returns the lowest positive integer N for which
+ * `B2-{N}` is NOT present in `access_codes`. Includes revoked rows
+ * (they hold their number) but a hard-DELETE frees the slot — so if
+ * an admin hard-deletes B2-002 and B2-003, the next two generated
+ * codes are B2-002 and B2-003, not B2-052.
+ *
+ * Returns the integer (not the formatted code).
  */
 export async function nextBeta2Number(supabase: Sb): Promise<number> {
   const { data: rows, error } = await supabase
@@ -105,12 +114,19 @@ export async function nextBeta2Number(supabase: Sb): Promise<number> {
     .select("code")
     .like("code", "B2-%");
   if (error) throw new Error(`access_codes select failed: ${error.message}`);
-  let max = 0;
+  const used = new Set<number>();
   for (const r of rows ?? []) {
     const n = parseBeta2Number((r as { code: string }).code);
-    if (n !== null && n > max) max = n;
+    if (n !== null) used.add(n);
   }
-  return max + 1;
+  // Walk from 1 upward and return the first integer not in `used`.
+  // O(n) in the number of existing B2 rows — fine for any realistic
+  // beta cohort size. If we ever blow past, say, 10k codes, swap to
+  // a sort + linear-scan; until then the set lookup is the simplest
+  // thing that works.
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
 }
 
 /**
