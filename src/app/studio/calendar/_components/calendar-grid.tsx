@@ -84,18 +84,30 @@ export function CalendarGrid({ days, sessionsByDay, clients, workouts, view }: P
         )}
       </div>
 
-      {/* Desktop */}
-      {view === "month" ? (
+      {/* Desktop
+        * - week    → time-grid (Google-Calendar-style: hour gutter
+        *             on the left, 7 day columns, sessions as
+        *             positioned blocks). Clicking an empty slot
+        *             opens quick-schedule with the time inferred
+        *             from the y-offset, rounded to the nearest 30m.
+        * - 2-weeks → cell grid (the same layout as month view, just
+        *             two rows). Two weeks of time-grid would either
+        *             be 1000px+ tall and crowded, or compressed to
+        *             unreadability — the cell view stays scannable.
+        * - month   → cell grid with event chips.
+        */}
+      {view === "week" ? (
+        <DesktopWeekTimeGrid
+          days={days}
+          sessionsByDay={sessionsByDay}
+          onPick={(d) => setTimelineDay(d)}
+          onAddAtTime={(d, time) => openQuickSchedule(d, time)}
+        />
+      ) : (
         <DesktopMonthView
           days={days}
           sessionsByDay={sessionsByDay}
           onPick={(d) => setTimelineDay(d)}
-        />
-      ) : (
-        <DesktopWeekView
-          days={days}
-          sessionsByDay={sessionsByDay}
-          onPick={(d) => openQuickSchedule(d)}
         />
       )}
 
@@ -622,90 +634,356 @@ function MiniGridDetail({
   );
 }
 
-/* ─── Desktop: week / 2-weeks ──────────────────────────────────── */
+/* ─── Desktop: week time-grid ──────────────────────────────────── */
 
 /**
- * iPad-style week layout. 7 columns with a soft parchment base — the
- * column reads as a card without competing with its content. Each
- * day's header carries the weekday + the date badge (moss circle on
- * today), and session cards float below. Empty space inside the
- * column is the quick-schedule tap target; hover surfaces the
- * affordance.
+ * Google-Calendar-style week view.
+ *
+ * Layout is a `[hour-gutter | 7 day columns]` grid, each column a
+ * fixed-height vertical track with thin hour gridlines. Sessions
+ * render as absolutely-positioned blocks placed by minutes from the
+ * start of the visible range (6 AM). Today's column carries a soft
+ * parchment tint and a moss "now" line that updates each minute.
+ *
+ * Click any empty area of a column → quick-schedule opens with the
+ * time computed from the y-offset, snapped to the nearest 30
+ * minutes. Click a session block → goes to that session's detail
+ * page. Click the weekday header in the top row → opens the day
+ * timeline modal for that date (the iOS-style alternative entry
+ * point).
+ *
+ * Hour range: 6 AM → 11 PM (17 hours × 60px = 1020px). Wider than
+ * the typical training day but tight enough to fit a desktop view
+ * without scrolling the body. Sessions outside the range clip to
+ * the visible edge with their full time still in the label.
  */
-function DesktopWeekView({
+const GRID_START_HOUR = 6;
+const GRID_END_HOUR = 23;
+const GRID_HOUR_PX = 60;
+const GRID_HOURS = GRID_END_HOUR - GRID_START_HOUR;
+const GRID_HEIGHT = GRID_HOURS * GRID_HOUR_PX;
+
+function DesktopWeekTimeGrid({
   days,
   sessionsByDay,
   onPick,
+  onAddAtTime,
 }: {
   days: Day[];
   sessionsByDay: Record<string, SessionSummary[]>;
+  /** Click the day header → open the day timeline modal. */
   onPick: (d: Day) => void;
+  /** Click an empty slot in a column → schedule at that time. */
+  onAddAtTime: (d: Day, time: string) => void;
 }) {
+  const hours = useMemo(
+    () =>
+      Array.from({ length: GRID_HOURS }, (_, i) => GRID_START_HOUR + i),
+    [],
+  );
+
   return (
-    <div className="hidden md:grid md:grid-cols-7 md:gap-3">
-      {days.map((d) => (
-        <DesktopWeekColumn
-          key={d.key}
-          day={d}
-          sessions={sessionsByDay[d.key] ?? []}
-          onPick={() => onPick(d)}
-        />
-      ))}
+    <div className="hidden md:block">
+      {/* Sticky day-header row sitting just under the page chrome.
+        * The 56px gutter cell at left lines up with the hour
+        * column below so the rest of the header columns align
+        * one-to-one with their day tracks. */}
+      <div className="sticky top-[64px] z-20 grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-[color:var(--color-stone-soft)]/50 bg-[color:var(--color-canvas)]/95 backdrop-blur">
+        <div />
+        {days.map((d) => (
+          <button
+            key={d.key}
+            type="button"
+            onClick={() => onPick(d)}
+            className={cn(
+              "flex items-center justify-center gap-2 py-3 transition-colors",
+              "hover:bg-[color:var(--color-parchment)]/40",
+              d.isToday && "bg-[color:var(--color-parchment)]/30",
+            )}
+            aria-label={`open ${d.humanDate}`}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
+              {d.weekday}
+            </span>
+            <DateBadge dayNum={d.dayNum} isToday={d.isToday} size="sm" />
+          </button>
+        ))}
+      </div>
+
+      {/* Time grid body. Hour gutter on the left + 7 day tracks. */}
+      <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))]">
+        {/* Hour gutter — labels float at the gridline. Each hour
+          * "row" is 60px tall so the absolute positioning math in
+          * the day columns lines up. */}
+        <div className="relative" style={{ height: GRID_HEIGHT }}>
+          {hours.map((h) => (
+            <div
+              key={h}
+              className="absolute left-0 right-0 flex justify-end pr-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-stone)] tabular-nums"
+              style={{ top: (h - GRID_START_HOUR) * GRID_HOUR_PX - 6 }}
+            >
+              {h === GRID_START_HOUR ? null : h}
+            </div>
+          ))}
+        </div>
+
+        {days.map((d) => (
+          <WeekGridColumn
+            key={d.key}
+            day={d}
+            sessions={sessionsByDay[d.key] ?? []}
+            onAddAtTime={(time) => onAddAtTime(d, time)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function DesktopWeekColumn({
+/**
+ * One vertical track for a single day.
+ *
+ * Three layers stacked by z-index:
+ *
+ *   z-0  click overlay — captures any tap on empty space and turns
+ *        the y-offset into a 30-minute slot, fires onAddAtTime
+ *   z-10 hour gridlines (pointer-events: none) — purely decorative
+ *   z-20 session blocks (anchored <a>s, pointer-events auto) —
+ *        navigate to the session page on click
+ *   z-30 current-time line (today only) — moss horizontal hairline
+ *        with a dot, updates each minute
+ *
+ * The click overlay is below sessions in the stack, so clicking a
+ * session goes to its detail page; clicking anywhere else in the
+ * column opens the schedule sheet at the computed time.
+ */
+function WeekGridColumn({
   day,
   sessions,
-  onPick,
+  onAddAtTime,
 }: {
   day: Day;
   sessions: SessionSummary[];
-  onPick: () => void;
+  onAddAtTime: (time: string) => void;
 }) {
+  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = Math.max(0, Math.min(e.clientY - rect.top, GRID_HEIGHT - 1));
+    // Snap to nearest 30-minute slot.
+    const totalSlots = Math.floor(y / (GRID_HOUR_PX / 2));
+    const totalMinutes = GRID_START_HOUR * 60 + totalSlots * 30;
+    const hour = Math.floor(totalMinutes / 60);
+    const min = totalMinutes % 60;
+    const time = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    onAddAtTime(time);
+  }
+
+  const blocks = useMemo(() => computeWeekBlocks(sessions), [sessions]);
+
   return (
-    <section
+    <div
       className={cn(
-        "group relative flex min-h-[10rem] flex-col gap-2 rounded-2xl bg-[color:var(--color-parchment)]/30 p-1.5 transition-colors",
-        "hover:bg-[color:var(--color-parchment)]/55",
-        day.isToday && "bg-[color:var(--color-parchment)]/60 hover:bg-[color:var(--color-parchment)]/75",
+        "relative border-l border-[color:var(--color-stone-soft)]/45 transition-colors",
+        day.isToday && "bg-[color:var(--color-parchment)]/25",
       )}
+      style={{ height: GRID_HEIGHT }}
     >
-      <header className="flex items-center justify-between gap-2 px-1.5 pt-1">
-        <span className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-            {day.weekday}
-          </span>
-          <DateBadge dayNum={day.dayNum} isToday={day.isToday} size="sm" />
-        </span>
-        <button
-          type="button"
-          onClick={onPick}
-          aria-label={`add session on ${day.humanDate}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-ink)]/55 opacity-0 transition-opacity hover:bg-[color:var(--color-ink)] hover:text-[color:var(--color-canvas)] focus-visible:opacity-100 group-hover:opacity-100"
-        >
-          <PlusIcon />
-        </button>
-      </header>
-      {sessions.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          {sessions.map((s) => (
-            <SessionRow key={s.id} session={s} variant="card" />
-          ))}
-        </div>
-      ) : null}
-      {/* Click-anywhere-in-the-column affordance for adding. Stacks
-        * BELOW the cards so it can't intercept a click on a session.
-        * Flex-1 so a sparse column still has plenty of click area. */}
+      {/* Click overlay (z-0). Hover deepens the tint so the
+        * trainer can see what they'll click into. */}
       <button
         type="button"
-        onClick={onPick}
+        onClick={handleClick}
         aria-label={`add session on ${day.humanDate}`}
-        className="flex-1 rounded-xl"
+        className="absolute inset-0 z-0 transition-colors hover:bg-[color:var(--color-parchment)]/45"
       />
-    </section>
+
+      {/* Hour gridlines (z-10). One thin line at each hour boundary
+        * + a slightly lighter half-hour mark so the trainer can
+        * dead-reckon a 30-minute snap visually. */}
+      <div className="pointer-events-none absolute inset-0 z-10">
+        {Array.from({ length: GRID_HOURS }).map((_, i) => (
+          <div
+            key={`hour-${i}`}
+            className="absolute left-0 right-0 border-t border-[color:var(--color-stone-soft)]/45"
+            style={{ top: i * GRID_HOUR_PX }}
+          />
+        ))}
+        {Array.from({ length: GRID_HOURS }).map((_, i) => (
+          <div
+            key={`half-${i}`}
+            className="absolute left-0 right-0 border-t border-dashed border-[color:var(--color-stone-soft)]/25"
+            style={{ top: i * GRID_HOUR_PX + GRID_HOUR_PX / 2 }}
+          />
+        ))}
+      </div>
+
+      {/* Session blocks (z-20). pointer-events: auto on each link so
+        * clicks navigate; the surrounding wrapper is pointer-events:
+        * none so the click overlay underneath stays reachable
+        * anywhere there isn't a session. */}
+      <div className="pointer-events-none absolute inset-0 z-20">
+        {blocks.map((b) => (
+          <WeekGridBlock key={b.session.id} block={b} />
+        ))}
+      </div>
+
+      {/* Current-time line — only renders inside today's column.
+        * Client-only; it updates every minute. */}
+      {day.isToday ? <CurrentTimeLine /> : null}
+    </div>
   );
+}
+
+/**
+ * Compute the absolute top + height for each session inside the
+ * week grid. Sessions are sorted by start, and any two that overlap
+ * get side-by-side widths so neither hides the other — same shape
+ * as Google Calendar's column-split. The split is greedy (no
+ * elaborate interval-tree packing): an overlap with N concurrent
+ * sessions splits all N into 1/N width slices.
+ */
+type WeekBlock = {
+  session: SessionSummary;
+  top: number;
+  height: number;
+  /** Horizontal slot — 0..total-1 for side-by-side splits. */
+  slot: number;
+  /** Total parallel slots in this overlap cluster. */
+  totalSlots: number;
+};
+
+function computeWeekBlocks(sessions: SessionSummary[]): WeekBlock[] {
+  type Parsed = {
+    session: SessionSummary;
+    startMin: number;
+    endMin: number;
+    top: number;
+    height: number;
+  };
+  const visibleEnd = GRID_HOURS * 60;
+  const parsed: Parsed[] = [];
+  for (const s of sessions) {
+    const [hStr = "0", mStr = "0"] = s.formatted_time.split(":");
+    const startMin = Number(hStr) * 60 + Number(mStr) - GRID_START_HOUR * 60;
+    const endMin = startMin + (s.duration_minutes || 60);
+    const clippedStart = Math.max(0, Math.min(startMin, visibleEnd));
+    const clippedEnd = Math.max(clippedStart + 20, Math.min(endMin, visibleEnd));
+    parsed.push({
+      session: s,
+      startMin,
+      endMin,
+      top: clippedStart,
+      height: clippedEnd - clippedStart,
+    });
+  }
+  parsed.sort((a, b) => a.startMin - b.startMin);
+
+  // Greedy overlap-cluster: scan sorted starts, when the current
+  // event overlaps the active cluster, expand it; otherwise close
+  // and assign slot indices for the previous cluster.
+  const out: WeekBlock[] = [];
+  let cluster: Parsed[] = [];
+  let clusterEnd = -1;
+
+  function flush() {
+    const total = cluster.length;
+    cluster.forEach((p, slot) => {
+      out.push({
+        session: p.session,
+        top: p.top,
+        height: p.height,
+        slot,
+        totalSlots: total,
+      });
+    });
+    cluster = [];
+    clusterEnd = -1;
+  }
+
+  for (const p of parsed) {
+    if (cluster.length === 0 || p.startMin < clusterEnd) {
+      cluster.push(p);
+      clusterEnd = Math.max(clusterEnd, p.endMin);
+    } else {
+      flush();
+      cluster.push(p);
+      clusterEnd = p.endMin;
+    }
+  }
+  flush();
+  return out;
+}
+
+function WeekGridBlock({ block }: { block: WeekBlock }) {
+  const { session, top, height, slot, totalSlots } = block;
+  const cancelled = session.status === "cancelled";
+  const completed = session.status === "completed";
+  const widthPct = 100 / totalSlots;
+  const leftPct = slot * widthPct;
+  const label = session.client_name ?? session.name ?? "session";
+
+  return (
+    <a
+      href={`/studio/sessions/${session.id}`}
+      className={cn(
+        "pointer-events-auto absolute flex flex-col gap-0.5 overflow-hidden rounded-md border-l-[3px] border-[color:var(--color-moss)] bg-[color:var(--color-canvas)] px-1.5 py-1 text-[11px] leading-tight shadow-[0_1px_0_rgba(31,30,27,0.06),0_4px_12px_-6px_rgba(31,30,27,0.18)] transition-shadow hover:shadow-[0_2px_0_rgba(31,30,27,0.08),0_8px_18px_-6px_rgba(31,30,27,0.28)]",
+        cancelled && "line-through opacity-50",
+        completed && "opacity-75",
+      )}
+      style={{
+        top,
+        height: Math.max(height, 22),
+        left: `calc(${leftPct}% + 2px)`,
+        width: `calc(${widthPct}% - 4px)`,
+      }}
+    >
+      <span className="tabular-nums text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-stone)]">
+        {session.formatted_time}
+      </span>
+      <span className="truncate font-medium text-[color:var(--color-ink)]">{label}</span>
+    </a>
+  );
+}
+
+/**
+ * The moss "you are here" line that cuts across today's column.
+ * Updates every 60 seconds — no need for finer granularity since
+ * the line is a glance affordance, not a stopwatch. Hides itself
+ * if `now` falls outside the visible 6 AM → 11 PM range so the
+ * trainer doesn't see a stranded line floating off-grid at midnight.
+ */
+function CurrentTimeLine() {
+  const [top, setTop] = useState<number | null>(() => computeNowOffset());
+
+  useEffect(() => {
+    const tick = () => setTop(computeNowOffset());
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  if (top === null) return null;
+
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute left-0 right-0 z-30"
+      style={{ top }}
+    >
+      <div className="relative h-[2px] bg-[color:var(--color-moss)]">
+        <span className="absolute left-0 top-1/2 size-2.5 -translate-x-1.5 -translate-y-1/2 rounded-full bg-[color:var(--color-moss)] shadow-[0_0_0_2px_rgba(74,85,64,0.18)]" />
+      </div>
+    </div>
+  );
+}
+
+function computeNowOffset(): number | null {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const minutesFromStart = (h - GRID_START_HOUR) * 60 + m;
+  if (minutesFromStart < 0 || minutesFromStart > GRID_HOURS * 60) return null;
+  return minutesFromStart;
 }
 
 /* ─── Desktop: month grid ──────────────────────────────────────── */
