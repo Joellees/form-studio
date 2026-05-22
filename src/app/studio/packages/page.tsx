@@ -116,7 +116,6 @@ export default async function PackagesPage() {
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
       <PageHeader
-        eyebrow="packages"
         title="What clients buy."
         subtitle={subtitle}
         actions={

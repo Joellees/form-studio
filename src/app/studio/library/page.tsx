@@ -68,7 +68,7 @@ export default async function LibraryPage({ searchParams }: Props) {
 
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
-      <PageHeader eyebrow="library" title="Everything you coach." subtitle={subtitle} />
+      <PageHeader title="Everything you coach." subtitle={subtitle} />
 
       <LibraryView
         initialTab={sp.tab ?? "exercises"}
