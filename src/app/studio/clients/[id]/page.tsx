@@ -13,6 +13,7 @@ import { SessionRow } from "../../_components/session-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 import { formatInTz } from "@/lib/schedule";
@@ -107,43 +108,47 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     return null;
   })();
 
+  const contactLine =
+    [client.email, client.phone].filter(Boolean).join(" · ") || "no contact info";
+  const note = (client as { note_to_trainer?: string | null }).note_to_trainer ?? null;
+
   return (
     <div className="rise-in-stagger space-y-8 md:space-y-10">
-      <header className="flex flex-wrap items-start justify-between gap-5">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-            client
-          </p>
-          <h1 className="mt-2 text-3xl md:text-4xl">{client.display_name}</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink)]/70">
-            {[client.email, client.phone].filter(Boolean).join(" · ") || "No contact info"}
-            {" · added "}
-            {fmt(client.created_at)}
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Badge tone={client.active ? "moss" : "stone"}>
-              {client.active ? "active" : "paused"}
-            </Badge>
-            {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
-          </div>
-          {(client as { note_to_trainer?: string | null }).note_to_trainer ? (
-            <figure className="mt-4 max-w-xl rounded-2xl border-l-2 border-[color:var(--color-moss)]/40 bg-[color:var(--color-parchment)]/60 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                from {client.display_name.split(" ")[0]}
-              </p>
-              <blockquote className="mt-1 whitespace-pre-line text-sm text-[color:var(--color-ink)]">
-                {(client as { note_to_trainer?: string | null }).note_to_trainer}
-              </blockquote>
-            </figure>
-          ) : null}
+      <PageHeader
+        eyebrow="client"
+        title={client.display_name}
+        subtitle={`${contactLine} · added ${fmt(client.created_at)}`}
+        actions={
+          <>
+            <Button asChild>
+              <Link href={`/studio/calendar/new?client=${id}`}>schedule session</Link>
+            </Button>
+            <ArchiveClientButton clientId={id} archived={!client.active} />
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={client.active ? "moss" : "stone"}>
+            {client.active ? "active" : "paused"}
+          </Badge>
+          {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild>
-            <Link href={`/studio/calendar/new?client=${id}`}>schedule session</Link>
-          </Button>
-          <ArchiveClientButton clientId={id} archived={!client.active} />
-        </div>
-      </header>
+        {note ? (
+          /* Note-to-trainer surfaces inline with the header — same
+            * canvas card + moss-typography eyebrow shape used
+            * everywhere else, drops the heavier border-left-2 + parchment
+            * fill of the previous build. Reads as a calmer quote
+            * panel that doesn't compete with the badge row above. */
+          <figure className="mt-4 max-w-xl rounded-2xl bg-[color:var(--color-canvas)] px-4 py-3 ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-moss)]">
+              from {client.display_name.split(" ")[0]}
+            </p>
+            <blockquote className="mt-1 whitespace-pre-line text-sm text-[color:var(--color-ink)]/85">
+              {note}
+            </blockquote>
+          </figure>
+        ) : null}
+      </PageHeader>
 
       {/* Current block */}
       <section>

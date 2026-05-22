@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { InviteGenerator } from "./invite-generator";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -33,14 +34,13 @@ export default async function NewClientPage() {
         </svg>
         back to clients
       </Link>
-      <p className="mt-6 text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-        clients
-      </p>
-      <h1 className="mt-2 text-3xl md:text-4xl">Invite a client.</h1>
-      <p className="mt-3 text-[color:var(--color-ink)]/75">
-        Generate a single-use link. Pick the package they&rsquo;ve agreed to so it&rsquo;s ready
-        when they sign up — they can switch packages from their portal next month.
-      </p>
+      <div className="mt-6">
+        <PageHeader
+          eyebrow="clients"
+          title="Invite a client."
+          subtitle="generate a single-use link, pick the package they've agreed to. they can switch packages from their portal next month."
+        />
+      </div>
       <InviteGenerator packages={packages ?? []} />
     </div>
   );

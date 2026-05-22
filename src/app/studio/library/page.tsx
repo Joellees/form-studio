@@ -1,4 +1,5 @@
 import { LibraryView } from "./_components/library-view";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -58,14 +59,16 @@ export default async function LibraryPage({ searchParams }: Props) {
     return { ...ex, group_ids: ids };
   });
 
+  const exerciseCount = exercisesWithGroups.length;
+  const workoutCount = (workouts ?? []).length;
+  const subtitle =
+    exerciseCount + workoutCount === 0
+      ? "build a movement vocabulary, then chain it into workouts"
+      : `${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"} · ${workoutCount} workout${workoutCount === 1 ? "" : "s"}`;
+
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-          library
-        </p>
-        <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">Everything you coach.</h1>
-      </div>
+      <PageHeader title="Everything you coach." subtitle={subtitle} />
 
       <LibraryView
         initialTab={sp.tab ?? "exercises"}

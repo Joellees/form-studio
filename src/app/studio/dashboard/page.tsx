@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ActionFeed, type FeedItem } from "./action-feed";
 import { QuickActions } from "./quick-actions";
 import { TodayRail, type RailSession } from "./today-rail";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { FEATURES } from "@/lib/features";
 import { formatInTz } from "@/lib/schedule";
@@ -257,17 +258,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
-      <header className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-            overview
-          </p>
-          <h1 className="mt-1 font-display text-2xl leading-tight md:mt-2 md:text-3xl">
-            Hi, {trainer.displayName.split(" ")[0]}.
-          </h1>
-        </div>
-        <QuickActions studioUrl={studioUrl} />
-      </header>
+      <PageHeader
+        eyebrow="overview"
+        title={`Hi, ${trainer.displayName.split(" ")[0]}.`}
+        displayTitle
+        actions={<QuickActions studioUrl={studioUrl} />}
+      />
 
       {fresh ? (
         <FirstTimeNudges />

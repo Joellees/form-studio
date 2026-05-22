@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPrice } from "@/lib/pricing";
 import { isMissingColumnError } from "@/lib/postgrest-errors";
@@ -105,19 +106,24 @@ export default async function PackagesPage() {
     );
   }
 
+  const activeCount = (packages ?? []).filter((p) => p.active).length;
+  const archivedCount = (packages ?? []).length - activeCount;
+  const subtitle =
+    (packages ?? []).length === 0
+      ? null
+      : `${activeCount} live${archivedCount > 0 ? ` · ${archivedCount} archived` : ""}`;
+
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-            packages
-          </p>
-          <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">What clients buy.</h1>
-        </div>
-        <Button asChild>
-          <Link href="/studio/packages/new">new package</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="What clients buy."
+        subtitle={subtitle}
+        actions={
+          <Button asChild>
+            <Link href="/studio/packages/new">new package</Link>
+          </Button>
+        }
+      />
 
       {!packages || packages.length === 0 ? (
         <Card>
@@ -142,7 +148,7 @@ export default async function PackagesPage() {
               return (
                 <div
                   key={p.id}
-                  className="rounded-2xl bg-[color:var(--color-parchment)]/60 p-5"
+                  className="rounded-2xl bg-[color:var(--color-canvas)] p-5 ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)]"
                 >
                   <Link
                     href={`/studio/packages/${p.id}`}

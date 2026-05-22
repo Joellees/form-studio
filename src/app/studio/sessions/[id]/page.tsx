@@ -4,6 +4,7 @@ import { SessionActions } from "./session-actions";
 import { SessionBuilder } from "./session-builder";
 import { SessionTypeEditor } from "./session-type-editor";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { isMissingColumnError } from "@/lib/postgrest-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatInTz } from "@/lib/schedule";
@@ -131,10 +132,10 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="rise-in-stagger space-y-6 md:space-y-8">
-      <header className="flex items-start justify-between gap-6">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
-          <h1 className="mt-2 text-3xl md:text-4xl">
+      <PageHeader
+        eyebrow="session"
+        title={
+          <>
             {/* When session.name is null (common for newly-created
               * sessions and seeded showcase rows), just show the
               * client name — the previous "Joanne · Session"
@@ -144,23 +145,22 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
             {session.name ? (
               <span className="text-[color:var(--color-ink)]/55"> · {session.name}</span>
             ) : null}
-          </h1>
-          <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
-            {formatInTz(new Date(session.scheduled_at), trainer.timezone, "EEE, MMM d, yyyy · HH:mm")} ·{" "}
-            {session.duration_minutes} min
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {session.status === "requested" ? <Badge tone="signal">request</Badge> : null}
-          {session.status === "cancelled" ? <Badge tone="stone">cancelled</Badge> : null}
-          {session.status === "completed" ? <Badge tone="moss">completed</Badge> : null}
-          <SessionTypeEditor
-            sessionId={session.id}
-            initialType={session.session_type as "in_person" | "zoom" | "in_app"}
-            disabled={session.status === "cancelled"}
-          />
-        </div>
-      </header>
+          </>
+        }
+        subtitle={`${formatInTz(new Date(session.scheduled_at), trainer.timezone, "EEE, MMM d, yyyy · HH:mm")} · ${session.duration_minutes} min`}
+        actions={
+          <>
+            {session.status === "requested" ? <Badge tone="signal">request</Badge> : null}
+            {session.status === "cancelled" ? <Badge tone="stone">cancelled</Badge> : null}
+            {session.status === "completed" ? <Badge tone="moss">completed</Badge> : null}
+            <SessionTypeEditor
+              sessionId={session.id}
+              initialType={session.session_type as "in_person" | "zoom" | "in_app"}
+              disabled={session.status === "cancelled"}
+            />
+          </>
+        }
+      />
 
       <SessionActions session={session} />
 

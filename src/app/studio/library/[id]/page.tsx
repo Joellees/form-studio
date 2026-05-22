@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ExerciseForm } from "../_components/exercise-form";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -24,8 +25,7 @@ export default async function EditExercisePage({ params }: { params: Promise<{ i
 
   return (
     <div className="mx-auto max-w-2xl rise-in">
-      <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">exercise</p>
-      <h1 className="mt-2 text-3xl md:text-4xl">{exercise.name}</h1>
+      <PageHeader eyebrow="exercise" title={exercise.name} />
       <ExerciseForm mode="edit" initial={exercise} groups={groups ?? []} />
     </div>
   );

@@ -1,14 +1,14 @@
 import { PackageForm } from "../_components/package-form";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function NewPackagePage() {
   return (
     <div className="mx-auto max-w-xl rise-in">
-      <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">packages</p>
-      <h1 className="mt-2 text-3xl md:text-4xl">Create a package.</h1>
-      <p className="mt-3 text-[color:var(--color-ink)]/75">
-        Set the shape of a training block. You can edit or archive it later — existing
-        subscriptions stay untouched.
-      </p>
+      <PageHeader
+        eyebrow="packages"
+        title="Create a package."
+        subtitle="set the shape of a training block. you can edit or archive it later — existing subscriptions stay untouched."
+      />
       <PackageForm mode="create" />
     </div>
   );

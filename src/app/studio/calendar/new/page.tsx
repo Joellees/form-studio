@@ -1,4 +1,5 @@
 import { ScheduleForm } from "./schedule-form";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -49,11 +50,11 @@ export default async function NewSessionPage({
 
   return (
     <div className="mx-auto max-w-xl rise-in">
-      <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">calendar</p>
-      <h1 className="mt-2 text-3xl md:text-4xl">Schedule a session.</h1>
-      <p className="mt-3 text-[color:var(--color-ink)]/75">
-        Pick a client, a time, and optionally a workout to prefill.
-      </p>
+      <PageHeader
+        eyebrow="calendar"
+        title="Schedule a session."
+        subtitle="pick a client, a time, and optionally a workout to prefill."
+      />
       <ScheduleForm
         clients={clientsFlat}
         templates={templates ?? []}

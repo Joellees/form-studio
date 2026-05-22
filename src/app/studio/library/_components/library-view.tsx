@@ -124,7 +124,7 @@ function WorkoutsTab({ workouts }: { workouts: Workout[] }) {
           <Link
             key={w.id}
             href={`/studio/templates/${w.id}`}
-            className="group rounded-2xl bg-[color:var(--color-parchment)]/60 p-5 transition-colors hover:bg-[color:var(--color-parchment)]"
+            className="group rounded-2xl bg-[color:var(--color-canvas)] p-5 ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)] transition-all hover:ring-[color:var(--color-ink)]/12 hover:shadow-[0_4px_14px_-3px_rgba(31,30,27,0.12)]"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
               {w.day_label || "workout"}

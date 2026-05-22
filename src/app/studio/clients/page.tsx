@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ClientsList, type ClientRow } from "./clients-list";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
@@ -158,50 +159,47 @@ export default async function ClientsPage({
     };
   });
 
+  const countSubtitle = showArchived
+    ? `${archivedCount ?? 0} archived`
+    : `${activeCount ?? 0} active${
+        archivedCount && archivedCount > 0 ? ` · ${archivedCount} archived` : ""
+      }`;
+
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
-      <header className="space-y-3 md:flex md:flex-wrap md:items-end md:justify-between md:gap-4 md:space-y-0">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-            clients
-          </p>
-          <h1 className="mt-1 text-2xl md:mt-2 md:text-4xl">Everyone you train.</h1>
-          <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums md:text-sm">
-            {showArchived
-              ? `${archivedCount ?? 0} archived`
-              : `${activeCount ?? 0} active${
-                  archivedCount && archivedCount > 0 ? ` · ${archivedCount} archived` : ""
-                }`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {showArchived || (archivedCount && archivedCount > 0) ? (
-            <Link
-              href={showArchived ? "/studio/clients" : "/studio/clients?archived=1"}
-              className="inline-flex h-10 items-center gap-1.5 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
-            >
-              {showArchived ? (
-                <>
-                  active{" "}
-                  <span className="tabular-nums text-[color:var(--color-stone)]">
-                    {activeCount ?? 0}
-                  </span>
-                </>
-              ) : (
-                <>
-                  archived{" "}
-                  <span className="tabular-nums text-[color:var(--color-stone)]">
-                    {archivedCount}
-                  </span>
-                </>
-              )}
-            </Link>
-          ) : null}
-          <Button asChild>
-            <Link href="/studio/clients/new">invite a client</Link>
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title="Everyone you train."
+        subtitle={countSubtitle}
+        actions={
+          <>
+            {showArchived || (archivedCount && archivedCount > 0) ? (
+              <Link
+                href={showArchived ? "/studio/clients" : "/studio/clients?archived=1"}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3.5 text-xs font-semibold tracking-tight text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-parchment)]"
+              >
+                {showArchived ? (
+                  <>
+                    active{" "}
+                    <span className="tabular-nums text-[color:var(--color-stone)]">
+                      {activeCount ?? 0}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    archived{" "}
+                    <span className="tabular-nums text-[color:var(--color-stone)]">
+                      {archivedCount}
+                    </span>
+                  </>
+                )}
+              </Link>
+            ) : null}
+            <Button asChild>
+              <Link href="/studio/clients/new">invite a client</Link>
+            </Button>
+          </>
+        }
+      />
 
       <ClientsList clients={rows} showingArchived={showArchived} />
     </div>

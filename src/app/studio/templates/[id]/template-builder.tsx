@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
 import {
   FIELD_DESCRIPTIONS,
@@ -441,31 +442,25 @@ export function TemplateBuilder({
         </svg>
         back to workouts
       </Link>
-      <header className="flex items-start justify-between gap-6">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">
-            template
-          </p>
-          <h1 className="mt-2 text-3xl md:text-4xl">{template.name}</h1>
-          {template.description ? (
-            <p className="mt-2 max-w-2xl text-[color:var(--color-ink)]/75">
-              {template.description}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ApplyToSessionButton
-            templateId={template.id}
-            templateName={template.name}
-          />
-          <Button variant="outline" onClick={archive} disabled={pending || saving}>
-            archive
-          </Button>
-          <Button onClick={save} disabled={!dirty || saving}>
-            {saving ? "saving…" : "save workout"}
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="workout"
+        title={template.name}
+        subtitle={template.description ?? undefined}
+        actions={
+          <>
+            <ApplyToSessionButton
+              templateId={template.id}
+              templateName={template.name}
+            />
+            <Button variant="outline" onClick={archive} disabled={pending || saving}>
+              archive
+            </Button>
+            <Button onClick={save} disabled={!dirty || saving}>
+              {saving ? "saving…" : "save workout"}
+            </Button>
+          </>
+        }
+      />
 
       <DndContext
         sensors={sensors}
