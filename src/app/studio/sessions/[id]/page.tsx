@@ -135,7 +135,15 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-moss)]">session</p>
           <h1 className="mt-2 text-3xl md:text-4xl">
-            {clientName} · {session.name ?? "Session"}
+            {/* When session.name is null (common for newly-created
+              * sessions and seeded showcase rows), just show the
+              * client name — the previous "Joanne · Session"
+              * trailing fallback read as filler. The "session"
+              * label is already implied by the eyebrow above. */}
+            {clientName}
+            {session.name ? (
+              <span className="text-[color:var(--color-ink)]/55"> · {session.name}</span>
+            ) : null}
           </h1>
           <p className="mt-1 text-sm text-[color:var(--color-stone)] tabular-nums">
             {formatInTz(new Date(session.scheduled_at), trainer.timezone, "EEE, MMM d, yyyy · HH:mm")} ·{" "}
