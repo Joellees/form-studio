@@ -751,6 +751,7 @@ function DesktopWeekTimeGrid({
             day={d}
             sessions={sessionsByDay[d.key] ?? []}
             onAddAtTime={(time) => onAddAtTime(d, time)}
+            onOpenDay={() => onPick(d)}
           />
         ))}
 
@@ -788,10 +789,14 @@ function WeekGridColumn({
   day,
   sessions,
   onAddAtTime,
+  onOpenDay,
 }: {
   day: Day;
   sessions: SessionSummary[];
   onAddAtTime: (time: string) => void;
+  /** Open the day timeline modal — used by the overflow chip when
+   * a cluster has more than MAX_HORIZONTAL_SLOTS sessions. */
+  onOpenDay: () => void;
 }) {
   function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -843,9 +848,13 @@ function WeekGridColumn({
         * none so the click overlay underneath stays reachable
         * anywhere there isn't a session. */}
       <div className="pointer-events-none absolute inset-0 z-20">
-        {blocks.map((b) => (
-          <WeekGridBlock key={b.session.id} block={b} />
-        ))}
+        {blocks.map((b, i) =>
+          b.kind === "session" ? (
+            <WeekGridBlock key={b.session.id} block={b} />
+          ) : (
+            <WeekGridOverflow key={`overflow-${i}`} block={b} onOpenDay={onOpenDay} />
+          ),
+        )}
       </div>
       {/* Current-time line is rendered at the grid level (see
         * DesktopWeekTimeGrid) so it can span all 7 columns. The
@@ -860,19 +869,39 @@ function WeekGridColumn({
  * Compute the absolute top + height for each session inside the
  * week grid. Sessions are sorted by start, and any two that overlap
  * get side-by-side widths so neither hides the other — same shape
- * as Google Calendar's column-split. The split is greedy (no
- * elaborate interval-tree packing): an overlap with N concurrent
- * sessions splits all N into 1/N width slices.
+ * as Google Calendar's column-split.
+ *
+ * Overlap cap: a cluster of N concurrent sessions splits into at
+ * most 3 columns. If N > 3, the first 2 sessions render normally
+ * and the third slot becomes an "overflow" chip ("+N more")
+ * spanning the cluster's vertical range. Tapping the chip opens
+ * the day timeline modal where all sessions are visible at full
+ * width. Without this cap, a busy day collapses every session
+ * into an unreadable 17px-wide strip — exactly what was happening
+ * on the May 4 / 09:00 cluster (8 stacked sessions).
  */
-type WeekBlock = {
-  session: SessionSummary;
-  top: number;
-  height: number;
-  /** Horizontal slot — 0..total-1 for side-by-side splits. */
-  slot: number;
-  /** Total parallel slots in this overlap cluster. */
-  totalSlots: number;
-};
+const MAX_HORIZONTAL_SLOTS = 3;
+
+type WeekBlock =
+  | {
+      kind: "session";
+      session: SessionSummary;
+      top: number;
+      height: number;
+      /** Horizontal slot — 0..MAX_HORIZONTAL_SLOTS-1. */
+      slot: number;
+      totalSlots: number;
+    }
+  | {
+      kind: "overflow";
+      /** First overflowed session's top + the cluster's span. */
+      top: number;
+      height: number;
+      slot: number;
+      totalSlots: number;
+      /** Count of hidden sessions (N for "+N more"). */
+      count: number;
+    };
 
 function computeWeekBlocks(sessions: SessionSummary[]): WeekBlock[] {
   type Parsed = {
@@ -909,15 +938,48 @@ function computeWeekBlocks(sessions: SessionSummary[]): WeekBlock[] {
 
   function flush() {
     const total = cluster.length;
-    cluster.forEach((p, slot) => {
-      out.push({
-        session: p.session,
-        top: p.top,
-        height: p.height,
-        slot,
-        totalSlots: total,
+    if (total <= MAX_HORIZONTAL_SLOTS) {
+      cluster.forEach((p, slot) => {
+        out.push({
+          kind: "session",
+          session: p.session,
+          top: p.top,
+          height: p.height,
+          slot,
+          totalSlots: total,
+        });
       });
-    });
+    } else {
+      // First (MAX-1) sessions render normally; the last slot
+      // becomes the overflow chip. The chip spans the full
+      // cluster height so it's tappable across the whole busy
+      // band, not just the slot of its first hidden session.
+      const visible = cluster.slice(0, MAX_HORIZONTAL_SLOTS - 1);
+      const hidden = cluster.slice(MAX_HORIZONTAL_SLOTS - 1);
+      visible.forEach((p, slot) => {
+        out.push({
+          kind: "session",
+          session: p.session,
+          top: p.top,
+          height: p.height,
+          slot,
+          totalSlots: MAX_HORIZONTAL_SLOTS,
+        });
+      });
+      const overflowTop = hidden[0]!.top;
+      const overflowEnd = hidden.reduce(
+        (max, p) => Math.max(max, p.top + p.height),
+        overflowTop,
+      );
+      out.push({
+        kind: "overflow",
+        top: overflowTop,
+        height: Math.max(28, overflowEnd - overflowTop),
+        slot: MAX_HORIZONTAL_SLOTS - 1,
+        totalSlots: MAX_HORIZONTAL_SLOTS,
+        count: hidden.length,
+      });
+    }
     cluster = [];
     clusterEnd = -1;
   }
@@ -936,7 +998,7 @@ function computeWeekBlocks(sessions: SessionSummary[]): WeekBlock[] {
   return out;
 }
 
-function WeekGridBlock({ block }: { block: WeekBlock }) {
+function WeekGridBlock({ block }: { block: Extract<WeekBlock, { kind: "session" }> }) {
   const { session, top, height, slot, totalSlots } = block;
   const cancelled = session.status === "cancelled";
   const completed = session.status === "completed";
@@ -969,6 +1031,40 @@ function WeekGridBlock({ block }: { block: WeekBlock }) {
       </span>
       <span className="truncate text-[color:var(--color-ink)]/85">{label}</span>
     </a>
+  );
+}
+
+/**
+ * Overflow chip rendered in place of the third+ slot when a cluster
+ * has more than MAX_HORIZONTAL_SLOTS sessions. Tapping it opens the
+ * day timeline modal so the trainer can see all sessions at full
+ * readable width.
+ */
+function WeekGridOverflow({
+  block,
+  onOpenDay,
+}: {
+  block: Extract<WeekBlock, { kind: "overflow" }>;
+  onOpenDay: () => void;
+}) {
+  const { top, height, slot, totalSlots, count } = block;
+  const widthPct = 100 / totalSlots;
+  const leftPct = slot * widthPct;
+  return (
+    <button
+      type="button"
+      onClick={onOpenDay}
+      aria-label={`${count} more sessions — open day view`}
+      className="pointer-events-auto absolute flex items-center justify-center rounded-lg bg-[color:var(--color-canvas)] text-[11px] font-semibold text-[color:var(--color-moss)] ring-1 ring-inset ring-[color:var(--color-moss)]/25 shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-all hover:ring-[color:var(--color-moss)]/45 hover:shadow-[0_4px_14px_-3px_rgba(31,30,27,0.18)]"
+      style={{
+        top,
+        height: Math.max(height, 22),
+        left: `calc(${leftPct}% + 2px)`,
+        width: `calc(${widthPct}% - 4px)`,
+      }}
+    >
+      +{count} more
+    </button>
   );
 }
 
