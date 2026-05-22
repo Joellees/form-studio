@@ -168,6 +168,7 @@ export default async function ClientsPage({
   return (
     <div className="rise-in-stagger space-y-4 md:space-y-8">
       <PageHeader
+        eyebrow="clients"
         title="Everyone you train."
         subtitle={countSubtitle}
         actions={
