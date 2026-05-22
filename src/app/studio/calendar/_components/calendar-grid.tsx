@@ -1252,7 +1252,7 @@ function DesktopDayModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-3xl bg-[color:var(--color-canvas)] p-6 shadow-[0_24px_64px_-16px_rgba(31,30,27,0.35)] dialog-content-in"
+        className="w-full max-w-lg rounded-3xl bg-[color:var(--color-canvas)] p-6 shadow-[0_24px_64px_-16px_rgba(31,30,27,0.35)] dialog-content-rise"
         role="dialog"
         aria-modal="true"
         aria-label={`schedule for ${day.humanDate}`}
