@@ -411,7 +411,7 @@ function TimelineSessionBlock({
       )}
       style={{ top, height: Math.max(height, 28) }}
     >
-      <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss-deep)]">
+      <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss)]">
         {session.formatted_time}
       </span>
       <span className="truncate text-[color:var(--color-ink)]/85">{label}</span>
@@ -964,7 +964,7 @@ function WeekGridBlock({ block }: { block: WeekBlock }) {
         width: `calc(${widthPct}% - 4px)`,
       }}
     >
-      <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss-deep)]">
+      <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss)]">
         {session.formatted_time}
       </span>
       <span className="truncate text-[color:var(--color-ink)]/85">{label}</span>
@@ -1199,7 +1199,7 @@ function MonthEventChip({
         muted && "opacity-60",
       )}
     >
-      <span className="tabular-nums font-semibold text-[color:var(--color-moss-deep)]">
+      <span className="tabular-nums font-semibold text-[color:var(--color-moss)]">
         {session.formatted_time}
       </span>
       <span className="truncate text-[color:var(--color-ink)]/85">
