@@ -198,21 +198,21 @@ export function AssignToClientsButton({
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-6"
+          className="dialog-overlay-in fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/30 p-0 backdrop-blur-sm md:items-center md:p-6"
           onClick={close}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-3xl bg-[color:var(--color-canvas)] shadow-[0_-12px_32px_-8px_rgba(31,30,27,0.35)] md:rounded-3xl"
+            className="dialog-content-rise flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-3xl bg-[color:var(--color-canvas)] shadow-[0_24px_64px_-16px_rgba(31,30,27,0.35)] md:rounded-3xl"
           >
             {/* Header */}
             <div className="flex items-start justify-between gap-4 px-5 py-4">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                  Bulk assign
+                  assign
                 </p>
                 <h2 className="mt-1 truncate text-lg font-semibold tracking-tight">
-                  Assign {packageName} to clients
+                  {packageName}
                 </h2>
               </div>
               <button
@@ -337,12 +337,18 @@ export function AssignToClientsButton({
                 <Button variant="ghost" onClick={close} disabled={submitting}>
                   cancel
                 </Button>
+                {/* The 0-selected state was rendering an active-
+                  * looking button labelled "Assign to 0 clients" —
+                  * the button was disabled but the label was
+                  * misleading. Now: a calmer "assign" label,
+                  * count appended only when > 0, button stays
+                  * disabled until something's picked. */}
                 <Button onClick={submit} disabled={submitting || selected.size === 0}>
                   {submitting
                     ? "assigning…"
                     : selected.size === 0
-                      ? "Assign to 0 clients"
-                      : `Assign to ${selected.size} client${selected.size === 1 ? "" : "s"}`}
+                      ? "assign"
+                      : `assign to ${selected.size} client${selected.size === 1 ? "" : "s"}`}
                 </Button>
               </div>
             </div>

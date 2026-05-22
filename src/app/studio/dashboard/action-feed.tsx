@@ -55,7 +55,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
           return (
             <li
               key={`pp-${item.subscriptionId}-${i}`}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
+              className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-4"
             >
               <div className="flex min-w-0 items-start gap-3 sm:items-center">
                 <KindLabel tone="signal">payment due</KindLabel>
@@ -69,11 +69,16 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
                   </span>
                 </Link>
               </div>
+              {/* CTA shrunk to h-8 so it doesn't visually outweigh
+                * the row's content. Old h-11 buttons made rows-
+                * with-actions noticeably taller than text-only rows,
+                * and the row heights stair-stepping read as chrome
+                * imposing on the blocks. */}
               <button
                 type="button"
                 onClick={() => markPaid(item.subscriptionId)}
                 disabled={pending}
-                className="inline-flex h-11 shrink-0 items-center self-end rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60 sm:self-auto"
+                className="inline-flex h-8 shrink-0 items-center self-end rounded-full bg-[color:var(--color-ink)] px-3.5 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60 sm:self-auto"
               >
                 mark paid
               </button>
@@ -84,7 +89,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
           return (
             <li
               key={`sr-${item.sessionId}-${i}`}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
+              className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-4"
             >
               <div className="flex min-w-0 items-start gap-3 sm:items-center">
                 <Dot tone="signal" />
@@ -102,7 +107,7 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
                 type="button"
                 onClick={() => approve(item.sessionId)}
                 disabled={pending}
-                className="inline-flex h-11 shrink-0 items-center self-end rounded-full bg-[color:var(--color-ink)] px-4 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60 sm:self-auto"
+                className="inline-flex h-8 shrink-0 items-center self-end rounded-full bg-[color:var(--color-ink)] px-3.5 text-xs font-medium text-[color:var(--color-canvas)] hover:bg-[color:var(--color-moss-deep)] disabled:opacity-60 sm:self-auto"
               >
                 approve
               </button>

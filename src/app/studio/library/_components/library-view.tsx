@@ -6,12 +6,15 @@ import { useMemo, useState, useTransition } from "react";
 
 import { GroupsSection } from "./groups-section";
 import { ImportUniversalButton } from "./import-universal-button";
+import { archiveExercises } from "../actions";
 import { appendExercisesToTemplate, createTemplateWithExercises } from "@/app/studio/templates/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 type Group = { id: string; name: string; sort_index: number; is_universal?: boolean };
@@ -189,9 +192,13 @@ function ExercisesTab({
   query: string;
   setQuery: (v: string) => void;
 }) {
+  const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creatingWorkout, setCreatingWorkout] = useState(false);
+  const [deleting, startDelete] = useTransition();
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -206,6 +213,34 @@ function ExercisesTab({
     setSelecting(false);
     setSelected(new Set());
     setCreatingWorkout(false);
+  }
+
+  /* Bulk delete of selected exercises. Uses the existing
+   * `archiveExercises` server action (soft-delete via
+   * `archived = true`); past sessions referencing the exercise stay
+   * intact. Confirms first because select mode can have many rows
+   * checked at once and a stray tap would be costly. */
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    const n = selected.size;
+    const ok = await confirm({
+      title: `delete ${n} exercise${n === 1 ? "" : "s"}?`,
+      body: "past sessions that use them stay intact. they won't appear in new workouts.",
+      confirmLabel: "delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    startDelete(async () => {
+      const ids = [...selected];
+      const res = await archiveExercises({ exerciseIds: ids });
+      if (!res.ok) {
+        toast.error(res.error || "couldn't delete the selection. try again.");
+        return;
+      }
+      toast.success(`deleted ${res.data.archived} exercise${res.data.archived === 1 ? "" : "s"}.`);
+      exitSelect();
+      router.refresh();
+    });
   }
 
   const filtered = exercises.filter((e) => {
@@ -291,15 +326,30 @@ function ExercisesTab({
                 <Button
                   size="md"
                   onClick={() => setCreatingWorkout(true)}
-                  disabled={selected.size === 0}
+                  disabled={selected.size === 0 || deleting}
                 >
                   add to workout{selected.size > 0 ? ` (${selected.size})` : ""}
+                </Button>
+                {/* Delete acts on the same selection. Danger
+                  * variant so the trainer sees it's a destructive
+                  * action even at toolbar density. Disabled when
+                  * nothing is selected. */}
+                <Button
+                  variant="danger"
+                  size="md"
+                  onClick={() => void deleteSelected()}
+                  disabled={selected.size === 0 || deleting}
+                >
+                  {deleting
+                    ? "deleting…"
+                    : `delete${selected.size > 0 ? ` (${selected.size})` : ""}`}
                 </Button>
                 <button
                   type="button"
                   onClick={exitSelect}
                   aria-label="cancel selection"
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)]"
+                  disabled={deleting}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)] disabled:opacity-60"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
                     <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
