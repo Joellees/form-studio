@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { archivePackage, savePackage } from "../actions";
@@ -78,6 +78,16 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
     },
   });
 
+  /* Description is collapsed by default (per trainer feedback that
+   * the textarea was taking up too much room for a field most
+   * trainers don't fill in). The disclosure opens it only when the
+   * trainer explicitly wants to write a public-facing summary. On
+   * edit-mode for an existing package WITH a description, start
+   * expanded so the trainer sees what's there. */
+  const [descOpen, setDescOpen] = useState<boolean>(
+    Boolean(initial?.description && initial.description.length > 0),
+  );
+
   /* Watch currency so the price input's placeholder + label suffix
    * update live as the trainer picks a different currency. */
   const currency = (useWatch({ control, name: "currency" }) as Currency) ?? "usd";
@@ -122,19 +132,40 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
         <Input {...register("name", { required: "Required" })} placeholder="The 12-session block" />
       </Field>
 
-      <Field label="description" error={errors.description?.message}>
-        <Textarea
-          rows={3}
-          {...register("description", { maxLength: { value: 600, message: "Keep it under 600 characters." } })}
-          placeholder="What's in this package — twelve in-person strength sessions over a month, weekly check-ins, custom plan."
-        />
-        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
-          Shown to clients on your public page. Skip if the package name already
-          says it.
-        </p>
-      </Field>
+      {/* Description is opt-in. Most packages don't need one. */}
+      {descOpen ? (
+        <Field label="description" error={errors.description?.message}>
+          <Textarea
+            rows={3}
+            {...register("description", { maxLength: { value: 600, message: "Keep it under 600 characters." } })}
+            placeholder="What's in this package — written for the client."
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={() => setDescOpen(false)}
+            className="mt-1 self-start text-xs text-[color:var(--color-stone)] underline underline-offset-4 hover:text-[color:var(--color-ink)]"
+          >
+            hide description
+          </button>
+        </Field>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setDescOpen(true)}
+          className="self-start text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)] hover:text-[color:var(--color-moss-deep)]"
+        >
+          + add description
+        </button>
+      )}
 
-      <div className="grid gap-5 sm:grid-cols-3 sm:gap-6">
+      {/* sessions · time · price+currency on one balanced row. The
+        * old layout had three equal-width columns that left blank
+        * space next to the small numbers and crammed the price +
+        * currency dropdown together. Bumping the price column wider
+        * gives the composite price+currency control breathing room
+        * without making the count fields feel oversized. */}
+      <div className="grid gap-5 sm:grid-cols-[1fr_1fr_1.4fr] sm:gap-4">
         <Field label="sessions" error={errors.session_count?.message}>
           <Input
             type="number"
@@ -144,7 +175,7 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
             {...register("session_count", { valueAsNumber: true, required: true, min: 1 })}
           />
         </Field>
-        <Field label="valid for (days)" error={errors.duration_days?.message}>
+        <Field label="timeframe (days)" error={errors.duration_days?.message}>
           <Input
             type="number"
             min={1}
@@ -154,10 +185,10 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
           />
         </Field>
         <Field label="price" error={errors.price_usd?.message}>
-          {/* Currency lives inline on the price field instead of its
-            * own block — keeps the form compact and ties the dropdown
-            * to the value it's labelling. Both controls share h-11
-            * + rounded-full so they read as a single composite field. */}
+          {/* Currency lives inline on the price field — keeps the
+            * row compact and ties the dropdown to the value it's
+            * labelling. Both controls share h-11 + rounded-full so
+            * they read as a single composite field. */}
           <div className="flex items-stretch gap-2">
             <Input
               type="number"
@@ -181,45 +212,53 @@ export function PackageForm({ mode, initial }: { mode: "create" | "edit"; initia
         </Field>
       </div>
 
+      {/* Delivery — one-line description. The "online" option used
+        * to say "online (zoom)" + a paragraph explaining package
+        * flexibility + the $3 in-app add-on; trainers said it was
+        * too much. Single-line copy from here on. */}
       <Field label="how sessions are delivered">
         <select
           {...register("delivery_method")}
           className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
         >
           <option value="in_person">in person</option>
-          <option value="online">online (zoom)</option>
+          <option value="online">online</option>
         </select>
-        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
-          The default delivery for this package. You can still log a session as the
-          other type per-week (e.g. one zoom while travelling). Clients can request
-          additional in-app workouts anytime for $3 — those don&rsquo;t affect this
-          package count.
+        <p className="mt-2 text-xs text-[color:var(--color-ink)]/65">
+          default delivery — switchable per session.
         </p>
       </Field>
 
-      <Field label="payment mode">
-        <select
-          {...register("payment_mode")}
-          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
-        >
-          <option value="manual">manual / cash</option>
-          <option value="online">online (phase 2)</option>
-        </select>
-      </Field>
-
-      <Field label="cancellation policy">
-        <select
-          {...register("cancellation_policy")}
-          className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
-        >
-          <option value="credited">reschedule</option>
-          <option value="lost">counted session</option>
-        </select>
-        <p className="mt-2 text-xs text-[color:var(--color-ink)]/70">
-          Either way, clients can only cancel up until midnight the day before. Same-day
-          cancellations are blocked.
-        </p>
-      </Field>
+      {/* Payment + cancellation share one row. Payment is locked to
+        * cash for now (the "online (phase 2)" option is intentionally
+        * hidden until we wire the gateway — surfacing it pre-build
+        * leaks a setting the trainer can pick but we can't honour).
+        * Cancellation policy sits beside it with the shared
+        * "midnight cutoff" copy underneath both. */}
+      <div className="grid gap-5 sm:grid-cols-2 sm:gap-4">
+        <Field label="payment">
+          <select
+            {...register("payment_mode")}
+            className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
+          >
+            {/* Only the cash option is rendered. Once the gateway is
+              * live, swap this to a list including "online". */}
+            <option value="manual">cash</option>
+          </select>
+        </Field>
+        <Field label="cancellation">
+          <select
+            {...register("cancellation_policy")}
+            className="select-pill h-11 rounded-full border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] text-sm"
+          >
+            <option value="credited">reschedule</option>
+            <option value="lost">counted session</option>
+          </select>
+        </Field>
+      </div>
+      <p className="-mt-3 text-xs text-[color:var(--color-ink)]/65">
+        clients can cancel until midnight the day before. same-day cancellations are blocked.
+      </p>
 
       <div className="flex items-center gap-3 pt-2">
         <Button type="submit" disabled={pending} size="lg">

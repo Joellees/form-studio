@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { AssignToClientsButton } from "./_components/assign-to-clients-button";
+import { PackageRowMenu } from "./_components/package-row-menu";
 import { SubscriberList } from "./_components/subscriber-list";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,17 +14,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Map the legacy DB enum values to the simpler labels we now show
- * everywhere: "reschedule" (was "credited") and "counted session"
- * (was "lost"). Storage keeps the old values so we don't need a DDL.
- */
-function prettyPolicy(p: string): string {
-  if (p === "credited") return "reschedule";
-  if (p === "lost") return "counted session";
-  return p;
-}
 
 type SubscriberRow = {
   clientId: string;
@@ -141,7 +130,13 @@ export default async function PackagesPage() {
         </Card>
       ) : (
         <>
-          {/* Mobile: stacked cards. Desktop: table. */}
+          {/* Mobile: stacked cards. Desktop: table. The columns the
+            * trainer asked for are: name · sessions · time · price
+            * on the left; clients + assign + kebab on the right.
+            * Payment / cancellation / status columns are dropped —
+            * trainers said they don't scan the list for those, and
+            * they're available on the package detail page when
+            * needed. */}
           <div className="grid gap-3 md:hidden">
             {packages.map((p) => {
               const subs = subscribersByPackage.get(p.id) ?? [];
@@ -150,37 +145,26 @@ export default async function PackagesPage() {
                   key={p.id}
                   className="rounded-2xl bg-[color:var(--color-canvas)] p-5 ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)]"
                 >
-                  <Link
-                    href={`/studio/packages/${p.id}`}
-                    className="flex items-start justify-between gap-3 hover:text-[color:var(--color-moss-deep)]"
-                  >
-                    <h3 className="text-lg font-semibold tracking-tight">{p.name}</h3>
-                    <Badge tone={p.active ? "moss" : "stone"}>
-                      {p.active ? "live" : "archived"}
-                    </Badge>
-                  </Link>
+                  <div className="flex items-start justify-between gap-3">
+                    <Link
+                      href={`/studio/packages/${p.id}`}
+                      className="min-w-0 flex-1 hover:text-[color:var(--color-moss-deep)]"
+                    >
+                      <h3 className="text-lg font-semibold tracking-tight">{p.name}</h3>
+                    </Link>
+                    <PackageRowMenu packageId={p.id} packageName={p.name} active={p.active} />
+                  </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm tabular-nums">
                     <Stat label="sessions" value={String(p.session_count)} />
-                    <Stat label="window" value={`${p.duration_days}d`} />
+                    <Stat label="time" value={`${p.duration_days}d`} />
                     <Stat label="price" value={formatPrice(p.price_usd, (p as { currency?: string }).currency ?? "usd")} />
                   </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[color:var(--color-stone)]">
-                    <span>{p.payment_mode}</span>
-                    <span>·</span>
-                    <span>{prettyPolicy(p.cancellation_policy)}</span>
-                    <span className="ml-auto">
-                      <SubscriberList subscribers={subs} />
-                    </span>
-                  </div>
-                  {/* Per-row bulk-assign entry point. Mirrors the
-                    * detail-page button so the trainer can reach the
-                    * flow without drilling into a single package
-                    * first. Compact "sm" variant to fit the card. */}
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <SubscriberList subscribers={subs} />
                     <AssignToClientsButton
                       packageId={p.id}
                       packageName={p.name}
-                      buttonLabel="Assign to clients"
+                      buttonLabel="assign"
                       buttonSize="sm"
                       buttonVariant="outline"
                     />
@@ -197,17 +181,10 @@ export default async function PackagesPage() {
                   <TableRow>
                     <TableHead>name</TableHead>
                     <TableHead className="text-right">sessions</TableHead>
-                    <TableHead className="text-right">window</TableHead>
+                    <TableHead className="text-right">time</TableHead>
                     <TableHead className="text-right">price</TableHead>
-                    <TableHead>payment</TableHead>
-                    <TableHead>cancellation</TableHead>
                     <TableHead>clients</TableHead>
-                    <TableHead>status</TableHead>
-                    {/* Trailing action column for the per-row
-                      * Assign-to-clients button. Header is screen-
-                      * reader friendly but visually empty so the
-                      * existing column rhythm isn't disturbed. */}
-                    <TableHead>
+                    <TableHead className="text-right">
                       <span className="sr-only">actions</span>
                     </TableHead>
                   </TableRow>
@@ -230,24 +207,24 @@ export default async function PackagesPage() {
                         <TableCell className="text-right tabular-nums">
                           {formatPrice(p.price_usd, (p as { currency?: string }).currency ?? "usd")}
                         </TableCell>
-                        <TableCell className="capitalize">{p.payment_mode}</TableCell>
-                        <TableCell>{prettyPolicy(p.cancellation_policy)}</TableCell>
                         <TableCell>
                           <SubscriberList subscribers={subs} />
                         </TableCell>
-                        <TableCell>
-                          <Badge tone={p.active ? "moss" : "stone"}>
-                            {p.active ? "live" : "archived"}
-                          </Badge>
-                        </TableCell>
                         <TableCell className="text-right">
-                          <AssignToClientsButton
-                            packageId={p.id}
-                            packageName={p.name}
-                            buttonLabel="Assign"
-                            buttonSize="sm"
-                            buttonVariant="outline"
-                          />
+                          <div className="inline-flex items-center gap-1">
+                            <AssignToClientsButton
+                              packageId={p.id}
+                              packageName={p.name}
+                              buttonLabel="assign"
+                              buttonSize="sm"
+                              buttonVariant="outline"
+                            />
+                            <PackageRowMenu
+                              packageId={p.id}
+                              packageName={p.name}
+                              active={p.active}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
