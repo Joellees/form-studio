@@ -276,28 +276,86 @@ function DayTimeline({
     [],
   );
 
-  /* Map each session to an absolute top-offset + height. The session's
-   * `scheduled_at` is a UTC ISO string; we already format it on the
-   * server to the trainer's HH:mm in `formatted_time`, so the hour +
-   * minute math here just parses that string. Cancelled / completed
-   * sessions still render but with reduced opacity so they don't
-   * compete with the live schedule. */
+  /* Map each session to an absolute top-offset + height + horizontal
+   * slot. We use the same overlap-cluster algorithm as the week
+   * grid: when N sessions overlap, the first MAX_HORIZONTAL_SLOTS-1
+   * render side-by-side and the rest collapse into a "+N more"
+   * marker. Without this, overlapping sessions stacked at the same
+   * top + height and only the last one rendered would be visible —
+   * which was the bug observed in the day modal showing "10
+   * sessions" but rendering only one. */
   const blocks = useMemo(() => {
-    return sessions
-      .map((s) => {
-        const [hStr = "0", mStr = "0"] = s.formatted_time.split(":");
-        const hour = Number(hStr);
-        const minute = Number(mStr);
-        const startMin = hour * 60 + minute - TIMELINE_START_HOUR * 60;
-        const visibleEndMin = (TIMELINE_END_HOUR - TIMELINE_START_HOUR) * 60;
-        const clippedStart = Math.max(0, Math.min(startMin, visibleEndMin));
-        const rawEnd = startMin + (s.duration_minutes || 60);
-        const clippedEnd = Math.max(clippedStart + 24, Math.min(rawEnd, visibleEndMin));
-        const top = (clippedStart / 60) * HOUR_ROW_HEIGHT_PX;
-        const height = ((clippedEnd - clippedStart) / 60) * HOUR_ROW_HEIGHT_PX;
-        return { session: s, top, height };
-      })
-      .sort((a, b) => a.top - b.top);
+    type Parsed = {
+      session: SessionSummary;
+      startMin: number;
+      endMin: number;
+      top: number;
+      height: number;
+    };
+    const visibleEndMin = (TIMELINE_END_HOUR - TIMELINE_START_HOUR) * 60;
+    const parsed: Parsed[] = sessions.map((s) => {
+      const [hStr = "0", mStr = "0"] = s.formatted_time.split(":");
+      const hour = Number(hStr);
+      const minute = Number(mStr);
+      const startMin = hour * 60 + minute - TIMELINE_START_HOUR * 60;
+      const rawEnd = startMin + (s.duration_minutes || 60);
+      const clippedStart = Math.max(0, Math.min(startMin, visibleEndMin));
+      const clippedEnd = Math.max(clippedStart + 24, Math.min(rawEnd, visibleEndMin));
+      return {
+        session: s,
+        startMin,
+        endMin: rawEnd,
+        top: (clippedStart / 60) * HOUR_ROW_HEIGHT_PX,
+        height: ((clippedEnd - clippedStart) / 60) * HOUR_ROW_HEIGHT_PX,
+      };
+    });
+    parsed.sort((a, b) => a.startMin - b.startMin);
+
+    const out: Array<
+      | { kind: "session"; session: SessionSummary; top: number; height: number; slot: number; totalSlots: number }
+      | { kind: "overflow"; count: number; top: number; height: number; slot: number; totalSlots: number }
+    > = [];
+    let cluster: Parsed[] = [];
+    let clusterEnd = -1;
+    const flush = () => {
+      const total = cluster.length;
+      if (total === 0) return;
+      if (total <= MAX_HORIZONTAL_SLOTS) {
+        cluster.forEach((p, slot) => {
+          out.push({ kind: "session", session: p.session, top: p.top, height: p.height, slot, totalSlots: total });
+        });
+      } else {
+        const visible = cluster.slice(0, MAX_HORIZONTAL_SLOTS - 1);
+        const hidden = cluster.slice(MAX_HORIZONTAL_SLOTS - 1);
+        visible.forEach((p, slot) => {
+          out.push({ kind: "session", session: p.session, top: p.top, height: p.height, slot, totalSlots: MAX_HORIZONTAL_SLOTS });
+        });
+        const overflowTop = hidden[0]!.top;
+        const overflowEnd = hidden.reduce((max, p) => Math.max(max, p.top + p.height), overflowTop);
+        out.push({
+          kind: "overflow",
+          count: hidden.length,
+          top: overflowTop,
+          height: Math.max(28, overflowEnd - overflowTop),
+          slot: MAX_HORIZONTAL_SLOTS - 1,
+          totalSlots: MAX_HORIZONTAL_SLOTS,
+        });
+      }
+      cluster = [];
+      clusterEnd = -1;
+    };
+    for (const p of parsed) {
+      if (cluster.length === 0 || p.startMin < clusterEnd) {
+        cluster.push(p);
+        clusterEnd = Math.max(clusterEnd, p.endMin);
+      } else {
+        flush();
+        cluster.push(p);
+        clusterEnd = p.endMin;
+      }
+    }
+    flush();
+    return out;
   }, [sessions]);
 
   /* Auto-scroll to the most-relevant hour on open: the first session
@@ -359,16 +417,24 @@ function DayTimeline({
 
         {/* Session blocks, positioned absolutely over the grid. Sit
           * inside the right column (offset by the gutter width) so
-          * they don't overlap the hour labels. */}
+          * they don't overlap the hour labels. Overlapping sessions
+          * split horizontally up to MAX_HORIZONTAL_SLOTS; anything
+          * beyond renders as a visual "+N more" chip. */}
         <div className="pointer-events-none absolute inset-y-0 left-12 right-0 md:left-14">
-          {blocks.map(({ session, top, height }) => (
-            <TimelineSessionBlock
-              key={session.id}
-              session={session}
-              top={top}
-              height={height}
-            />
-          ))}
+          {blocks.map((b, i) =>
+            b.kind === "overflow" ? (
+              <TimelineOverflowBlock key={`overflow-${i}`} block={b} />
+            ) : (
+              <TimelineSessionBlock
+                key={b.session.id}
+                session={b.session}
+                top={b.top}
+                height={b.height}
+                slot={b.slot}
+                totalSlots={b.totalSlots}
+              />
+            ),
+          )}
         </div>
       </div>
     </div>
@@ -387,14 +453,20 @@ function TimelineSessionBlock({
   session,
   top,
   height,
+  slot,
+  totalSlots,
 }: {
   session: SessionSummary;
   top: number;
   height: number;
+  slot: number;
+  totalSlots: number;
 }) {
   const cancelled = session.status === "cancelled";
   const completed = session.status === "completed";
   const label = session.client_name ?? session.name ?? "session";
+  const widthPct = 100 / totalSlots;
+  const leftPct = slot * widthPct;
   return (
     <a
       href={`/studio/sessions/${session.id}`}
@@ -405,17 +477,57 @@ function TimelineSessionBlock({
       // keeps the timeline (mobile inline + desktop modal) visually
       // consistent with the week view.
       className={cn(
-        "pointer-events-auto absolute left-1.5 right-2 flex flex-col gap-0.5 overflow-hidden rounded-lg bg-[color:var(--color-canvas)] px-2 py-1 text-[11px] leading-tight ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-all hover:ring-[color:var(--color-ink)]/12 hover:shadow-[0_4px_14px_-3px_rgba(31,30,27,0.18)]",
+        "pointer-events-auto absolute flex flex-col gap-0.5 overflow-hidden rounded-lg bg-[color:var(--color-canvas)] px-2 py-1 text-[11px] leading-tight ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-all hover:ring-[color:var(--color-ink)]/12 hover:shadow-[0_4px_14px_-3px_rgba(31,30,27,0.18)]",
         cancelled && "line-through opacity-50",
         completed && "opacity-75",
       )}
-      style={{ top, height: Math.max(height, 28) }}
+      style={{
+        top,
+        height: Math.max(height, 28),
+        left: `calc(${leftPct}% + 6px)`,
+        width: `calc(${widthPct}% - 10px)`,
+      }}
     >
       <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss)]">
         {session.formatted_time}
       </span>
       <span className="truncate text-[color:var(--color-ink)]/85">{label}</span>
     </a>
+  );
+}
+
+/**
+ * Day-timeline overflow chip — same role as WeekGridOverflow, but
+ * displayed at full-block size since the timeline is already the
+ * leaf detail view (no further drill-down). Click is a no-op for
+ * now: the chip is informational ("there are also N other
+ * sessions in this slot"). Trainers can click the visible sibling
+ * blocks to reach the hidden sessions through the source — in
+ * practice this only happens with extreme stacking (the
+ * pre-existing seed put 9 sessions on one hour) which doesn't
+ * occur in real trainer use.
+ */
+function TimelineOverflowBlock({
+  block,
+}: {
+  block: { count: number; top: number; height: number; slot: number; totalSlots: number };
+}) {
+  const { count, top, height, slot, totalSlots } = block;
+  const widthPct = 100 / totalSlots;
+  const leftPct = slot * widthPct;
+  return (
+    <span
+      aria-label={`${count} more sessions in this slot`}
+      className="pointer-events-auto absolute flex items-center justify-center rounded-lg bg-[color:var(--color-canvas)] text-[11px] font-semibold text-[color:var(--color-moss)] ring-1 ring-inset ring-[color:var(--color-moss)]/25 shadow-[0_1px_3px_rgba(31,30,27,0.06)]"
+      style={{
+        top,
+        height: Math.max(height, 28),
+        left: `calc(${leftPct}% + 6px)`,
+        width: `calc(${widthPct}% - 10px)`,
+      }}
+    >
+      +{count} more
+    </span>
   );
 }
 
