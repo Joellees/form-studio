@@ -52,9 +52,11 @@ export type PageHeaderProps = {
   /** The primary H1 — string or JSX. */
   title: React.ReactNode;
   /**
-   * Opt in to Fraunces display for the H1. Reserved for very major
-   * marketing headlines — dashboard greeting, trainer-profile
-   * masthead. Defaults to the standard sans H1.
+   * Deprecated — Fraunces is no longer used inside the studio.
+   * Kept as a prop only so call sites passing `displayTitle` still
+   * compile; the prop is otherwise a no-op. Marketing pages
+   * (`/`, `/s/[slug]`) still use Fraunces directly via the
+   * `font-display` class — they're outside the studio chrome.
    */
   displayTitle?: boolean;
   /**
@@ -82,12 +84,13 @@ export function PageHeader({
   eyebrow,
   eyebrowTone = "moss",
   title,
-  displayTitle = false,
+  displayTitle: _displayTitle,
   subtitle,
   actions,
   children,
   className,
 }: PageHeaderProps) {
+  void _displayTitle;
   return (
     <header
       className={cn(
@@ -111,9 +114,7 @@ export function PageHeader({
         <h1
           className={cn(
             "leading-tight tracking-tight text-[color:var(--color-ink)]",
-            displayTitle
-              ? "font-display text-2xl md:text-3xl"
-              : "text-3xl font-semibold md:text-4xl",
+            "text-3xl font-semibold md:text-4xl",
             eyebrow ? "mt-1 md:mt-1.5" : "mt-0",
           )}
         >

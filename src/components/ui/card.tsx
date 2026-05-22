@@ -2,12 +2,27 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * The canonical card surface across the platform.
+ *
+ * Earlier this was a parchment-tinted block (`bg-parchment/70 +
+ * backdrop-blur + drop shadow`) — the heaviest object on most
+ * pages. The calendar's session blocks proved the calmer
+ * alternative reads better: a canvas fill on top of the page's
+ * parchment ground with a 1px inset ring carrying the
+ * boundary. Same "this is a card" cue, half the visual weight,
+ * and contents (chips, type, numbers) stay the focal point.
+ *
+ * Switching the primitive here propagates the calmer treatment
+ * to every Card in the studio — library exercise grid, packages
+ * table, sessions detail, client detail, etc.
+ */
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
       className={cn(
-        "rounded-3xl bg-[color:var(--color-parchment)]/70 backdrop-blur-[1px] shadow-[var(--shadow-card)]",
+        "rounded-3xl bg-[color:var(--color-canvas)] ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)]",
         className,
       )}
       {...props}

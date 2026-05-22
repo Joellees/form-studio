@@ -127,7 +127,7 @@ export default async function ExpiredPage() {
       </p>
 
       <section className="mt-12 md:mt-20">
-        <h1 className="font-display text-3xl font-semibold leading-tight md:text-4xl">
+        <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
           {copy.headline}
         </h1>
         <p className="mt-3 text-[color:var(--color-ink)]/70">{copy.subhead}</p>

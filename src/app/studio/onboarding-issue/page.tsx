@@ -56,7 +56,7 @@ export default async function OnboardingIssuePage() {
       </p>
 
       <section className="mt-12 md:mt-20">
-        <h1 className="font-display text-3xl font-semibold leading-tight md:text-4xl">
+        <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
           We need a hand from our end.
         </h1>
         <p className="mt-3 text-[color:var(--color-ink)]/75">{warning}</p>

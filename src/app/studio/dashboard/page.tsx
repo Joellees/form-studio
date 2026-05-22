@@ -261,7 +261,6 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="overview"
         title={`Hi, ${trainer.displayName.split(" ")[0]}.`}
-        displayTitle
         actions={<QuickActions studioUrl={studioUrl} />}
       />
 
