@@ -15,14 +15,18 @@ type Fields = {
   prs: boolean;
 };
 
-const LABELS: Record<keyof Fields, string> = {
-  weight: "Weight",
-  cycle: "Cycle",
-  measurements: "Measurements",
-  progress_photos: "Progress photos",
-  mood: "Mood",
-  sleep: "Sleep",
-  prs: "Personal records",
+/* The toggleable log fields surfaced to the trainer. mood + prs
+ * stay on the underlying Fields shape (their DB columns persist —
+ * a trainer who previously enabled them keeps that state) but
+ * they're hidden from the UI per the trimmed-down spec: weight,
+ * cycle, measurements, progress photos, sleep. Adding either back
+ * is a one-line render change. */
+const LABELS: Partial<Record<keyof Fields, string>> = {
+  weight: "weight",
+  cycle: "period cycle",
+  measurements: "measurements",
+  progress_photos: "progress photos",
+  sleep: "sleep cycle",
 };
 
 export function ClientFieldToggles({ clientId, initial }: { clientId: string; initial: Fields }) {
@@ -37,9 +41,11 @@ export function ClientFieldToggles({ clientId, initial }: { clientId: string; in
     });
   }
 
+  const visibleKeys = Object.keys(LABELS) as (keyof Fields)[];
+
   return (
     <div className="flex flex-col divide-y divide-[color:var(--color-stone-soft)]">
-      {(Object.keys(LABELS) as (keyof Fields)[]).map((key) => (
+      {visibleKeys.map((key) => (
         <button
           key={key}
           type="button"

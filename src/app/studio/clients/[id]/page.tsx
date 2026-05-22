@@ -9,11 +9,11 @@ import { MarkPaidButton } from "./mark-paid-button";
 import { ProgressPanel, type LogEntry } from "./progress-panel";
 import { RevertPaidMenu } from "./revert-paid-menu";
 import { SubscriptionEditor } from "./subscription-editor";
-import { SessionRow } from "../../_components/session-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { prettySessionType, type SessionTypeValue } from "@/lib/session-type";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireTrainer } from "@/lib/trainer";
 import { formatInTz } from "@/lib/schedule";
@@ -127,19 +127,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </>
         }
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={client.active ? "moss" : "stone"}>
-            {client.active ? "active" : "paused"}
-          </Badge>
-          {billing ? <Badge tone={billing.tone}>{billing.text}</Badge> : null}
-        </div>
+        {/* The active + billing badges that used to live up here are
+          * gone — they were duplicated by the package card below
+          * (which now carries both pieces of info explicitly). A
+          * client profile header doesn't need to repeat what the
+          * package card already says. */}
         {note ? (
           /* Note-to-trainer surfaces inline with the header — same
             * canvas card + moss-typography eyebrow shape used
             * everywhere else, drops the heavier border-left-2 + parchment
             * fill of the previous build. Reads as a calmer quote
-            * panel that doesn't compete with the badge row above. */
-          <figure className="mt-4 max-w-xl rounded-2xl bg-[color:var(--color-canvas)] px-4 py-3 ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)]">
+            * panel that doesn't compete with the package card below. */
+          <figure className="max-w-xl rounded-2xl bg-[color:var(--color-canvas)] px-4 py-3 ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.05)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-moss)]">
               from {client.display_name.split(" ")[0]}
             </p>
@@ -150,52 +149,51 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         ) : null}
       </PageHeader>
 
-      {/* Current block */}
+      {/* Package — the canonical card for "what block is this client
+        * on right now". Carries an explicit `Package` title with the
+        * active + paid tags inside the card header (instead of in the
+        * page-header badge row, which was redundant). The old
+        * "current block" section heading is gone — the card title
+        * does that job. */}
       <section>
-        <h2 className="text-xs font-medium uppercase tracking-[0.26em] text-[color:var(--color-stone)]">
-          current block
-        </h2>
         {activeSub ? (
-          <Card className="mt-3">
-            <CardContent>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <CardTitle>Package</CardTitle>
+                  <Badge tone="moss">active</Badge>
                   <Badge tone="moss">
                     paid
-                    {activeSub.paid_confirmed_at
-                      ? ` · ${fmt(activeSub.paid_confirmed_at)}`
-                      : ""}
+                    {activeSub.paid_confirmed_at ? ` · ${fmt(activeSub.paid_confirmed_at)}` : ""}
                   </Badge>
                 </div>
                 {/* Less-prominent revert affordance for paid subs that
                     are past the 30-second undo toast window. */}
                 <RevertPaidMenu subscriptionId={activeSub.id} />
               </div>
-              <div className="mt-3">
-                <SubscriptionEditor
-                  sub={{
-                    id: activeSub.id,
-                    sessions_remaining: activeSub.sessions_remaining,
-                    start_date: activeSub.start_date,
-                    end_date: activeSub.end_date,
-                    package_name: pkgOf(activeSub.packages)?.name ?? null,
-                    package_session_count: pkgOf(activeSub.packages)?.session_count ?? null,
-                  }}
-                />
-              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <SubscriptionEditor
+                sub={{
+                  id: activeSub.id,
+                  sessions_remaining: activeSub.sessions_remaining,
+                  start_date: activeSub.start_date,
+                  end_date: activeSub.end_date,
+                  package_name: pkgOf(activeSub.packages)?.name ?? null,
+                  package_session_count: pkgOf(activeSub.packages)?.session_count ?? null,
+                }}
+              />
             </CardContent>
           </Card>
         ) : pendingSub ? (
-          <Card className="mt-3">
-            <CardContent className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="font-medium">{pkgOf(pendingSub.packages)?.name ?? "Package"}</p>
-                <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums">
-                  reserved {fmt(pendingSub.created_at)} · ${pkgOf(pendingSub.packages)?.price_usd?.toLocaleString() ?? "—"}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge tone="signal">awaiting payment</Badge>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <CardTitle>Package</CardTitle>
+                  <Badge tone="signal">awaiting payment</Badge>
+                </div>
                 <MarkPaidButton
                   subscriptionId={pendingSub.id}
                   priceLabel={
@@ -205,11 +203,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   }
                 />
               </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="font-medium">{pkgOf(pendingSub.packages)?.name ?? "Package"}</p>
+              <p className="mt-1 text-xs text-[color:var(--color-stone)] tabular-nums">
+                reserved {fmt(pendingSub.created_at)} · ${pkgOf(pendingSub.packages)?.price_usd?.toLocaleString() ?? "—"}
+              </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="mt-3 rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] px-6 py-8">
-            <p className="text-sm font-semibold">No active block</p>
+          <div className="rounded-3xl border border-dashed border-[color:var(--color-stone-soft)] px-6 py-8">
+            <p className="text-sm font-semibold">No active package</p>
             <p className="mt-1 mb-4 text-sm text-[color:var(--color-ink)]/70">
               This client isn&rsquo;t on a package right now.
             </p>
@@ -218,21 +222,43 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         )}
       </section>
 
-      {/* Progress snapshot */}
-      <section>
-        <ProgressPanel
-          logs={(logs ?? []) as LogEntry[]}
-          enabled={{
-            weight: fields?.weight ?? true,
-            mood: fields?.mood ?? false,
-            sleep: fields?.sleep ?? false,
-            measurements: fields?.measurements ?? false,
-            prs: fields?.prs ?? false,
-          }}
-        />
-      </section>
+      {/* Progress snapshot — only renders when there's something to
+        * say. Hidden when the trainer has no log fields enabled for
+        * this client AND there are no logs yet (the empty-progress
+        * card was just chrome with no signal). It comes back the
+        * moment the trainer flips on a log field or the client logs
+        * their first entry. */}
+      {(() => {
+        const anyEnabled =
+          (fields?.weight ?? true) ||
+          (fields?.cycle ?? false) ||
+          (fields?.measurements ?? false) ||
+          (fields?.progress_photos ?? false) ||
+          (fields?.sleep ?? false);
+        const hasLogs = (logs ?? []).length > 0;
+        if (!anyEnabled && !hasLogs) return null;
+        return (
+          <section>
+            <ProgressPanel
+              logs={(logs ?? []) as LogEntry[]}
+              enabled={{
+                weight: fields?.weight ?? true,
+                mood: fields?.mood ?? false,
+                sleep: fields?.sleep ?? false,
+                measurements: fields?.measurements ?? false,
+                prs: fields?.prs ?? false,
+              }}
+            />
+          </section>
+        );
+      })()}
 
-      {/* Sessions */}
+      {/* Sessions — upcoming + recent. Inside a client profile the
+        * client's name is already the page header, so repeating it
+        * in every row is noise. These rows lead with the DATE +
+        * TIME and use the workout name (if set) as a quiet
+        * sub-line. The session-type label sits as faint
+        * supplementary chrome on the right. */}
       <section className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -244,20 +270,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             ) : (
               <ul className="divide-y divide-[color:var(--color-stone-soft)]/70">
                 {upcoming.slice(0, 5).map((s) => (
-                  <li key={s.id}>
-                    <SessionRow
-                      session={{
-                        id: s.id,
-                        scheduled_at: s.scheduled_at,
-                        duration_minutes: s.duration_minutes,
-                        session_type: s.session_type as "in_person" | "zoom" | "in_app",
-                        status: s.status as "scheduled" | "completed" | "cancelled" | "requested" | "declined",
-                        name: s.name,
-                        client_name: client.display_name,
-                        formatted_time: formatInTz(new Date(s.scheduled_at), trainer.timezone, "EEE, MMM d · HH:mm"),
-                      }}
-                    />
-                  </li>
+                  <ClientProfileSessionRow
+                    key={s.id}
+                    id={s.id}
+                    scheduledAt={s.scheduled_at}
+                    name={s.name}
+                    sessionType={s.session_type as "in_person" | "zoom" | "in_app"}
+                    tz={trainer.timezone}
+                  />
                 ))}
               </ul>
             )}
@@ -274,20 +294,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             ) : (
               <ul className="divide-y divide-[color:var(--color-stone-soft)]/70">
                 {past.slice(0, 5).map((s) => (
-                  <li key={s.id}>
-                    <SessionRow
-                      session={{
-                        id: s.id,
-                        scheduled_at: s.scheduled_at,
-                        duration_minutes: s.duration_minutes,
-                        session_type: s.session_type as "in_person" | "zoom" | "in_app",
-                        status: s.status as "scheduled" | "completed" | "cancelled" | "requested" | "declined",
-                        name: s.name,
-                        client_name: client.display_name,
-                        formatted_time: formatInTz(new Date(s.scheduled_at), trainer.timezone, "EEE, MMM d · HH:mm"),
-                      }}
-                    />
-                  </li>
+                  <ClientProfileSessionRow
+                    key={s.id}
+                    id={s.id}
+                    scheduledAt={s.scheduled_at}
+                    name={s.name}
+                    sessionType={s.session_type as "in_person" | "zoom" | "in_app"}
+                    tz={trainer.timezone}
+                  />
                 ))}
               </ul>
             )}
@@ -372,6 +386,54 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </Card>
       </section>
     </div>
+  );
+}
+
+/**
+ * Date-forward session row for the client-profile context.
+ *
+ * The platform's regular SessionRow leads with the client name —
+ * which is the right shape for the calendar's day-card list, but
+ * not here: the trainer is already inside a client profile, so
+ * repeating "Joanne · session" in every row dilutes the page.
+ *
+ * This variant leads with the DATE (semibold tabular), shows the
+ * workout name (when set) as a quiet sub-line, and tucks the
+ * session-type label as faint chrome on the right. Whole row is
+ * a link to the session detail.
+ */
+function ClientProfileSessionRow({
+  id,
+  scheduledAt,
+  name,
+  sessionType,
+  tz,
+}: {
+  id: string;
+  scheduledAt: string;
+  name: string | null;
+  sessionType: "in_person" | "zoom" | "in_app";
+  tz: string;
+}) {
+  return (
+    <li>
+      <Link
+        href={`/studio/sessions/${id}`}
+        className="-mx-2 flex items-center justify-between gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-[color:var(--color-parchment)]/40"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold tabular-nums text-[color:var(--color-ink)]">
+            {formatInTz(new Date(scheduledAt), tz, "EEE, MMM d · HH:mm")}
+          </p>
+          {name ? (
+            <p className="mt-0.5 truncate text-xs text-[color:var(--color-stone)]">{name}</p>
+          ) : null}
+        </div>
+        <span className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+          {prettySessionType(sessionType as SessionTypeValue)}
+        </span>
+      </Link>
+    </li>
   );
 }
 
