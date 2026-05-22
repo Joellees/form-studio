@@ -53,12 +53,34 @@ export function ClientDetailsEditor({ client }: { client: Details }) {
   }
 
   if (!editing) {
+    /* Three Detail blocks (goals / injuries / notes) used to render
+     * unconditionally — each showed "—" when the field was empty.
+     * For a freshly-added client with nothing filled in that was
+     * three "—" rows of wasted vertical space + an edit button at
+     * the bottom. Now: only the filled fields render. When none
+     * are filled, the panel collapses to a single "add details"
+     * CTA. The card around this still says "Details" via
+     * CardHeader, so the empty state reads as
+     * "Details — add details" instead of three em-dashes. */
+    const filled: Array<{ label: string; value: string }> = [];
+    if (client.goals) filled.push({ label: "goals", value: client.goals });
+    if (client.injuries) filled.push({ label: "injuries", value: client.injuries });
+    if (client.notes) filled.push({ label: "notes", value: client.notes });
+
+    if (filled.length === 0) {
+      return (
+        <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+          add details
+        </Button>
+      );
+    }
+
     return (
       <div className="space-y-5">
-        <Detail label="goals" value={client.goals} />
-        <Detail label="injuries" value={client.injuries} />
-        <Detail label="notes" value={client.notes} />
-        <Button variant="secondary" onClick={() => setEditing(true)}>
+        {filled.map((d) => (
+          <Detail key={d.label} label={d.label} value={d.value} />
+        ))}
+        <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
           edit details
         </Button>
       </div>
