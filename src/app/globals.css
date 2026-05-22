@@ -191,6 +191,21 @@
   }
 }
 
+/* Hide native scrollbars on filter chip strips and other
+   horizontal overflow elements where a visible scrollbar would
+   add noise without affordance. The element still scrolls — only
+   the rail UI is suppressed. Used by the library's
+   filter-by-group strip. */
+@layer utilities {
+  .scrollbar-hide {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE / Edge legacy */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome / Safari / Webkit-based */
+  }
+}
+
 /* Native selects — hide the default OS chevron and draw our own with
    comfortable right-padding. Apply with the `.select-pill` class
    anywhere we use a bare <select>. */

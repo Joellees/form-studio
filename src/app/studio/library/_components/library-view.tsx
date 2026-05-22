@@ -60,7 +60,7 @@ export function LibraryView({
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-1 overflow-x-auto border-b border-[color:var(--color-stone-soft)]">
+      <div className="scrollbar-hide flex gap-1 overflow-x-auto border-b border-[color:var(--color-stone-soft)]">
         <TabButton active={tab === "exercises"} onClick={() => setTab("exercises")}>
           Exercises <span className="tabular-nums text-[color:var(--color-stone)]">{exercises.length}</span>
         </TabButton>
@@ -317,11 +317,17 @@ function ExercisesTab({
 
       {/* Pill-chip group filter — one tap to switch groups. Scrolls
           horizontally on phones; wraps cleanly on tablet+. */}
+      {/* Filter-by-group chip row. Previously had `overflow-x-auto`
+        * which surfaced a visible scrollbar at the bottom of the
+        * chip strip on desktop. The chips now wrap on tablet+ so
+        * scroll is only needed on the narrowest viewports; the
+        * scrollbar is hidden via `scrollbar-hide` (utility added
+        * inline as a one-off — see the arbitrary-value class). */}
       <div className="space-y-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
           filter by group
         </p>
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="scrollbar-hide -mx-1 flex flex-wrap gap-2 px-1 pb-1 max-md:flex-nowrap max-md:overflow-x-auto">
           <FilterChip
             active={groupFilter === ""}
             onClick={() => setGroupFilter("")}
