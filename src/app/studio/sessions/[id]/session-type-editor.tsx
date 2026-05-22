@@ -5,9 +5,25 @@ import { useState, useTransition } from "react";
 
 import { updateSessionType } from "@/app/studio/calendar/actions";
 import { FEATURES } from "@/lib/features";
+import { prettySessionType } from "@/lib/session-type";
 
 type Type = "in_person" | "zoom" | "in_app";
 
+/**
+ * Session-type control on the session-detail page.
+ *
+ * Renders a dropdown when the type IS editable (default case), or a
+ * static badge when it isn't — the trainer asked us to not show a
+ * dropdown affordance for something that can't actually be changed
+ * (e.g. a cancelled session). The visual treatment is the same
+ * parchment pill either way; the only difference is whether it has
+ * a chevron and accepts clicks.
+ *
+ * The `disabled` prop drives the static-badge fallback. Currently
+ * the only caller passes `disabled={status === "cancelled"}` but
+ * the gate is generic — `disabled` also fires for any future state
+ * we want locked.
+ */
 export function SessionTypeEditor({
   sessionId,
   initialType,
@@ -21,11 +37,23 @@ export function SessionTypeEditor({
   const [value, setValue] = useState<Type>(initialType);
   const [pending, startTransition] = useTransition();
 
+  /* Static badge when not actionable. No chevron, no dropdown, no
+   * hover state — just the label rendered with the same chrome the
+   * editable pill uses so the badge sits in the same shape on the
+   * page. */
+  if (disabled) {
+    return (
+      <span className="inline-flex h-7 items-center rounded-full bg-[color:var(--color-parchment)] px-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--color-ink)]/70">
+        {prettySessionType(value)}
+      </span>
+    );
+  }
+
   return (
     <select
       aria-label="session type"
       value={value}
-      disabled={pending || disabled}
+      disabled={pending}
       onChange={(e) => {
         const next = e.target.value as Type;
         setValue(next);

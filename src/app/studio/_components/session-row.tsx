@@ -49,11 +49,34 @@ export function SessionRow({
   const isRequested = session.status === "requested";
   const isCancelled = session.status === "cancelled";
 
-  const TypeSelect = (
+  /* Session-type chip on each row. Renders as a dropdown when the
+   * session is still editable (default), or as a static parchment
+   * badge when it's cancelled — no chevron, no interaction, just
+   * the type label. Trainers asked us to drop dropdown affordances
+   * for things that can't actually be changed; a chevron on a
+   * cancelled row teases an action that's not available. */
+  const typeLabel = (() => {
+    if (session.session_type === "in_person") return "in person";
+    if (session.session_type === "zoom") return "online";
+    return "in-app";
+  })();
+
+  const TypeSelect = isCancelled ? (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full bg-[color:var(--color-parchment)] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-ink)]/65",
+        variant === "card"
+          ? "py-[3px] px-2.5 text-[10px]"
+          : "py-1 px-3 text-[11px]",
+      )}
+    >
+      {typeLabel}
+    </span>
+  ) : (
     <select
       aria-label="session type"
       value={session.session_type}
-      disabled={pending || isCancelled}
+      disabled={pending}
       onChange={(e) =>
         runAction(() =>
           updateSessionType({

@@ -336,10 +336,15 @@ export function TemplateBuilder({
   }
 
   async function archive() {
+    /* Surfaced to the trainer as "delete" — they think of workouts
+     * as deletable, not archivable. The underlying server action is
+     * still `archiveTemplate` (soft-delete via `archived = true`);
+     * workouts referenced by past sessions stay queryable for
+     * historical fidelity. */
     const ok = await confirm({
-      title: "archive this workout?",
-      body: "you'll still see it in archived workouts and can restore it anytime.",
-      confirmLabel: "archive",
+      title: "delete this workout?",
+      body: "past sessions that used it stay intact. you can restore it from archived later.",
+      confirmLabel: "delete",
       tone: "danger",
     });
     if (!ok) return;
@@ -447,16 +452,20 @@ export function TemplateBuilder({
         title={template.name}
         subtitle={template.description ?? undefined}
         actions={
+          /* Three buttons in the order the trainer hits them most:
+            * save (primary) · apply to session · delete (outline).
+            * Save sits leftmost as the dominant action so it's
+            * always reachable without scanning past the other two. */
           <>
+            <Button onClick={save} disabled={!dirty || saving}>
+              {saving ? "saving…" : "save"}
+            </Button>
             <ApplyToSessionButton
               templateId={template.id}
               templateName={template.name}
             />
             <Button variant="outline" onClick={archive} disabled={pending || saving}>
-              archive
-            </Button>
-            <Button onClick={save} disabled={!dirty || saving}>
-              {saving ? "saving…" : "save workout"}
+              delete
             </Button>
           </>
         }
