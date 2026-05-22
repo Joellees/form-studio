@@ -400,18 +400,21 @@ function TimelineSessionBlock({
       href={`/studio/sessions/${session.id}`}
       // The block lives inside a pointer-events-none container so the
       // hour grid stays tappable everywhere except behind a session;
-      // re-enable pointer events on the block itself.
+      // re-enable pointer events on the block itself. Same canvas
+      // card + moss-typography treatment as the week grid block —
+      // keeps the timeline (mobile inline + desktop modal) visually
+      // consistent with the week view.
       className={cn(
-        "pointer-events-auto absolute left-1.5 right-2 flex flex-col gap-0.5 overflow-hidden rounded-lg border-l-[3px] border-[color:var(--color-moss)] bg-[color:var(--color-parchment)] px-2 py-1 text-[11px] leading-tight shadow-[0_1px_0_rgba(31,30,27,0.04),0_4px_12px_-6px_rgba(31,30,27,0.18)] transition-shadow hover:shadow-[0_2px_0_rgba(31,30,27,0.06),0_8px_18px_-6px_rgba(31,30,27,0.28)]",
+        "pointer-events-auto absolute left-1.5 right-2 flex flex-col gap-0.5 overflow-hidden rounded-lg bg-[color:var(--color-canvas)] px-2 py-1 text-[11px] leading-tight ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-all hover:ring-[color:var(--color-ink)]/12 hover:shadow-[0_4px_14px_-3px_rgba(31,30,27,0.18)]",
         cancelled && "line-through opacity-50",
         completed && "opacity-75",
       )}
       style={{ top, height: Math.max(height, 28) }}
     >
-      <span className="tabular-nums text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-stone)]">
+      <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss-deep)]">
         {session.formatted_time}
       </span>
-      <span className="truncate font-medium text-[color:var(--color-ink)]">{label}</span>
+      <span className="truncate text-[color:var(--color-ink)]/85">{label}</span>
     </a>
   );
 }
@@ -690,6 +693,11 @@ function DesktopWeekTimeGrid({
     [],
   );
 
+  /* The visible window may or may not include today. The
+   * current-time line only renders when it does; this index tells
+   * the line which day-column to anchor its dot at. */
+  const todayIdx = days.findIndex((d) => d.isToday);
+
   return (
     <div className="hidden md:block">
       {/* Day-header row. Stays in the document flow rather than
@@ -716,8 +724,10 @@ function DesktopWeekTimeGrid({
         ))}
       </div>
 
-      {/* Time grid body. Hour gutter on the left + 7 day tracks. */}
-      <div className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))]">
+      {/* Time grid body. Hour gutter on the left + 7 day tracks.
+        * Position relative so the across-week current-time line
+        * can absolutely-position itself against the body. */}
+      <div className="relative grid grid-cols-[48px_repeat(7,minmax(0,1fr))]">
         {/* Hour gutter — labels sit at the start of each row,
           * tabular-nums for clean vertical alignment, stone/70 so
           * they recede behind the actual data. We render every
@@ -740,10 +750,18 @@ function DesktopWeekTimeGrid({
             key={d.key}
             day={d}
             sessions={sessionsByDay[d.key] ?? []}
-            timezone={timezone}
             onAddAtTime={(time) => onAddAtTime(d, time)}
           />
         ))}
+
+        {/* Current-time line — spans all 7 columns, anchored with
+          * a moss dot at today's column. Lives at the grid-body
+          * level so it can cross column boundaries (vs the older
+          * per-column variant that clipped to a single track).
+          * Hidden when today is outside the visible window. */}
+        {todayIdx >= 0 ? (
+          <CurrentTimeLine timezone={timezone} todayIdx={todayIdx} />
+        ) : null}
       </div>
     </div>
   );
@@ -769,12 +787,10 @@ function DesktopWeekTimeGrid({
 function WeekGridColumn({
   day,
   sessions,
-  timezone,
   onAddAtTime,
 }: {
   day: Day;
   sessions: SessionSummary[];
-  timezone: string;
   onAddAtTime: (time: string) => void;
 }) {
   function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -831,12 +847,11 @@ function WeekGridColumn({
           <WeekGridBlock key={b.session.id} block={b} />
         ))}
       </div>
-
-      {/* Current-time line — only renders inside today's column.
-        * Computes "now" in the TRAINER's tz, not the browser's, so
-        * a trainer in Beirut on a laptop set to UTC still sees the
-        * line land at the right hour. */}
-      {day.isToday ? <CurrentTimeLine timezone={timezone} /> : null}
+      {/* Current-time line is rendered at the grid level (see
+        * DesktopWeekTimeGrid) so it can span all 7 columns. The
+        * per-column variant was a half-step toward iOS Day view;
+        * Google Calendar's full-width line reads better at week
+        * scale and was what the trainer asked for. */}
     </div>
   );
 }
@@ -929,11 +944,16 @@ function WeekGridBlock({ block }: { block: WeekBlock }) {
   const leftPct = slot * widthPct;
   const label = session.client_name ?? session.name ?? "session";
 
+  /* No left-bar accent. The moss now lives in the TIME text — it's
+   * the "this is a session" signal carried by typography rather
+   * than a chrome stripe. The block itself is a canvas card with
+   * an inset hairline ring; against the parchment-tinted column
+   * the card lifts cleanly without a colored marker. */
   return (
     <a
       href={`/studio/sessions/${session.id}`}
       className={cn(
-        "pointer-events-auto absolute flex flex-col gap-0.5 overflow-hidden rounded-md border-l-[3px] border-[color:var(--color-moss)] bg-[color:var(--color-canvas)] px-1.5 py-1 text-[11px] leading-tight shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-shadow hover:shadow-[0_4px_12px_-2px_rgba(31,30,27,0.18)]",
+        "pointer-events-auto absolute flex flex-col gap-0.5 overflow-hidden rounded-lg bg-[color:var(--color-canvas)] px-2 py-1 text-[11px] leading-tight ring-1 ring-inset ring-[color:var(--color-ink)]/6 shadow-[0_1px_3px_rgba(31,30,27,0.06)] transition-all hover:ring-[color:var(--color-ink)]/12 hover:shadow-[0_4px_14px_-3px_rgba(31,30,27,0.18)]",
         cancelled && "line-through opacity-50",
         completed && "opacity-75",
       )}
@@ -944,27 +964,43 @@ function WeekGridBlock({ block }: { block: WeekBlock }) {
         width: `calc(${widthPct}% - 4px)`,
       }}
     >
-      <span className="tabular-nums text-[10px] text-[color:var(--color-stone)]">
+      <span className="tabular-nums text-[10px] font-semibold text-[color:var(--color-moss-deep)]">
         {session.formatted_time}
       </span>
-      <span className="truncate text-[color:var(--color-ink)]">{label}</span>
+      <span className="truncate text-[color:var(--color-ink)]/85">{label}</span>
     </a>
   );
 }
 
 /**
- * The moss "you are here" line that cuts across today's column.
+ * Across-week "you are here" line.
  *
- * Computes the offset in the TRAINER's timezone, not the browser's
- * — a trainer in Beirut on a laptop set to UTC still sees the line
- * land at the right hour. The line auto-updates every 60 seconds.
- * No finer granularity needed: the line is a glance affordance,
- * not a stopwatch.
+ * Spans all 7 day-columns (Google Calendar shape) rather than
+ * clipping to today's track. The moss line crosses the entire
+ * grid; a brighter, ringed dot anchors at the LEFT edge of
+ * today's column so the trainer's eye lands first on "today, now"
+ * and then follows the line out to compare to other days.
  *
- * Hairline (1.5px) over a 6px ringed dot at the left edge — same
- * shape iOS uses, just in moss instead of red.
+ * Computes the offset in the TRAINER's timezone, not the
+ * browser's — a trainer in Beirut on a laptop set to UTC still
+ * sees the line at the right hour. Auto-updates every 60s; the
+ * line is a glance affordance, not a stopwatch.
+ *
+ * Positioning math: the parent grid is
+ * `[48px gutter | 7 columns at (100%-48px)/7 each]`. The line
+ * starts at the right edge of the gutter (`left: 48px`) and
+ * stretches to `right: 0`. Today's column begins at
+ * `(todayIdx / 7) * 100%` within the line's own width — that
+ * places the anchor dot exactly at the column boundary, no
+ * pixel-math required.
  */
-function CurrentTimeLine({ timezone }: { timezone: string }) {
+function CurrentTimeLine({
+  timezone,
+  todayIdx,
+}: {
+  timezone: string;
+  todayIdx: number;
+}) {
   const [top, setTop] = useState<number | null>(() => computeNowOffset(timezone));
 
   useEffect(() => {
@@ -979,11 +1015,31 @@ function CurrentTimeLine({ timezone }: { timezone: string }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute left-0 right-0 z-30"
-      style={{ top }}
+      className="pointer-events-none absolute z-30"
+      style={{
+        top,
+        left: 48,
+        right: 0,
+      }}
     >
-      <div className="relative h-[1.5px] bg-[color:var(--color-moss)]">
-        <span className="absolute left-0 top-1/2 size-2 -translate-x-1 -translate-y-1/2 rounded-full bg-[color:var(--color-moss)] shadow-[0_0_0_2px_rgba(74,85,64,0.18)]" />
+      <div className="relative h-[1.5px] bg-[color:var(--color-moss)]/55">
+        {/* Today's segment is brighter so the eye finds "now"
+          * quickly; the rest of the line stays moss/55 so it
+          * reads as context without screaming. The brighter
+          * segment is one column wide. */}
+        <div
+          className="absolute top-0 h-full bg-[color:var(--color-moss-deep)]"
+          style={{
+            left: `${(todayIdx / 7) * 100}%`,
+            width: `${(1 / 7) * 100}%`,
+          }}
+        />
+        {/* Anchor dot at today's column left edge. White ring
+          * makes it pop off the canvas no matter what's behind. */}
+        <span
+          className="absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-[color:var(--color-moss-deep)] ring-2 ring-[color:var(--color-canvas)]"
+          style={{ left: `calc(${(todayIdx / 7) * 100}% - 5px)` }}
+        />
       </div>
     </div>
   );
@@ -1133,15 +1189,20 @@ function MonthEventChip({
   return (
     <span
       className={cn(
-        "flex items-center gap-1.5 rounded-md border-l-2 border-[color:var(--color-moss)] bg-[color:var(--color-canvas)]/85 py-0.5 pl-1.5 pr-1 text-[11px] leading-tight",
+        // Tiny month-cell chip — matches the canvas-card + moss
+        // typography of week/timeline blocks. At month density the
+        // ring is dropped (too much visual weight for a 14px-tall
+        // chip), the canvas fill alone carries the demarcation
+        // against the cell's parchment tint.
+        "flex items-center gap-1.5 rounded-md bg-[color:var(--color-canvas)]/90 py-0.5 pl-1.5 pr-1 text-[11px] leading-tight",
         cancelled && "line-through opacity-50",
         muted && "opacity-60",
       )}
     >
-      <span className="tabular-nums text-[color:var(--color-stone)]">
+      <span className="tabular-nums font-semibold text-[color:var(--color-moss-deep)]">
         {session.formatted_time}
       </span>
-      <span className="truncate font-medium text-[color:var(--color-ink)]">
+      <span className="truncate text-[color:var(--color-ink)]/85">
         {session.client_name ?? session.name ?? "session"}
       </span>
     </span>

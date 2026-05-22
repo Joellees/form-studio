@@ -912,19 +912,24 @@ async function seedSessions(
  *
  * The base `seedSessions` spreads 8 future scheduled sessions across
  * 14 days at one-per-day cadence — accurate, but a thin schedule
- * that makes the calendar page (especially the new iOS-style day
- * timeline) look quiet. This adds a denser, varied set of 15
- * sessions anchored to TODAY in the trainer's local timezone, so
- * opening `/studio/calendar` lands on a populated week with
- * multiple sessions per day across realistic training hours.
+ * that makes the calendar page (especially the day timeline) look
+ * quiet. This adds a denser, varied set of 15 sessions anchored to
+ * TODAY in the trainer's local timezone, so opening `/studio/
+ * calendar` lands on a populated week with multiple sessions per
+ * day across realistic training hours.
  *
- * Idempotent via a `name LIKE 'showcase:%'` marker: re-running the
- * seed sees the marker rows and skips. To re-generate (e.g. after a
- * long gap so "today" has drifted), delete the existing showcase
- * rows first:
+ * Idempotent via `day_label = 'showcase'`. The `name` column is
+ * left null so the calendar chips display the CLIENT's name, not
+ * an internal label — earlier iterations stored "showcase: today
+ * morning" in `name`, which then leaked into the UI. The marker
+ * lives on `day_label` instead because that column is only used
+ * by workout templates elsewhere and never surfaces on session
+ * chips.
+ *
+ * To re-generate (e.g. after a long gap so "today" has drifted):
  *
  *   delete from public.sessions
- *    where tenant_id = '<joelle-id>' and name like 'showcase:%';
+ *    where tenant_id = '<joelle-id>' and day_label = 'showcase';
  */
 async function seedCalendarShowcase(
   tenantId: string,
@@ -933,7 +938,7 @@ async function seedCalendarShowcase(
 ): Promise<void> {
   const existing = await runSql<{ count: string }>(
     `select count(*)::text as count from public.sessions
-       where tenant_id = ${esc(tenantId)} and name like 'showcase:%';`,
+       where tenant_id = ${esc(tenantId)} and day_label = 'showcase';`,
   );
   if (Number(existing[0]?.count ?? "0") > 0) {
     console.log("   calendar showcase already seeded, skipping");
@@ -945,30 +950,29 @@ async function seedCalendarShowcase(
   );
   if (active.length === 0) return;
 
-  // Day-offset, HH:mm, session type, label. Distributed to fill
-  // today + the next 5 days with realistic training-hour density:
-  // an early morning, a mid-day, an evening block on busy days.
+  // Day-offset, HH:mm, session type. Distributed to fill today +
+  // the next 5 days with realistic training-hour density: an
+  // early morning, a mid-day, an evening block on busy days.
   const slots: Array<{
     dayOffset: number;
     time: string;
     sessionType: "in_person" | "zoom";
-    label: string;
   }> = [
-    { dayOffset: 0, time: "07:00", sessionType: "in_person", label: "today early" },
-    { dayOffset: 0, time: "09:30", sessionType: "zoom", label: "today morning" },
-    { dayOffset: 0, time: "12:00", sessionType: "zoom", label: "today lunch" },
-    { dayOffset: 0, time: "17:30", sessionType: "in_person", label: "today evening" },
-    { dayOffset: 1, time: "08:00", sessionType: "zoom", label: "tomorrow am" },
-    { dayOffset: 1, time: "11:00", sessionType: "in_person", label: "tomorrow mid" },
-    { dayOffset: 1, time: "19:00", sessionType: "zoom", label: "tomorrow pm" },
-    { dayOffset: 2, time: "09:00", sessionType: "zoom", label: "d2 am" },
-    { dayOffset: 2, time: "16:00", sessionType: "in_person", label: "d2 pm" },
-    { dayOffset: 3, time: "18:00", sessionType: "zoom", label: "d3 evening" },
-    { dayOffset: 4, time: "07:00", sessionType: "in_person", label: "d4 early" },
-    { dayOffset: 4, time: "14:00", sessionType: "zoom", label: "d4 afternoon" },
-    { dayOffset: 4, time: "18:30", sessionType: "zoom", label: "d4 evening" },
-    { dayOffset: 5, time: "10:00", sessionType: "in_person", label: "d5 am" },
-    { dayOffset: 5, time: "15:00", sessionType: "zoom", label: "d5 pm" },
+    { dayOffset: 0, time: "07:00", sessionType: "in_person" },
+    { dayOffset: 0, time: "09:30", sessionType: "zoom" },
+    { dayOffset: 0, time: "12:00", sessionType: "zoom" },
+    { dayOffset: 0, time: "17:30", sessionType: "in_person" },
+    { dayOffset: 1, time: "08:00", sessionType: "zoom" },
+    { dayOffset: 1, time: "11:00", sessionType: "in_person" },
+    { dayOffset: 1, time: "19:00", sessionType: "zoom" },
+    { dayOffset: 2, time: "09:00", sessionType: "zoom" },
+    { dayOffset: 2, time: "16:00", sessionType: "in_person" },
+    { dayOffset: 3, time: "18:00", sessionType: "zoom" },
+    { dayOffset: 4, time: "07:00", sessionType: "in_person" },
+    { dayOffset: 4, time: "14:00", sessionType: "zoom" },
+    { dayOffset: 4, time: "18:30", sessionType: "zoom" },
+    { dayOffset: 5, time: "10:00", sessionType: "in_person" },
+    { dayOffset: 5, time: "15:00", sessionType: "zoom" },
   ];
 
   // Trainer's local "today" — same shape as in the studio layout's
@@ -990,7 +994,7 @@ async function seedCalendarShowcase(
 
     await runSql(
       `insert into public.sessions
-         (tenant_id, client_id, subscription_id, source_template_id, scheduled_at, duration_minutes, session_type, status, name)
+         (tenant_id, client_id, subscription_id, source_template_id, scheduled_at, duration_minutes, session_type, status, day_label)
        values (
          ${esc(tenantId)},
          ${esc(client.id)},
@@ -1000,7 +1004,7 @@ async function seedCalendarShowcase(
          60,
          ${esc(slot.sessionType)},
          'scheduled',
-         ${esc(`showcase: ${slot.label}`)}
+         'showcase'
        );`,
     );
   }
