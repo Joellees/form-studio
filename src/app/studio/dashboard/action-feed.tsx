@@ -35,7 +35,11 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
   function markPaid(subscriptionId: string) {
     startTransition(async () => {
       const r = await markSubscriptionPaid({ subscriptionId });
-      if (!r.ok) toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error || "couldn't mark paid. try again.");
+        return;
+      }
+      toast.success("marked paid.");
       router.refresh();
     });
   }
@@ -43,7 +47,11 @@ export function ActionFeed({ items }: { items: FeedItem[] }) {
   function approve(sessionId: string) {
     startTransition(async () => {
       const r = await approveSessionRequest(sessionId);
-      if (!r.ok) toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error || "couldn't approve. try again.");
+        return;
+      }
+      toast.success("request approved.");
       router.refresh();
     });
   }

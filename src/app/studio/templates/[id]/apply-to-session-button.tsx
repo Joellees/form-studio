@@ -104,26 +104,26 @@ export function ApplyToSessionButton({
   return (
     <>
       <Button onClick={() => setOpen(true)} variant="outline">
-        Apply to session
+        apply to session
       </Button>
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/40 p-0 md:items-center md:p-6"
+          className="dialog-overlay-in fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--color-ink)]/30 p-0 backdrop-blur-sm md:items-center md:p-6"
           onClick={() => setOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-3xl bg-[color:var(--color-canvas)] shadow-[0_-12px_32px_-8px_rgba(31,30,27,0.35)] md:rounded-3xl"
+            className="dialog-content-rise flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-3xl bg-[color:var(--color-canvas)] shadow-[0_24px_64px_-16px_rgba(31,30,27,0.35)] md:rounded-3xl"
           >
             <div className="flex items-start justify-between gap-4 px-5 py-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-stone)]">
-                  Apply workout
+                  apply
                 </p>
                 <h2 className="mt-1 text-lg font-semibold tracking-tight">{templateName}</h2>
                 <p className="mt-1 text-xs text-[color:var(--color-ink)]/70">
-                  Pick a client session to copy this workout&rsquo;s exercises into.
+                  pick a client session — exercises copy into it.
                 </p>
               </div>
               <button
@@ -139,14 +139,13 @@ export function ApplyToSessionButton({
             <div className="flex-1 overflow-y-auto px-5 pb-5">
               {loading ? (
                 <p className="py-6 text-center text-sm text-[color:var(--color-ink)]/70">
-                  Loading…
+                  loading…
                 </p>
               ) : error ? (
                 <p className="text-sm text-[color:var(--color-sienna)]">{error}</p>
               ) : clients.length === 0 ? (
                 <p className="py-6 text-center text-sm text-[color:var(--color-ink)]/70">
-                  No upcoming or recent sessions found. Schedule one in
-                  the calendar, then come back.
+                  no upcoming or recent sessions found. schedule one first, then come back.
                 </p>
               ) : (
                 <ul className="space-y-4">
@@ -165,11 +164,11 @@ export function ApplyToSessionButton({
                               className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[color:var(--color-stone-soft)]/60 bg-[color:var(--color-canvas)] px-4 py-3 text-left transition-colors hover:bg-[color:var(--color-parchment)]/60 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">
-                                  {s.name ?? "Session"}
-                                </p>
-                                <p className="mt-0.5 text-xs text-[color:var(--color-ink)]/70 tabular-nums">
+                                <p className="truncate text-sm font-medium tabular-nums">
                                   {formatSessionTime(s.scheduled_at)} · {s.duration_minutes}m
+                                </p>
+                                <p className="mt-0.5 text-xs text-[color:var(--color-ink)]/70">
+                                  {s.name ?? "session"}
                                   {s.status === "completed" ? " · completed" : ""}
                                 </p>
                               </div>

@@ -31,14 +31,16 @@ import {
 import {
   addExerciseToTemplate,
   archiveTemplate,
+  createTemplateBlock,
   removeTemplateBlock,
+  removeTemplateBlockExercise,
   saveTemplateChanges,
 } from "../actions";
 import { saveExercise } from "@/app/studio/library/actions";
 import { LibraryDock } from "@/app/studio/_components/library-dock";
 import { ApplyToSessionButton } from "./apply-to-session-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -85,6 +87,7 @@ type BlockExerciseRow = {
 type BlockRow = {
   id: string;
   order_index: number;
+  name?: string | null;
   round_label: string | null;
   round_count: number;
   round_rest_seconds: number | null;
@@ -126,6 +129,35 @@ type SetGroupDraft = {
   rpe: string | null;
   time_seconds: number | null;
 };
+
+type ExerciseOrderByBlock = Record<string, string[]>;
+
+function blockTitle(block: BlockRow, fallbackIndex: number): string {
+  return (
+    block.name?.trim() ||
+    block.round_label?.trim() ||
+    `Workout section ${fallbackIndex}`
+  );
+}
+
+function exerciseOrdersFromBlocks(blockRows: BlockRow[]): ExerciseOrderByBlock {
+  return Object.fromEntries(
+    blockRows.map((block) => [
+      block.id,
+      [...block.template_block_exercises]
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((be) => be.id),
+    ]),
+  );
+}
+
+function sameStringArray(a: string[] = [], b: string[] = []): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 /* ─── Component ─────────────────────────────────────────────────── */
 
@@ -174,6 +206,13 @@ export function TemplateBuilder({
   useEffect(() => setBlocks(initialBlocks), [initialBlocks]);
 
   const [drafts, setDrafts] = useState<Record<string, Partial<SetGroupDraft>>>({});
+  const [blockNameDrafts, setBlockNameDrafts] = useState<Record<string, string>>({});
+  const [exerciseOrderByBlock, setExerciseOrderByBlock] =
+    useState<ExerciseOrderByBlock>(() => exerciseOrdersFromBlocks(initialBlocks));
+  useEffect(() => {
+    setExerciseOrderByBlock(exerciseOrdersFromBlocks(initialBlocks));
+    setBlockNameDrafts({});
+  }, [initialBlocks]);
 
   const [order, setOrder] = useState<string[]>(() => blocks.map((b) => b.id));
   useEffect(() => {
@@ -184,6 +223,13 @@ export function TemplateBuilder({
   useEffect(() => {
     serverOrderRef.current = blocks.map((b) => b.id);
   }, [blocks]);
+
+  const serverExerciseOrderRef = useRef<ExerciseOrderByBlock>(
+    exerciseOrdersFromBlocks(initialBlocks),
+  );
+  useEffect(() => {
+    serverExerciseOrderRef.current = exerciseOrdersFromBlocks(initialBlocks);
+  }, [initialBlocks]);
 
   const orderDirty = useMemo(() => {
     const a = order;
@@ -200,10 +246,23 @@ export function TemplateBuilder({
       const draft = drafts[key];
       if (draft && Object.keys(draft).length > 0) return true;
     }
+    for (const [blockId, name] of Object.entries(blockNameDrafts)) {
+      const block = blocks.find((b) => b.id === blockId);
+      if (block && name !== (block.name ?? block.round_label ?? "")) return true;
+    }
     return false;
-  }, [drafts]);
+  }, [drafts, blockNameDrafts, blocks]);
 
-  const dirty = orderDirty || editsDirty;
+  const exerciseOrderDirty = useMemo(() => {
+    const server = serverExerciseOrderRef.current;
+    const blockIds = new Set([...Object.keys(server), ...Object.keys(exerciseOrderByBlock)]);
+    for (const blockId of blockIds) {
+      if (!sameStringArray(server[blockId], exerciseOrderByBlock[blockId])) return true;
+    }
+    return false;
+  }, [exerciseOrderByBlock]);
+
+  const dirty = orderDirty || editsDirty || exerciseOrderDirty;
 
   useEffect(() => {
     if (!dirty) return;
@@ -241,12 +300,13 @@ export function TemplateBuilder({
   }
 
   const addExercise = useCallback(
-    (exerciseId: string) => {
+    (exerciseId: string, blockId?: string) => {
       startTransition(async () => {
         try {
           const result = await addExerciseToTemplate({
             templateId: template.id,
             exerciseId,
+            blockId,
           });
           if (!result.ok) {
             toast.error(result.error || "Couldn't add the exercise. Try again.");
@@ -261,6 +321,21 @@ export function TemplateBuilder({
     },
     [template.id, toast, router],
   );
+
+  const addBlock = useCallback(() => {
+    startTransition(async () => {
+      const result = await createTemplateBlock({
+        templateId: template.id,
+        name: `Workout section ${blocks.length + 1}`,
+      });
+      if (!result.ok) {
+        toast.error(result.error || "Couldn't add a workout section. Try again.");
+        return;
+      }
+      toast.success("workout section added.");
+      router.refresh();
+    });
+  }, [blocks.length, router, template.id, toast]);
 
   async function createAndAddExercise(input: {
     name: string;
@@ -288,6 +363,7 @@ export function TemplateBuilder({
       const attach = await addExerciseToTemplate({
         templateId: template.id,
         exerciseId: result.data.id,
+        blockId: blocks[0]?.id,
       });
       if (!attach.ok) {
         toast.error(
@@ -307,14 +383,16 @@ export function TemplateBuilder({
   }
 
   async function removeBlock(blockId: string) {
+    const block = blocks.find((b) => b.id === blockId);
     const ok = await confirm({
-      title: "remove this exercise from the workout?",
-      body: "your library exercise stays — only this row is removed.",
-      confirmLabel: "remove",
+      title: "remove this workout section?",
+      body: block?.template_block_exercises.length
+        ? "all exercises inside this workout section will be removed from the workout. your library stays intact."
+        : "this empty workout section will be removed.",
+      confirmLabel: "remove section",
       tone: "danger",
     });
     if (!ok) return;
-    const block = blocks.find((b) => b.id === blockId);
     if (block) {
       const setGroupIds = new Set(
         block.template_block_exercises.flatMap((be) =>
@@ -329,8 +407,49 @@ export function TemplateBuilder({
         return next;
       });
     }
+    setBlockNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[blockId];
+      return next;
+    });
     startTransition(async () => {
       await removeTemplateBlock(blockId);
+      router.refresh();
+    });
+  }
+
+  async function removeExercise(blockExerciseId: string) {
+    const ok = await confirm({
+      title: "remove this exercise from the workout?",
+      body: "your library exercise stays — only this row is removed.",
+      confirmLabel: "remove",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const block = blocks.find((b) =>
+      b.template_block_exercises.some((be) => be.id === blockExerciseId),
+    );
+    const be = block?.template_block_exercises.find((row) => row.id === blockExerciseId);
+    if (be) {
+      const setGroupIds = new Set(be.template_set_groups.map((sg) => sg.id));
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          if (setGroupIds.has(k)) delete next[k];
+        }
+        return next;
+      });
+    }
+    startTransition(async () => {
+      const res = await removeTemplateBlockExercise({
+        templateId: template.id,
+        blockExerciseId,
+      });
+      if (!res.ok) {
+        toast.error(res.error || "Couldn't remove that exercise. Try again.");
+        return;
+      }
       router.refresh();
     });
   }
@@ -349,8 +468,17 @@ export function TemplateBuilder({
     });
     if (!ok) return;
     startTransition(async () => {
-      await archiveTemplate(template.id);
-      router.push("/studio/templates");
+      const res = await archiveTemplate(template.id);
+      if (!res.ok) {
+        toast.error(res.error || "couldn't delete the workout. try again.");
+        return;
+      }
+      /* Skip the legacy /studio/templates redirect bounce — that
+       * route just redirects to /studio/library?tab=workouts, so
+       * pushing there directly avoids a flicker through an
+       * intermediate URL in the trainer's address bar. */
+      toast.success("workout deleted.");
+      router.push("/studio/library?tab=workouts");
       router.refresh();
     });
   }
@@ -360,13 +488,28 @@ export function TemplateBuilder({
     const setGroupPayload = Object.entries(drafts)
       .filter(([, draft]) => draft && Object.keys(draft).length > 0)
       .map(([id, draft]) => ({ id, ...draft }));
+    const blockPayload = Object.entries(blockNameDrafts)
+      .map(([id, name]) => ({ id, name: name.trim() || null }));
+    const exerciseOrderPayload = exerciseOrderDirty
+      ? orderedBlocks.map((block) => ({
+          blockId: block.id,
+          blockExerciseIds:
+            exerciseOrderByBlock[block.id] ??
+            block.template_block_exercises
+              .slice()
+              .sort((a, b) => a.order_index - b.order_index)
+              .map((be) => be.id),
+        }))
+      : undefined;
 
     startSaving(async () => {
       try {
         const res = await saveTemplateChanges({
           templateId: template.id,
+          blocks: blockPayload,
           setGroups: setGroupPayload,
           blockOrder: orderDirty ? order : undefined,
+          exerciseOrders: exerciseOrderPayload,
         });
         if (!res.ok) {
           toast.error(res.error || "Couldn't save your changes. Try again.");
@@ -374,7 +517,9 @@ export function TemplateBuilder({
         }
         toast.success("workout saved.");
         setDrafts({});
+        setBlockNameDrafts({});
         serverOrderRef.current = order;
+        serverExerciseOrderRef.current = { ...exerciseOrderByBlock };
         router.refresh();
       } catch {
         toast.error("Something went wrong saving the workout.");
@@ -389,18 +534,86 @@ export function TemplateBuilder({
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
   );
 
+  function resolveDropBlockId(overId: string): string | null {
+    if (overId === "workout-zone") return orderedBlocks[0]?.id ?? null;
+    if (overId.startsWith("block-drop-")) return overId.replace("block-drop-", "");
+    if (blocks.some((block) => block.id === overId)) return overId;
+    for (const block of blocks) {
+      if (block.template_block_exercises.some((be) => be.id === overId)) return block.id;
+    }
+    return null;
+  }
+
+  function moveExerciseBetweenBlocks(blockExerciseId: string, targetBlockId: string, overId: string) {
+    let moving: BlockExerciseRow | null = null;
+    let sourceBlockId: string | null = null;
+    for (const block of blocks) {
+      const row = block.template_block_exercises.find((be) => be.id === blockExerciseId);
+      if (row) {
+        moving = row;
+        sourceBlockId = block.id;
+        break;
+      }
+    }
+    if (!moving || !sourceBlockId) return;
+
+    setBlocks((prev) => {
+      const without = prev.map((block) => ({
+        ...block,
+        template_block_exercises: block.template_block_exercises.filter(
+          (be) => be.id !== blockExerciseId,
+        ),
+      }));
+      return without.map((block) => {
+        if (block.id !== targetBlockId || !moving) return block;
+        const next = [...block.template_block_exercises];
+        const overIndex = next.findIndex((be) => be.id === overId);
+        const insertAt = overIndex >= 0 ? overIndex : next.length;
+        next.splice(insertAt, 0, { ...moving, order_index: insertAt });
+        return { ...block, template_block_exercises: next };
+      });
+    });
+
+    setExerciseOrderByBlock((prev) => {
+      const source = (prev[sourceBlockId!] ?? []).filter((id) => id !== blockExerciseId);
+      const targetBase =
+        sourceBlockId === targetBlockId
+          ? source
+          : (prev[targetBlockId] ?? []).filter((id) => id !== blockExerciseId);
+      const overIndex = targetBase.indexOf(overId);
+      const insertAt = overIndex >= 0 ? overIndex : targetBase.length;
+      const target = [...targetBase];
+      target.splice(insertAt, 0, blockExerciseId);
+      return {
+        ...prev,
+        [sourceBlockId!]: sourceBlockId === targetBlockId ? target : source,
+        [targetBlockId]: target,
+      };
+    });
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
 
     const activeData = active.data.current as
-      | { type?: string; exerciseId?: string }
+      | { type?: string; exerciseId?: string; blockExerciseId?: string }
       | undefined;
     if (activeData?.type === "library-exercise" && activeData.exerciseId) {
-      const dropTargetId = String(over.id);
-      if (dropTargetId === "workout-zone" || order.includes(dropTargetId)) {
-        addExercise(activeData.exerciseId);
-      }
+      const targetBlockId = resolveDropBlockId(String(over.id)) ?? undefined;
+      addExercise(activeData.exerciseId, targetBlockId);
+      return;
+    }
+
+    if (activeData?.type === "block-exercise" && activeData.blockExerciseId) {
+      if (active.id === over.id) return;
+      const targetBlockId = resolveDropBlockId(String(over.id));
+      if (!targetBlockId) return;
+      moveExerciseBetweenBlocks(
+        activeData.blockExerciseId,
+        targetBlockId,
+        String(over.id),
+      );
       return;
     }
 
@@ -417,18 +630,37 @@ export function TemplateBuilder({
     const byId = new Map(blocks.map((b) => [b.id, b]));
     const used = new Set<string>();
     const out: BlockRow[] = [];
+    const withOrderedExercises = (block: BlockRow): BlockRow => {
+      const byExerciseId = new Map(
+        block.template_block_exercises.map((be) => [be.id, be]),
+      );
+      const ids = exerciseOrderByBlock[block.id] ?? [];
+      const usedExerciseIds = new Set<string>();
+      const exercisesOut: BlockExerciseRow[] = [];
+      for (const id of ids) {
+        const row = byExerciseId.get(id);
+        if (row) {
+          exercisesOut.push(row);
+          usedExerciseIds.add(id);
+        }
+      }
+      for (const row of block.template_block_exercises) {
+        if (!usedExerciseIds.has(row.id)) exercisesOut.push(row);
+      }
+      return { ...block, template_block_exercises: exercisesOut };
+    };
     for (const id of order) {
       const row = byId.get(id);
       if (row) {
-        out.push(row);
+        out.push(withOrderedExercises(row));
         used.add(id);
       }
     }
     for (const b of blocks) {
-      if (!used.has(b.id)) out.push(b);
+      if (!used.has(b.id)) out.push(withOrderedExercises(b));
     }
     return out;
-  }, [order, blocks]);
+  }, [order, blocks, exerciseOrderByBlock]);
 
   return (
     <div className="space-y-8">
@@ -460,6 +692,9 @@ export function TemplateBuilder({
             <Button onClick={save} disabled={!dirty || saving}>
               {saving ? "saving…" : "save"}
             </Button>
+            <Button variant="outline" onClick={addBlock} disabled={pending || saving}>
+              add workout section
+            </Button>
             <ApplyToSessionButton
               templateId={template.id}
               templateName={template.name}
@@ -481,22 +716,29 @@ export function TemplateBuilder({
             {orderedBlocks.length === 0 ? (
               <EmptyState
                 bordered
-                title="Add the first exercise"
-                body="Drag one from the library, or tap the library button to pick one. Each exercise starts with just Sets — add reps, weight, tempo, rpe, time, or rest as you need them."
+                title="Add a workout section or the first exercise"
+                body="Create workout sections like Warmup, Strength, or Conditioning. Drag exercises from the library into any section."
               />
             ) : (
               <SortableContext items={order} strategy={verticalListSortingStrategy}>
                 <div className="space-y-6">
                   {orderedBlocks.map((block, i) => (
-                    <SortableBlockCard
+                    <SortableWorkoutBlock
                       key={block.id}
                       index={i + 1}
                       block={block}
+                      nameDraft={blockNameDrafts[block.id]}
+                      onNameChange={(name) =>
+                        setBlockNameDrafts((prev) => ({ ...prev, [block.id]: name }))
+                      }
                       drafts={drafts}
                       onChange={setDraftField}
                       onChangeMany={setDraftMany}
-                      onRemove={() => {
+                      onRemoveBlock={() => {
                         void removeBlock(block.id);
+                      }}
+                      onRemoveExercise={(blockExerciseId) => {
+                        void removeExercise(blockExerciseId);
                       }}
                       disabled={pending || saving}
                     />
@@ -537,19 +779,24 @@ function WorkoutDropZone({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ─── Sortable Block Card ───────────────────────────────────────── */
+/* ─── Sortable Workout Block ────────────────────────────────────── */
 
-function SortableBlockCard({
+function SortableWorkoutBlock({
   index,
   block,
+  nameDraft,
+  onNameChange,
   drafts,
   onChange,
   onChangeMany,
-  onRemove,
+  onRemoveBlock,
+  onRemoveExercise,
   disabled,
 }: {
   index: number;
   block: BlockRow;
+  nameDraft: string | undefined;
+  onNameChange: (name: string) => void;
   drafts: Record<string, Partial<SetGroupDraft>>;
   onChange: <K extends keyof SetGroupDraft>(
     setGroupId: string,
@@ -557,11 +804,15 @@ function SortableBlockCard({
     value: SetGroupDraft[K],
   ) => void;
   onChangeMany: (setGroupId: string, patch: Partial<SetGroupDraft>) => void;
-  onRemove: () => void;
+  onRemoveBlock: () => void;
+  onRemoveExercise: (blockExerciseId: string) => void;
   disabled: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: block.id });
+    useSortable({ id: block.id, data: { type: "block", blockId: block.id } });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `block-drop-${block.id}`,
+  });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -569,26 +820,14 @@ function SortableBlockCard({
   };
 
   const [menuOpen, setMenuOpen] = useState(false);
-  /* The ⋮ menu surfaces "Edit fields" — which we route into the
-   * per-row popover by setting `forceFieldMenuOpen` on the editor. The
-   * editor exposes a ref-like state via this lifted boolean so the
-   * popover can be opened from outside its own button (the ⋮ menu
-   * lives on the card header, the popover anchor lives in the row).
-   * On flip back to false, the editor closes its popover normally. */
-  const [editFieldsForSgId, setEditFieldsForSgId] = useState<string | null>(null);
-
-  const be = block.template_block_exercises[0];
-  if (!be) return null;
-  const setGroups = [...be.template_set_groups].sort(
-    (a, b) => a.order_index - b.order_index,
-  );
+  const blockName = nameDraft ?? (block.name ?? block.round_label ?? "");
 
   return (
     <div ref={setNodeRef} style={style}>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
                 aria-label="drag to reorder"
@@ -611,23 +850,39 @@ function SortableBlockCard({
                   <circle cx="9" cy="13" r="1.4" />
                 </svg>
               </button>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-xs text-[color:var(--color-stone)]">
-                  exercise {String(index).padStart(2, "0")}
+                  workout section {String(index).padStart(2, "0")} · {block.template_block_exercises.length} exercise{block.template_block_exercises.length === 1 ? "" : "s"}
                 </p>
-                <CardTitle className="mt-1">
-                  {be.exercises?.name ?? "Exercise"}
-                </CardTitle>
+                <label className="mt-1.5 flex h-11 min-w-0 items-center gap-2 rounded-xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] px-3 transition-colors focus-within:border-[color:var(--color-ink)] focus-within:ring-2 focus-within:ring-[color:var(--color-ink)]/15">
+                  <span className="sr-only">workout section name</span>
+                  <input
+                    value={blockName}
+                    onChange={(e) => onNameChange(e.target.value.slice(0, 80))}
+                    disabled={disabled}
+                    placeholder={blockTitle(block, index)}
+                    className="min-w-0 flex-1 bg-transparent text-base font-semibold tracking-tight text-[color:var(--color-ink)] outline-none placeholder:text-[color:var(--color-ink)]/45 disabled:opacity-70 sm:text-lg"
+                    aria-label="workout section name"
+                  />
+                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--color-stone)]">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                      <path
+                        d="M7.8 1.8 10.2 4.2 4.7 9.7 2 10l.3-2.7 5.5-5.5Z"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    rename
+                  </span>
+                </label>
               </div>
             </div>
-            {/* ⋮ menu — single source of truth for per-exercise actions.
-              * Edit fields → opens the field popover on the first (or
-              * only) set group of this exercise. Remove exercise →
-              * confirms then deletes. */}
             <div className="relative">
               <button
                 type="button"
-                aria-label="exercise options"
+                aria-label="workout section options"
                 onClick={() => setMenuOpen((v) => !v)}
                 disabled={disabled}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)] hover:text-[color:var(--color-ink)] disabled:opacity-50"
@@ -653,22 +908,11 @@ function SortableBlockCard({
                       type="button"
                       onClick={() => {
                         setMenuOpen(false);
-                        const firstSg = setGroups[0];
-                        if (firstSg) setEditFieldsForSgId(firstSg.id);
-                      }}
-                      className="block w-full px-4 py-2.5 text-left text-sm text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
-                    >
-                      edit fields
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onRemove();
+                        onRemoveBlock();
                       }}
                       className="block w-full px-4 py-2.5 text-left text-sm text-[color:var(--color-sienna)] hover:bg-[color:var(--color-parchment)]"
                     >
-                      remove exercise
+                      remove section
                     </button>
                   </div>
                 </>
@@ -676,22 +920,172 @@ function SortableBlockCard({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {setGroups.map((sg) => (
-            <SetGroupEditor
-              key={sg.id}
-              setGroup={sg}
-              draft={drafts[sg.id] ?? {}}
-              onChange={(k, v) => onChange(sg.id, k, v)}
-              onChangeMany={(patch) => onChangeMany(sg.id, patch)}
-              forcePopoverOpen={editFieldsForSgId === sg.id}
-              onPopoverOpenChange={(open) =>
-                setEditFieldsForSgId(open ? sg.id : null)
-              }
-            />
-          ))}
+        <CardContent>
+          <div
+            ref={setDropRef}
+            className={`space-y-3 rounded-2xl border border-dashed px-3 py-3 transition-colors ${
+              isOver
+                ? "border-[color:var(--color-moss)] bg-[color:var(--color-parchment)]/45"
+                : "border-[color:var(--color-stone-soft)]/80"
+            }`}
+          >
+            {block.template_block_exercises.length === 0 ? (
+              <p className="px-2 py-6 text-center text-sm text-[color:var(--color-stone)]">
+                drop exercises into this section
+              </p>
+            ) : (
+              <SortableContext
+                items={block.template_block_exercises.map((be) => be.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {block.template_block_exercises.map((be, exerciseIndex) => (
+                  <SortableExercisePanel
+                    key={be.id}
+                    blockExercise={be}
+                    index={exerciseIndex + 1}
+                    drafts={drafts}
+                    onChange={onChange}
+                    onChangeMany={onChangeMany}
+                    onRemove={() => onRemoveExercise(be.id)}
+                    disabled={disabled}
+                  />
+                ))}
+              </SortableContext>
+            )}
+          </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SortableExercisePanel({
+  blockExercise,
+  index,
+  drafts,
+  onChange,
+  onChangeMany,
+  onRemove,
+  disabled,
+}: {
+  blockExercise: BlockExerciseRow;
+  index: number;
+  drafts: Record<string, Partial<SetGroupDraft>>;
+  onChange: <K extends keyof SetGroupDraft>(
+    setGroupId: string,
+    key: K,
+    value: SetGroupDraft[K],
+  ) => void;
+  onChangeMany: (setGroupId: string, patch: Partial<SetGroupDraft>) => void;
+  onRemove: () => void;
+  disabled: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({
+      id: blockExercise.id,
+      data: { type: "block-exercise", blockExerciseId: blockExercise.id },
+    });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+  };
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editFieldsForSgId, setEditFieldsForSgId] = useState<string | null>(null);
+  const setGroups = [...blockExercise.template_set_groups].sort(
+    (a, b) => a.order_index - b.order_index,
+  );
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="rounded-2xl border border-[color:var(--color-stone-soft)]/75 bg-[color:var(--color-canvas)] px-4 py-4"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <button
+            type="button"
+            aria-label="drag exercise"
+            {...attributes}
+            {...listeners}
+            className="mt-1 cursor-grab touch-none rounded-md p-1 text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)] active:cursor-grabbing"
+          >
+            <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden>
+              <circle cx="3" cy="3" r="1.4" />
+              <circle cx="9" cy="3" r="1.4" />
+              <circle cx="3" cy="8" r="1.4" />
+              <circle cx="9" cy="8" r="1.4" />
+              <circle cx="3" cy="13" r="1.4" />
+              <circle cx="9" cy="13" r="1.4" />
+            </svg>
+          </button>
+          <div className="min-w-0">
+            <p className="text-xs text-[color:var(--color-stone)]">
+              exercise {String(index).padStart(2, "0")}
+            </p>
+            <h3 className="mt-1 truncate text-base font-semibold text-[color:var(--color-ink)]">
+              {blockExercise.exercises?.name ?? "Exercise"}
+            </h3>
+          </div>
+        </div>
+        <div className="relative">
+          <button
+            type="button"
+            aria-label="exercise options"
+            onClick={() => setMenuOpen((v) => !v)}
+            disabled={disabled}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--color-stone)] hover:bg-[color:var(--color-parchment)] hover:text-[color:var(--color-ink)] disabled:opacity-50"
+          >
+            <svg width="4" height="16" viewBox="0 0 4 16" fill="currentColor" aria-hidden>
+              <circle cx="2" cy="2" r="1.6" />
+              <circle cx="2" cy="8" r="1.6" />
+              <circle cx="2" cy="14" r="1.6" />
+            </svg>
+          </button>
+          {menuOpen ? (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
+              <div className="absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-2xl border border-[color:var(--color-stone-soft)] bg-[color:var(--color-canvas)] shadow-lg shadow-black/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    const firstSg = setGroups[0];
+                    if (firstSg) setEditFieldsForSgId(firstSg.id);
+                  }}
+                  className="block w-full px-4 py-2.5 text-left text-sm text-[color:var(--color-ink)] hover:bg-[color:var(--color-parchment)]"
+                >
+                  edit fields
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onRemove();
+                  }}
+                  className="block w-full px-4 py-2.5 text-left text-sm text-[color:var(--color-sienna)] hover:bg-[color:var(--color-parchment)]"
+                >
+                  remove exercise
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 space-y-4">
+        {setGroups.map((sg) => (
+          <SetGroupEditor
+            key={sg.id}
+            setGroup={sg}
+            draft={drafts[sg.id] ?? {}}
+            onChange={(k, v) => onChange(sg.id, k, v)}
+            onChangeMany={(patch) => onChangeMany(sg.id, patch)}
+            forcePopoverOpen={editFieldsForSgId === sg.id}
+            onPopoverOpenChange={(open) => setEditFieldsForSgId(open ? sg.id : null)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
